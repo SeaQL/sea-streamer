@@ -45,7 +45,7 @@ Sweet, isn't it?
 
 ### Stream
 
-A stream consist of a series of messages with a timestamp, sequence number (known as offset in Kafka) and shard id (known as partition in Kafka).
+A stream (it's actually a topic in Kafka) consist of a series of messages with a timestamp, sequence number (known as offset in Kafka) and shard id (known as partition number in Kafka). A message is uniquely identified by the (shard id, sequence number) pair.
 
 The stream can be sought to a particular timestamp or sequence number.
 
@@ -53,4 +53,20 @@ Stream data has a retention period (how long before data will be deleted).
 
 ### Consumer
 
+A stream consumer subscribes to one or more streams and receive messages from one or more node in the cluster.
+
+According to the use case, there can be several consumption preferences:
+
+1. latest: we only care about latest messages and would be okay to miss old data
+2. repeat: we should process all messages, but wouldn't mind processing the same message more than once
+3. exactly once: each message must be processed and be processed exactly once
+
 ### Producer
+
+A stream producer send messages to a broker, and the broker would forward to a node in the cluster. There can be logic in how to shard a stream, but usually it's pseudo-random.
+
+According to the use case, there can be several durability requirements:
+
+1. fire and forget (at most once): basically no guarantee that a message will be persisted
+2. at least once: we would try to deliver the message only once, but might end up more than once upon network failure (basically we want to retry until we receive an ack)
+3. exactly once: basically the broker has to have a buffer to be able to remove duplicate messages, which means we cannot guarantee uniqueness across the entire stream, only a specific time window
