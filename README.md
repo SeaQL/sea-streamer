@@ -93,7 +93,7 @@ As a side effect, processors cannot have access to `random` and `time`, among ot
 
 The engine has to wrap and log these in reproducible ways.
 
-### Subscribers
+### Subscriber
 
 Finally, we also want to make it extremely simple to create realtime client-side applications.
 
@@ -102,3 +102,13 @@ For example, in a trading app, the prices of assets keep updating in real-time!
 These apps stream real-time data from server through web sockets, and so here is another Enterprise component: a web socket server that hosts many clients, and manage their stream subscriptions. i.e. one client can subscribe to multiple stream and sub/unsub dynamically as they wish.
 
 As such, the web socket server channels internal streams (Kafka / Redis) to the external world (websocket, or webhook if the stream is sparse).
+
+# Architecture
+
+First, we need to define the various interfaces for components mentioned above.
+
+We should generalize across Kafka and Redis and ship them as "streamers" and implement certain traits.
+
+We will provide a library with a high-level and ergonomic API that wraps the [Kafka Client](https://github.com/fede1024/rust-rdkafka). I tried the library, it works but the API is too raw.
+
+[redis-rs](https://docs.rs/redis/latest/redis/streams/) seems somewhat high-level (haven't tried it yet) and we should try and see its level of comfort.
