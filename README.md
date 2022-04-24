@@ -70,3 +70,35 @@ According to the use case, there can be several durability requirements:
 1. fire and forget (at most once): basically no guarantee that a message will be persisted
 2. at least once: we would try to deliver the message only once, but might end up more than once upon network failure (basically we want to retry until we receive an ack)
 3. exactly once: basically the broker has to have a buffer to be able to remove duplicate messages, which means we cannot guarantee uniqueness across the entire stream, only a specific time window
+
+### Processor
+
+A stream processor is a consumer and producer at the same time. In a nutshell, it consumes stream, transforms them (perform some computation) and produces another stream.
+
+We aim to make it extremely easy and flexible to create stream processors:
+
+Eventually we will have a stream processing engine as an Enterprise component that schedules (start/stop), manages (add/drop) stream processors.
+
+Using [pyo3](https://github.com/PyO3/pyo3), stream processors can be written in Python. This will be our 1st support target.
+
+### Controller
+
+Stream processors have states. A pure stream processor has its state determined deterministically by the stream input. This is a crucial property that a processor should uphold, and we expect to be able to reproduce a processor's output given the exact same input.
+
+A controller is responsible for feeding inputs to a stream processor and record the log e.g. "Feed steam topic "XX" shard "YY" offset 123 to 456 to processor "ZZZ"
+
+And so, if something goes wrong, we will be able to rewind and replay the processing and inspect the internal state to debug the exact problem.
+
+As a side effect, processors cannot have access to `random` and `time`, among other causes of non-determinism.
+
+The engine has to wrap and log these in reproducible ways.
+
+### Subscribers
+
+Finally, we also want to make it extremely simple to create realtime client-side applications.
+
+For example, in a trading app, the prices of assets keep updating in real-time!
+
+These apps stream real-time data from server through web sockets, and so here is another Enterprise component: a web socket server that hosts many clients, and manage their stream subscriptions. i.e. one client can subscribe to multiple stream and sub/unsub dynamically as they wish.
+
+As such, the web socket server channels internal streams (Kafka / Redis) to the external world (websocket, or webhook if the stream is sparse).
