@@ -111,4 +111,13 @@ We should generalize across Kafka and Redis and ship them as "streamers" and imp
 
 We will provide a library with a high-level and ergonomic API that wraps the [Kafka Client](https://github.com/fede1024/rust-rdkafka). I tried the library, it works but the API is too raw.
 
+For example, we definitely want something like:
+
+```rust
+let consumer = Broker::new("localhost:9092").create_consumer(ConsumerOptions::new().auto_reset_offset(false));
+// and there are shit tons of client options for Kafka
+```
+
 [redis-rs](https://docs.rs/redis/latest/redis/streams/) seems somewhat high-level (haven't tried it yet) and we should try and see its level of comfort.
+
+These client libraries should be useful on their own, but we definitely want to attract people into the SeaStreamer ecosystem.
