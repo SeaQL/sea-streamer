@@ -14,7 +14,7 @@ Similar to SeaORM, we will provide a Stream library which is high-level, abstrac
 
 Similar to SeaQuery, we will provide a generic driver library implementing the `Streamer` trait to support different backends.
 
-Similar to SeaSchema, we will also provide a programmable API for administration of brokers and clusters.
+Similar to SeaSchema, we will also provide a programmable API for administration of clusters.
 
 (But we may keep everything under the same repo for now)
 
@@ -24,7 +24,7 @@ Let me illustrate this extravagant concept:
 
 ```sh
 # we setup a `flux` which maps a unix file to a stream producer
-$ sea streamer flux ./producer --broker localhost:9092 --topic news &
+$ sea streamer flux ./producer --cluster localhost:9092 --topic news &
 # we want to stream the content of the Newline Delimited JSON file
 $ cat news.ndjson > producer
 # kill the process and then the ./producer file will be unlinked
@@ -34,7 +34,7 @@ $ kill %1
 Likewise, we can tap in a stream:
 
 ```sh
-$ sea streamer tap ./consumer --broker localhost:9092 --topic news &
+$ sea streamer tap ./consumer --cluster localhost:9092 --topic news &
 $ cat consumer > news.ndjson
 $ kill %1
 ```
@@ -63,13 +63,13 @@ According to the use case, there can be several consumption preferences:
 
 ### Producer
 
-A stream producer send messages to a broker, and the broker would forward to a node in the cluster. There can be logic in how to shard a stream, but usually it's pseudo-random.
+A stream producer send messages to a cluster, and the cluster would forward to a node in the cluster. There can be logic in how to shard a stream, but usually it's pseudo-random.
 
 According to the use case, there can be several durability requirements:
 
 1. fire and forget (at most once): basically no guarantee that a message will be persisted
 2. at least once: we would try to deliver the message only once, but might end up more than once upon network failure (basically we want to retry until we receive an ack)
-3. exactly once: basically the broker has to have a buffer to be able to remove duplicate messages, which means we cannot guarantee uniqueness across the entire stream, only a specific time window
+3. exactly once: basically the cluster has to have a buffer to be able to remove duplicate messages, which means we cannot guarantee uniqueness across the entire stream, only a specific time window
 
 ### Processor
 
@@ -103,6 +103,14 @@ These apps stream real-time data from server through web sockets, and so here is
 
 As such, the web socket server channels internal streams (Kafka / Redis) to the external world (websocket, or webhook if the stream is sparse).
 
+### Cluster
+
+The streaming server should be horizontally scalable: it can handle infinite number of stream, messages, producers and consumers as long as we have enough machines.
+
+A stream cluster provides a single `broker` interface that route / load balance clients and handle sharding.
+
+In a true distributed-system no-single-point-of-failure architecture, every individual node can act as a broker and they load balance among themselves, thus the cluster is the broker.
+
 # Architecture
 
 First, we need to define the various interfaces for components mentioned above.
@@ -114,10 +122,32 @@ We will provide a library with a high-level and ergonomic API that wraps the [Ka
 For example, we definitely want something like:
 
 ```rust
-let consumer = Broker::new("localhost:9092").create_consumer(ConsumerOptions::new().auto_reset_offset(false));
+let consumer = Cluster::new("localhost:9092").create_consumer(ConsumerOptions::new().auto_reset_offset(false));
 // and there are shit tons of client options for Kafka
 ```
 
 [redis-rs](https://docs.rs/redis/latest/redis/streams/) seems somewhat high-level (haven't tried it yet) and we should try and see its level of comfort.
 
 These client libraries should be useful on their own, but we definitely want to attract people into the SeaStreamer ecosystem.
+
+The goal of our backend agnostic streamer library is to be runtime-configurable: a given stream processor (does not have to be recompiled) can infer the protocol from the uri and dynamically talk to the respective cluster: e.g. `kafka://` `redis://` `websocket://` `file://`
+
+# Stream Monitoring
+
+One extremely useful stream utility is an over-the-top tool: the `htop` for streams.
+
+Something like https://github.com/provectus/kafka-ui exists (it's currently the best), but well, not too good.
+
+Here are some real time metrics we can show for a particular cluster:
+
+Total Throughput: in Bytes and number of messages per second/minute/hour
+
+Individual stream: the throughput, latest message & timestamp, sequence number (on each shard), number of shards, number of online producers & consumers
+
+And so we will be able to see at a glance which stream is bursting, which stream is stale.
+
+# Processing graph
+
+If we have the stream input-output schema defined somewhere, we will be able to reconstruct the topology of the entire stream processing graph.
+
+That's just for visualization purpose.
