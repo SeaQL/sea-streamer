@@ -153,3 +153,42 @@ And so we will be able to see at a glance which stream is bursting, which stream
 If we have the stream input-output schema defined somewhere, we will be able to reconstruct the topology of the entire stream processing graph.
 
 That's just for visualization purpose.
+
+# Interface
+
+## Producer
+
+The producer's interface should be very simple:
+
+```rust
+trait StreamProducer {
+    fn new(stream: &StreamId, config: ProducerConfig) -> Self;
+    fn send(message: Message);
+}
+```
+
+Sending a message should always be non-blocking, at least from an API standpoint. librdkafka actually has a packet buffer and a separate thread to handle the various broker communication and delivery guarantees.
+
+## Consumer
+
+Consumer is a lot more complex, because of the various consuming semantics:
+
+```rust
+trait StreamConsumer {
+    fn new(stream: &StreamId, config: ConsumerConfig) -> Self;
+    /// seek to an arbitrary point in time; start consuming the closest message
+    fn seek(to: DateTime);
+    /// assign this consumer to a particular shard, note that it will not be able to receive messages from other shards without re-assigning
+    fn assign(shard: ShardId, seq: SequenceNo);
+    /// poll and receive one message; this should be non-blocking
+    fn recv() -> Option<Message>;
+    /// poll and receive one message but this is blocking: it waits until there are new messages
+    fn next() -> Message;
+    /// returns an async stream
+    fn stream() -> AsyncStream;
+}
+```
+
+## Message
+
+We should support CSV (and variants), JSON, [MessagePack](https://msgpack.org/index.html) and Binary (raw bytes) package format.
