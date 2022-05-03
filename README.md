@@ -132,7 +132,9 @@ These client libraries should be useful on their own, but we definitely want to 
 
 The goal of our backend agnostic streamer library is to be runtime-configurable: a given stream processor (does not have to be recompiled) can infer the protocol from the uri and dynamically talk to the respective cluster: e.g. `kafka://` `redis://` `websocket://` `file://`
 
-# Stream Monitoring
+# Utilities
+
+## Stream Monitoring
 
 One extremely useful stream utility is an over-the-top tool: the `htop` for streams.
 
@@ -146,7 +148,7 @@ Individual stream: the throughput, latest message & timestamp, sequence number (
 
 And so we will be able to see at a glance which stream is bursting, which stream is stale.
 
-# Processing graph
+## Processing graph
 
 If we have the stream input-output schema defined somewhere, we will be able to reconstruct the topology of the entire stream processing graph.
 
