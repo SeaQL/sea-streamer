@@ -192,3 +192,7 @@ trait StreamConsumer {
 ## Message
 
 We should support CSV (and variants), JSON, [MessagePack](https://msgpack.org/index.html) and Binary (raw bytes) package format.
+
+## Reference
+
+https://mattwestcott.org/blog/redis-streams-vs-kafka
