@@ -1,6 +1,6 @@
 # SeaStreamer
 
-The universal stream processing toolkit
+The stream processing toolkit for Rust
 
 # Background
 
@@ -162,8 +162,12 @@ The producer's interface should be very simple:
 
 ```rust
 trait StreamProducer {
-    fn new(stream: &StreamId, config: ProducerConfig) -> Self;
+    /// Send a message to a particular stream
+    fn send_to(stream: &StreamKey, message: Message);
+    /// Send a message to the already anchored stream
     fn send(message: Message);
+    /// Anchor this producer to a particular stream
+    fn anchor(stream: StreamKey);
 }
 ```
 
@@ -171,19 +175,18 @@ Sending a message should always be non-blocking, at least from an API standpoint
 
 ## Consumer
 
-Consumer is a lot more complex, because of the various consuming semantics:
+Consumer is more complex, because of the various consuming semantics:
 
 ```rust
 trait StreamConsumer {
-    fn new(stream: &StreamId, config: ConsumerConfig) -> Self;
     /// seek to an arbitrary point in time; start consuming the closest message
     fn seek(to: DateTime);
-    /// assign this consumer to a particular shard, note that it will not be able to receive messages from other shards without re-assigning
-    fn assign(shard: ShardId, seq: SequenceNo);
-    /// poll and receive one message; this should be non-blocking
-    fn recv() -> Option<Message>;
-    /// poll and receive one message but this is blocking: it waits until there are new messages
-    fn next() -> Message;
+    /// rewind the stream to a particular sequence number
+    fn rewind(seq: SequenceNo);
+    /// assign this consumer to a particular shard
+    fn assign(shard: ShardId);
+    /// poll and receive one message: it waits until there are new messages
+    async fn next() -> Message;
     /// returns an async stream
     fn stream() -> AsyncStream;
 }

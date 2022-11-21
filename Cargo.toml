@@ -1,0 +1,29 @@
+[workspace]
+members = ["."]
+
+[package]
+name = "sea-streamer"
+version = "0.1.0"
+authors = ["Chris Tsang <chris.2y3@outlook.com>"]
+edition = "2021"
+description = "🌊 The stream processing toolkit for Rust"
+license = "MIT OR Apache-2.0"
+documentation = "https://docs.rs/sea-streamer"
+repository = "https://github.com/SeaQL/sea-streamer"
+categories = ["database"]
+# keywords = []
+rust-version = "1.60"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lib]
+name = "sea_streamer"
+path = "src/lib.rs"
+
+[dependencies]
+
+[dev-dependencies]
+
+[features]
