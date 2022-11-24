@@ -3,7 +3,7 @@
 
 //! <div align="center">
 //!
-//!   <img src="https://raw.githubusercontent.com/SeaQL/sea-streamer/master/docs/SeaQL logo dual.png" width="280"/>
+//!   <img src="https://raw.githubusercontent.com/SeaQL/sea-orm/master/docs/SeaQL logo dual.png" width="280"/>
 //!
 //!   <h1>SeaStreamer</h1>
 //!
@@ -26,3 +26,19 @@
 //! SeaStreamer also provide a set of tools to work with streams via unix file and pipe, so it is testable without setting up a cluster.
 //!
 //! The API is async, but the facade crate makes no assumption to the async runtime.
+
+mod cluster;
+mod consumer;
+mod error;
+mod message;
+mod options;
+mod producer;
+mod stream;
+
+pub use cluster::*;
+pub use consumer::*;
+pub use error::*;
+pub use message::*;
+pub use options::*;
+pub use producer::*;
+pub use stream::*;

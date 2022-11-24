@@ -162,12 +162,7 @@ The producer's interface should be very simple:
 
 ```rust
 trait StreamProducer {
-    /// Send a message to a particular stream
-    fn send_to(stream: &StreamKey, message: Message);
-    /// Send a message to the already anchored stream
     fn send(message: Message);
-    /// Anchor this producer to a particular stream
-    fn anchor(stream: StreamKey);
 }
 ```
 

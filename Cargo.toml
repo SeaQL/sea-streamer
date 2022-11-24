@@ -23,6 +23,11 @@ name = "sea_streamer"
 path = "src/lib.rs"
 
 [dependencies]
+async-trait = { version = "^0.1", default-features = false }
+futures = { version = "^0.3", default-features = false }
+thiserror = { version = "^1", default-features = false }
+time = { version = "^0.3", default-features = false }
+url = { version = "^2.2", default-features = false }
 
 [dev-dependencies]
 
