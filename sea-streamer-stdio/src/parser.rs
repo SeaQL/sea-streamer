@@ -1,7 +1,7 @@
 //! The SeaStreamer file format should be simple (like ndjson):
 //!
 //! ```json
-//! [timestamp | stream key | sequence] { "payload": "anything" }
+//! [timestamp | stream key | sequence | shard_id] { "payload": "anything" }
 //! ```
 //!
 //! The square brackets are literal `[]`.
@@ -12,8 +12,10 @@
 //! [2022-01-01T00:00:00] { "payload": "anything" }
 //! [2022-01-01T00:00:00 | my_topic] "A string payload"
 //! [2022-01-01T00:00:00 | my-topic-2 | 123] ["array", "of", "values"]
+//! [2022-01-01T00:00:00 | my-topic-2 | 123 | 4] { "payload": "anything" }
 //! [my_topic] "A string payload"
 //! [my_topic | 123] { "payload": "anything" }
+//! [my_topic | 123 | 4] { "payload": "anything" }
 //! ```
 //!
 //! The following are all invalid:
@@ -29,59 +31,69 @@ use nom::{
     sequence::delimited,
     IResult,
 };
-use sea_streamer::{export::DateTime, SequenceNo, StreamKey};
-use serde::de::DeserializeOwned;
+use sea_streamer::{SequenceNo, ShardId, StreamKey, Timestamp};
 pub use serde_json::Value as Json;
 use thiserror::Error;
-use time::macros::format_description;
+use time::{macros::format_description, PrimitiveDateTime};
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct MessageMeta {
-    timestamp: Option<DateTime>,
-    stream_key: Option<StreamKey>,
-    sequence: Option<SequenceNo>,
+pub struct PartialMeta {
+    pub timestamp: Option<Timestamp>,
+    pub stream_key: Option<StreamKey>,
+    pub sequence: Option<SequenceNo>,
+    pub shard_id: Option<ShardId>,
 }
 
 #[derive(Error, Debug)]
 pub enum ParseErr {
-    #[error("Empty MessageMeta")]
+    #[error("Empty PartialMeta")]
     Empty,
     #[error("Error parsing parens: {0}")]
     Nom(String),
-    #[error("Error parsing JSON: {0}")]
-    Json(String),
     #[error("Unknown part: {0}")]
     Unknown(String),
 }
 
-pub fn parse_msg_json<V: DeserializeOwned>(input: &str) -> Result<(MessageMeta, V), ParseErr> {
-    let (meta, payload) = parse_meta(input)?;
-    let json = serde_json::from_str(payload).map_err(|e| ParseErr::Json(e.to_string()))?;
-    Ok((meta, json))
-}
-
-pub fn parse_meta(input: &str) -> Result<(MessageMeta, &str), ParseErr> {
+pub fn parse_meta(input: &str) -> Result<(PartialMeta, &str), ParseErr> {
     let (o, raw) = parens(input).map_err(|e| ParseErr::Nom(e.to_string()))?;
     let parts = raw.split('|').map(|s| s.trim());
-    let mut meta = MessageMeta::default();
+    let mut meta = PartialMeta::default();
     for part in parts {
         let mut parsed = false;
-        if meta.timestamp.is_none() && meta.stream_key.is_none() && meta.sequence.is_none() {
+        if meta.timestamp.is_none()
+            && meta.stream_key.is_none()
+            && meta.sequence.is_none()
+            && meta.shard_id.is_none()
+        {
             let format = format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]");
-            if let Ok(timestamp) = DateTime::parse(part, &format) {
-                meta.timestamp = Some(timestamp);
+            if let Ok(timestamp) = PrimitiveDateTime::parse(part, &format) {
+                meta.timestamp = Some(timestamp.assume_utc());
                 parsed = true;
             }
         }
-        if meta.stream_key.is_none() && meta.sequence.is_none() {
+        if !parsed && meta.stream_key.is_none() {
             if let Ok(("", stream_key)) = parse_stream_key(part) {
                 meta.stream_key = Some(StreamKey::new(stream_key.to_owned()));
                 parsed = true;
             }
         }
-        if meta.sequence.is_none() {
+        if !parsed
+            && meta.stream_key.is_some()
+            && meta.sequence.is_none()
+            && meta.shard_id.is_none()
+        {
             if let Ok(sequence) = part.parse() {
                 meta.sequence = Some(sequence);
+                parsed = true;
+            }
+        }
+        if !parsed
+            && meta.stream_key.is_some()
+            && meta.sequence.is_some()
+            && meta.shard_id.is_none()
+        {
+            if let Ok(shard_id) = part.parse() {
+                meta.shard_id = Some(ShardId::new(shard_id));
                 parsed = true;
             }
         }
@@ -89,7 +101,11 @@ pub fn parse_meta(input: &str) -> Result<(MessageMeta, &str), ParseErr> {
             return Err(ParseErr::Unknown(part.to_string()));
         }
     }
-    if meta.timestamp.is_none() && meta.stream_key.is_none() && meta.sequence.is_none() {
+    if meta.timestamp.is_none()
+        && meta.stream_key.is_none()
+        && meta.sequence.is_none()
+        && meta.shard_id.is_none()
+    {
         return Err(ParseErr::Empty);
     }
     Ok((meta, o.trim()))
@@ -119,8 +135,8 @@ mod test {
         assert_eq!(
             parse_meta(r#"[2022-01-02T03:04:05] { "payload": "anything" }"#).unwrap(),
             (
-                MessageMeta {
-                    timestamp: Some(datetime!(2022-01-02 03:04:05)),
+                PartialMeta {
+                    timestamp: Some(datetime!(2022-01-02 03:04:05).assume_utc()),
                     ..Default::default()
                 },
                 r#"{ "payload": "anything" }"#
@@ -131,15 +147,16 @@ mod test {
     #[test]
     fn test_parse_meta_2() {
         assert_eq!(
-            parse_meta(r#"[2022-01-02T03:04:05 | my-fancy_topic.1] { "payload": "anything" }"#)
+            parse_meta(r#"[2022-01-02T03:04:05 | my-fancy_topic.1] ["array", "of", "values"]"#)
                 .unwrap(),
             (
-                MessageMeta {
-                    timestamp: Some(datetime!(2022-01-02 03:04:05)),
+                PartialMeta {
+                    timestamp: Some(datetime!(2022-01-02 03:04:05).assume_utc()),
                     stream_key: Some(StreamKey::new("my-fancy_topic.1".to_owned())),
                     sequence: None,
+                    shard_id: None,
                 },
-                r#"{ "payload": "anything" }"#
+                r#"["array", "of", "values"]"#
             )
         )
     }
@@ -152,10 +169,11 @@ mod test {
             )
             .unwrap(),
             (
-                MessageMeta {
-                    timestamp: Some(datetime!(2022-01-02 03:04:05)),
+                PartialMeta {
+                    timestamp: Some(datetime!(2022-01-02 03:04:05).assume_utc()),
                     stream_key: Some(StreamKey::new("my-fancy_topic.1".to_owned())),
                     sequence: Some(123),
+                    shard_id: None,
                 },
                 r#"{ "payload": "anything" }"#
             )
@@ -165,12 +183,16 @@ mod test {
     #[test]
     fn test_parse_meta_4() {
         assert_eq!(
-            parse_meta(r#"[my-fancy_topic.1] { "payload": "anything" }"#).unwrap(),
+            parse_meta(
+                r#"[2022-01-02T03:04:05 | my-fancy_topic.1 | 123 | 4] { "payload": "anything" }"#
+            )
+            .unwrap(),
             (
-                MessageMeta {
-                    timestamp: None,
+                PartialMeta {
+                    timestamp: Some(datetime!(2022-01-02 03:04:05).assume_utc()),
                     stream_key: Some(StreamKey::new("my-fancy_topic.1".to_owned())),
-                    sequence: None,
+                    sequence: Some(123),
+                    shard_id: Some(ShardId::new(4)),
                 },
                 r#"{ "payload": "anything" }"#
             )
@@ -180,12 +202,45 @@ mod test {
     #[test]
     fn test_parse_meta_5() {
         assert_eq!(
-            parse_meta(r#"[my-fancy_topic.1 | 123] { "payload": "anything" }"#).unwrap(),
+            parse_meta(r#"[my-fancy_topic.1] { "payload": "anything" }"#).unwrap(),
             (
-                MessageMeta {
+                PartialMeta {
+                    timestamp: None,
+                    stream_key: Some(StreamKey::new("my-fancy_topic.1".to_owned())),
+                    sequence: None,
+                    shard_id: None,
+                },
+                r#"{ "payload": "anything" }"#
+            )
+        )
+    }
+
+    #[test]
+    fn test_parse_meta_6() {
+        assert_eq!(
+            parse_meta(r#"[my-fancy_topic.1 | 123] ["array", "of", "values"]"#).unwrap(),
+            (
+                PartialMeta {
                     timestamp: None,
                     stream_key: Some(StreamKey::new("my-fancy_topic.1".to_owned())),
                     sequence: Some(123),
+                    shard_id: None,
+                },
+                r#"["array", "of", "values"]"#
+            )
+        )
+    }
+
+    #[test]
+    fn test_parse_meta_7() {
+        assert_eq!(
+            parse_meta(r#"[my-fancy_topic.1 | 123 | 4] { "payload": "anything" }"#).unwrap(),
+            (
+                PartialMeta {
+                    timestamp: None,
+                    stream_key: Some(StreamKey::new("my-fancy_topic.1".to_owned())),
+                    sequence: Some(123),
+                    shard_id: Some(ShardId::new(4)),
                 },
                 r#"{ "payload": "anything" }"#
             )
@@ -195,20 +250,5 @@ mod test {
     #[test]
     fn test_parse_meta_error_1() {
         assert!(matches!(parse_meta(r#"[ ]"#), Err(ParseErr::Unknown(_))))
-    }
-
-    #[test]
-    fn test_parse_1() {
-        assert_eq!(
-            parse_msg_json(r#"[my_topic] { "payload": "anything" }"#).unwrap(),
-            (
-                MessageMeta {
-                    timestamp: None,
-                    stream_key: Some(StreamKey::new("my_topic".to_owned())),
-                    sequence: None,
-                },
-                serde_json::from_str::<Json>(r#"{ "payload": "anything" }"#).unwrap()
-            )
-        )
     }
 }

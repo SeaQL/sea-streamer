@@ -1,7 +1,6 @@
-use crate::{Message, Result, SequenceNo, ShardId};
+use crate::{Message, Result, SequenceNo, ShardId, Timestamp};
 use async_trait::async_trait;
 use futures::Stream;
-use time::PrimitiveDateTime as DateTime;
 
 #[derive(Debug)]
 pub enum ConsumerMode {
@@ -32,10 +31,10 @@ pub trait ConsumerOptions: Clone + Send {
 
 #[async_trait]
 pub trait Consumer: Sized + Send + Sync {
-    type Stream: Stream<Item = Message>;
+    type Stream<'a>: Stream<Item = Message<'a>>;
 
     /// Seek to an arbitrary point in time; start consuming the closest message
-    fn seek(&self, to: DateTime) -> Result<()>;
+    fn seek(&self, to: Timestamp) -> Result<()>;
 
     /// Rewind the stream to a particular sequence number
     fn rewind(&self, seq: SequenceNo) -> Result<()>;
@@ -48,7 +47,7 @@ pub trait Consumer: Sized + Send + Sync {
     async fn next(&self) -> Result<Message>;
 
     /// Returns an async stream
-    fn stream(self) -> Result<Self::Stream>;
+    fn stream<'a>(self) -> Result<Self::Stream<'a>>;
 }
 
 impl ConsumerGroup {

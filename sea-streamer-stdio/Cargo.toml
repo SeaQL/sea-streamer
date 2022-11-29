@@ -16,14 +16,22 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-async-trait = { version = "^0.1", default-features = false }
+async-std = { version = "1", default-features = false, optional = true }
+async-trait = { version = "^0.1" }
+fastrand = { version = "^1.8" }
+flume = { version = "^0.10", default-features = false, features = ["async"] }
 nom = { version = "7" }
 sea-streamer = { version = "^0.1.0", path = ".." }
 serde = { version = "1" }
 serde_json = { version = "1" }
-thiserror = { version = "^1", default-features = false }
-time = { version = "^0.3", default-features = false, features = ["macros", "parsing"] }
+lazy_static = { version = "^1.4" }
+thiserror = { version = "1", default-features = false }
+time = { version = "^0.3", default-features = false, features = ["std", "macros", "parsing"] }
+tokio = { version = "1", default-features = false, optional = true }
 
 [dev-dependencies]
 
 [features]
+default = ["backend-tokio"]
+backend-async-std = ["async-std"]
+backend-tokio =  ["tokio/rt"]

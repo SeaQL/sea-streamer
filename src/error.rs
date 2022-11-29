@@ -1,10 +1,10 @@
 use thiserror::Error;
 
-pub(crate) type Result<T> = std::result::Result<T, StreamErr>;
+pub type StreamResult<T> = std::result::Result<T, StreamErr>;
 
 #[derive(Error, Debug)]
 pub enum StreamErr {
-    #[error("Cannot reach cluster")]
+    #[error("Cannot reach streamer")]
     ConnectionError,
     #[error("Producer has already been anchored")]
     AlreadyAnchored,
@@ -14,4 +14,6 @@ pub enum StreamErr {
     ConsumerGroupNotSet,
     #[error("Consumer has already been assigned")]
     AlreadyAssigned,
+    #[error("Internal error: {0}")]
+    Internal(Box<dyn std::error::Error>),
 }

@@ -23,24 +23,26 @@
 //!
 //! We provide integration for Kafka, Redpanda and Redis Stream behind a generic trait interface, so your program can be backend-agnostic.
 //!
-//! SeaStreamer also provide a set of tools to work with streams via unix file and pipe, so it is testable without setting up a cluster.
+//! SeaStreamer also provide a set of tools to work with streams via unix file and pipe, so it is testable without setting up a streamer.
 //!
 //! The API is async, but the facade crate makes no assumption to the async runtime.
 
-mod cluster;
 mod consumer;
 mod error;
 mod message;
 mod options;
 mod producer;
 mod stream;
+mod streamer;
 
-pub use cluster::*;
 pub use consumer::*;
 pub use error::*;
 pub use message::*;
 pub use options::*;
 pub use producer::*;
 pub use stream::*;
+pub use streamer::*;
 
 pub mod export;
+
+pub(crate) use StreamResult as Result;
