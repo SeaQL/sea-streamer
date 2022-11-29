@@ -42,3 +42,5 @@ pub use message::*;
 pub use options::*;
 pub use producer::*;
 pub use stream::*;
+
+pub mod export;

@@ -34,16 +34,21 @@ pub trait ConsumerOptions: Clone + Send {
 pub trait Consumer: Sized + Send + Sync {
     type Stream: Stream<Item = Message>;
 
-    /// seek to an arbitrary point in time; start consuming the closest message
-    fn seek(&self, to: DateTime);
-    /// rewind the stream to a particular sequence number
-    fn rewind(&self, seq: SequenceNo);
-    /// assign this consumer to a particular shard
-    fn assign(&self, shard: ShardId);
-    /// poll and receive one message: it waits until there are new messages
-    async fn next(&self) -> Message;
-    /// returns an async stream
-    fn stream(self) -> Self::Stream;
+    /// Seek to an arbitrary point in time; start consuming the closest message
+    fn seek(&self, to: DateTime) -> Result<()>;
+
+    /// Rewind the stream to a particular sequence number
+    fn rewind(&self, seq: SequenceNo) -> Result<()>;
+
+    /// Assign this consumer to a particular shard; This function can only be called once.
+    /// Subsequent calls should return [`AlreadyAssigned`] error.
+    fn assign(&self, shard: ShardId) -> Result<()>;
+
+    /// Poll and receive one message: it awaits until there are new messages
+    async fn next(&self) -> Result<Message>;
+
+    /// Returns an async stream
+    fn stream(self) -> Result<Self::Stream>;
 }
 
 impl ConsumerGroup {

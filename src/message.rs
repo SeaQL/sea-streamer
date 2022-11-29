@@ -1,6 +1,6 @@
 use std::str::Utf8Error;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Message {
     payload: Vec<u8>,
 }

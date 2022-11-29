@@ -1,12 +1,9 @@
-[workspace]
-members = [".", "sea-streamer-stdio"]
-
 [package]
-name = "sea-streamer"
+name = "sea-streamer-stdio"
 version = "0.1.0"
 authors = ["Chris Tsang <chris.2y3@outlook.com>"]
 edition = "2021"
-description = "🌊 The stream processing toolkit for Rust"
+description = "🌊 SeaStreamer standard I/O Backend"
 license = "MIT OR Apache-2.0"
 documentation = "https://docs.rs/sea-streamer"
 repository = "https://github.com/SeaQL/sea-streamer"
@@ -20,10 +17,12 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 async-trait = { version = "^0.1", default-features = false }
-futures = { version = "^0.3", default-features = false }
+nom = { version = "7" }
+sea-streamer = { version = "^0.1.0", path = ".." }
+serde = { version = "1" }
+serde_json = { version = "1" }
 thiserror = { version = "^1", default-features = false }
-time = { version = "^0.3", default-features = false }
-url = { version = "^2.2", default-features = false }
+time = { version = "^0.3", default-features = false, features = ["macros", "parsing"] }
 
 [dev-dependencies]
 
