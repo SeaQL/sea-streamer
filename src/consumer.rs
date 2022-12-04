@@ -31,7 +31,7 @@ pub trait ConsumerOptions: Clone + Send {
 
 #[async_trait]
 pub trait Consumer: Sized + Send + Sync {
-    type Stream<'a>: Stream<Item = Message<'a>>;
+    type Stream: Stream<Item = Result<Message>>;
 
     /// Seek to an arbitrary point in time; start consuming the closest message
     fn seek(&self, to: Timestamp) -> Result<()>;
@@ -47,7 +47,7 @@ pub trait Consumer: Sized + Send + Sync {
     async fn next(&self) -> Result<Message>;
 
     /// Returns an async stream
-    fn stream<'a>(self) -> Result<Self::Stream<'a>>;
+    fn stream(self) -> Self::Stream;
 }
 
 impl ConsumerGroup {

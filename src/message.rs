@@ -3,16 +3,15 @@ use std::{str::Utf8Error, sync::Arc};
 use crate::{SequenceNo, ShardId, StreamKey, Timestamp};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MessageFrame {
+pub struct Message {
     meta: MessageMeta,
     bytes: Arc<Vec<u8>>,
     offset: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Message<'a> {
-    meta: MessageMeta,
-    mess: &'a [u8],
+pub struct Payload<'a> {
+    bytes: &'a [u8],
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -25,9 +24,13 @@ pub struct MessageMeta {
 
 pub trait Sendable {
     fn as_bytes(&self) -> &[u8];
+
+    fn as_str(&self) -> Result<&str, Utf8Error> {
+        std::str::from_utf8(self.as_bytes())
+    }
 }
 
-impl MessageFrame {
+impl Message {
     pub fn new(meta: MessageMeta, bytes: Vec<u8>, offset: usize) -> Self {
         assert!(offset <= bytes.len());
         Self {
@@ -35,27 +38,6 @@ impl MessageFrame {
             bytes: Arc::new(bytes),
             offset,
         }
-    }
-
-    pub fn meta(&self) -> &MessageMeta {
-        &self.meta
-    }
-
-    pub fn message(&self) -> Message {
-        Message {
-            meta: self.meta.clone(),
-            mess: &self.bytes[self.offset..],
-        }
-    }
-}
-
-impl<'a> Message<'a> {
-    pub fn as_str(&self) -> Result<&str, Utf8Error> {
-        std::str::from_utf8(self.mess)
-    }
-
-    pub fn meta(&self) -> &MessageMeta {
-        &self.meta
     }
 
     pub fn stream_key(&self) -> &StreamKey {
@@ -72,6 +54,12 @@ impl<'a> Message<'a> {
 
     pub fn timestamp(&self) -> Timestamp {
         *self.meta.timestamp()
+    }
+
+    pub fn message(&self) -> Payload {
+        Payload {
+            bytes: &self.bytes[self.offset..],
+        }
     }
 }
 
@@ -107,9 +95,9 @@ impl MessageMeta {
     }
 }
 
-impl<'a> Sendable for Message<'a> {
+impl<'a> Sendable for Payload<'a> {
     fn as_bytes(&self) -> &[u8] {
-        self.mess
+        self.bytes
     }
 }
 

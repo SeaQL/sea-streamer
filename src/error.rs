@@ -1,3 +1,4 @@
+use std::str::Utf8Error;
 use thiserror::Error;
 
 pub type StreamResult<T> = std::result::Result<T, StreamErr>;
@@ -14,6 +15,8 @@ pub enum StreamErr {
     ConsumerGroupNotSet,
     #[error("Consumer has already been assigned")]
     AlreadyAssigned,
+    #[error("Utf8Error: {0}")]
+    Utf8Error(Utf8Error),
     #[error("Internal error: {0}")]
     Internal(Box<dyn std::error::Error>),
 }

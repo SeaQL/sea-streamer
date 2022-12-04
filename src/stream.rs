@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 pub use time::OffsetDateTime as Timestamp;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -29,5 +31,11 @@ impl ShardId {
 
     pub fn id(&self) -> u64 {
         self.id
+    }
+}
+
+impl Display for StreamKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name)
     }
 }

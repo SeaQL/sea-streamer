@@ -1,6 +1,8 @@
+use async_trait::async_trait;
 use flume::{unbounded, Receiver, Sender};
 use std::{
     collections::HashMap,
+    pin::Pin,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex,
@@ -8,7 +10,8 @@ use std::{
 };
 
 use sea_streamer::{
-    MessageFrame, MessageMeta, SequenceNo, ShardId, StreamErr, StreamKey, StreamResult, Timestamp,
+    export::futures::Stream, Consumer as ConsumerTrait, Message, MessageMeta, SequenceNo, ShardId,
+    StreamErr, StreamKey, StreamResult, Timestamp,
 };
 
 use crate::{
@@ -30,12 +33,12 @@ struct Consumers {
 #[derive(Debug)]
 pub struct ConsumerRelay {
     streams: Vec<StreamKey>,
-    sender: Sender<MessageFrame>,
+    sender: Sender<Message>,
 }
 
 pub struct Consumer {
     id: u64,
-    receiver: Receiver<MessageFrame>,
+    receiver: Receiver<Message>,
 }
 
 impl Consumers {
@@ -58,7 +61,6 @@ impl Consumers {
         );
     }
 
-    /// this does not need to be mut, but we want to enforce a mutex lock
     pub(crate) fn dispatch(&mut self, meta: PartialMeta, bytes: Vec<u8>, offset: usize) {
         let stream_key = meta
             .stream_key
@@ -77,7 +79,7 @@ impl Consumers {
             *entry = ret + 1;
             ret
         };
-        let message = MessageFrame::new(
+        let message = Message::new(
             MessageMeta::new(
                 stream_key,
                 shard_id,
@@ -109,6 +111,7 @@ pub(crate) fn init() {
         let flag = Arc::new(AtomicBool::new(true));
         let local_flag = flag.clone();
         std::thread::spawn(move || {
+            log::info!("stdin thread spawned");
             let _guard = PanicGuard;
             while local_flag.load(Ordering::Relaxed) {
                 let mut line = String::new();
@@ -124,6 +127,7 @@ pub(crate) fn init() {
                 let offset = remaining.as_ptr() as usize - line.as_ptr() as usize;
                 dispatch(meta, line.into_bytes(), offset);
             }
+            log::info!("stdin thread exit");
         });
         thread.replace(flag);
     }
@@ -135,7 +139,7 @@ pub(crate) fn dispatch(meta: PartialMeta, bytes: Vec<u8>, offset: usize) {
 }
 
 impl Consumer {
-    fn new() -> (Self, Sender<MessageFrame>) {
+    fn new() -> (Self, Sender<Message>) {
         let (sender, receiver) = unbounded();
         (
             Self {
@@ -155,10 +159,40 @@ impl Drop for Consumer {
 }
 
 impl Consumer {
-    pub(crate) async fn next(&self) -> StreamResult<MessageFrame> {
+    pub(crate) async fn next(&self) -> StreamResult<Message> {
         self.receiver
             .recv_async()
             .await
             .map_err(|e| StreamErr::Internal(Box::new(e)))
+    }
+}
+
+#[async_trait]
+impl ConsumerTrait for Consumer {
+    type Stream = Pin<Box<dyn Stream<Item = StreamResult<Message>>>>;
+
+    fn seek(&self, to: Timestamp) -> StreamResult<()> {
+        return Err(StreamErr::ConnectionError);
+    }
+
+    fn rewind(&self, seq: SequenceNo) -> StreamResult<()> {
+        return Err(StreamErr::ConnectionError);
+    }
+
+    fn assign(&self, shard: ShardId) -> StreamResult<()> {
+        return Err(StreamErr::ConnectionError);
+    }
+
+    async fn next(&self) -> StreamResult<Message> {
+        self.next().await
+    }
+
+    fn stream(self) -> Self::Stream {
+        Box::pin(async_stream::try_stream! {
+            loop {
+                let mess = self.next().await?;
+                yield mess;
+            }
+        })
     }
 }
