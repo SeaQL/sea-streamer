@@ -34,7 +34,10 @@ use nom::{
 use sea_streamer::{SequenceNo, ShardId, StreamKey, Timestamp};
 pub use serde_json::Value as Json;
 use thiserror::Error;
-use time::{macros::format_description, PrimitiveDateTime};
+use time::{format_description::FormatItem, macros::format_description, PrimitiveDateTime};
+
+pub const TIME_FORMAT: &[FormatItem<'static>] =
+    format_description!("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:6]");
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct PartialMeta {
@@ -65,8 +68,7 @@ pub fn parse_meta(input: &str) -> Result<(PartialMeta, &str), ParseErr> {
             && meta.sequence.is_none()
             && meta.shard_id.is_none()
         {
-            let format = format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]");
-            if let Ok(timestamp) = PrimitiveDateTime::parse(part, &format) {
+            if let Ok(timestamp) = PrimitiveDateTime::parse(part, &TIME_FORMAT) {
                 meta.timestamp = Some(timestamp.assume_utc());
                 parsed = true;
             }

@@ -36,14 +36,15 @@ pub struct ConsumerRelay {
     sender: Sender<Message>,
 }
 
-pub struct Consumer {
+#[derive(Debug)]
+pub struct StdioConsumer {
     id: u64,
     receiver: Receiver<Message>,
 }
 
 impl Consumers {
-    fn add(&mut self, streams: Vec<StreamKey>) -> Consumer {
-        let (con, sender) = Consumer::new();
+    fn add(&mut self, streams: Vec<StreamKey>) -> StdioConsumer {
+        let (con, sender) = StdioConsumer::new();
         assert!(
             self.consumers
                 .insert(con.id, ConsumerRelay { streams, sender })
@@ -56,7 +57,7 @@ impl Consumers {
     fn remove(&mut self, id: u64) {
         assert!(
             self.consumers.remove(&id).is_some(),
-            "Consumer with id {} does not exist",
+            "StdioConsumer with id {} does not exist",
             id
         );
     }
@@ -99,7 +100,7 @@ impl Consumers {
     }
 }
 
-pub fn create_consumer(streams: Vec<StreamKey>) -> Consumer {
+pub(crate) fn create_consumer(streams: Vec<StreamKey>) -> StdioConsumer {
     init();
     let mut consumers = CONSUMERS.lock().expect("Failed to lock Consumers");
     consumers.add(streams)
@@ -138,7 +139,7 @@ pub(crate) fn dispatch(meta: PartialMeta, bytes: Vec<u8>, offset: usize) {
     consumers.dispatch(meta, bytes, offset)
 }
 
-impl Consumer {
+impl StdioConsumer {
     fn new() -> (Self, Sender<Message>) {
         let (sender, receiver) = unbounded();
         (
@@ -151,14 +152,14 @@ impl Consumer {
     }
 }
 
-impl Drop for Consumer {
+impl Drop for StdioConsumer {
     fn drop(&mut self) {
         let mut consumers = CONSUMERS.lock().expect("Failed to lock Consumers");
         consumers.remove(self.id)
     }
 }
 
-impl Consumer {
+impl StdioConsumer {
     pub(crate) async fn next(&self) -> StreamResult<Message> {
         self.receiver
             .recv_async()
@@ -168,7 +169,7 @@ impl Consumer {
 }
 
 #[async_trait]
-impl ConsumerTrait for Consumer {
+impl ConsumerTrait for StdioConsumer {
     type Stream = Pin<Box<dyn Stream<Item = StreamResult<Message>>>>;
 
     fn seek(&self, to: Timestamp) -> StreamResult<()> {

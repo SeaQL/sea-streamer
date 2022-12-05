@@ -1,6 +1,6 @@
 use crate::{Result, Sendable, StreamKey};
 
-pub trait ProducerOptions: Clone + Send {}
+pub trait ProducerOptions: Default + Clone + Send {}
 
 pub trait Producer: Clone + Send + Sync {
     /// Send a message to a particular stream

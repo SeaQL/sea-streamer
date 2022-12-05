@@ -95,20 +95,14 @@ impl MessageMeta {
     }
 }
 
-impl<'a> Sendable for Payload<'a> {
+impl<'a> Sendable for &Payload<'a> {
     fn as_bytes(&self) -> &[u8] {
         self.bytes
     }
 }
 
-impl Sendable for Vec<u8> {
+impl<T: AsRef<str>> Sendable for T {
     fn as_bytes(&self) -> &[u8] {
-        self.as_slice()
-    }
-}
-
-impl Sendable for str {
-    fn as_bytes(&self) -> &[u8] {
-        self.as_bytes()
+        self.as_ref().as_bytes()
     }
 }

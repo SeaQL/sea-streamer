@@ -14,16 +14,16 @@ pub enum ConsumerMode {
     LoadBalanced,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ConsumerGroup {
     name: String,
 }
 
-pub trait ConsumerOptions: Clone + Send {
+pub trait ConsumerOptions: Default + Clone + Send {
     fn new(mode: ConsumerMode) -> Self;
 
     /// Get currently set consumer group; may return [`StreamErr::ConsumerGroupNotSet`].
-    fn consumer_group(&self) -> Result<ConsumerGroup>;
+    fn consumer_group(&self) -> Result<&ConsumerGroup>;
 
     /// Set consumer group for this consumer. Note the semantic is implementation-specific.
     fn set_consumer_group(&mut self, group_id: ConsumerGroup) -> Result<()>;

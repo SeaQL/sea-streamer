@@ -19,24 +19,30 @@ pub trait Streamer: Sized {
 
     async fn connect(streamer: StreamerUri, options: Self::ConnectOptions) -> Result<Self>;
 
-    fn create_generic_producer(options: Self::ProducerOptions) -> Result<Self::Producer>;
+    fn create_generic_producer(&self, options: Self::ProducerOptions) -> Result<Self::Producer>;
 
     async fn create_producer(
+        &self,
         stream: StreamKey,
         options: Self::ProducerOptions,
     ) -> Result<Self::Producer> {
-        let mut producer = Self::create_generic_producer(options)?;
+        let mut producer = self.create_generic_producer(options)?;
         producer.anchor(stream)?;
         Ok(producer)
     }
 
     async fn create_consumer(
+        &self,
         streams: &[StreamKey],
         options: Self::ConsumerOptions,
     ) -> Result<Self::Consumer>;
 }
 
 impl StreamerUri {
+    pub fn zero() -> Self {
+        Self { nodes: Vec::new() }
+    }
+
     pub fn one(url: Url) -> Self {
         Self { nodes: vec![url] }
     }

@@ -1,6 +1,8 @@
-use std::fmt::Display;
+use std::{fmt::Display, str::FromStr};
 
 pub use time::OffsetDateTime as Timestamp;
+
+use crate::StreamErr;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StreamKey {
@@ -37,5 +39,13 @@ impl ShardId {
 impl Display for StreamKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.name)
+    }
+}
+
+impl FromStr for StreamKey {
+    type Err = StreamErr;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(StreamKey::new(s.to_owned()))
     }
 }

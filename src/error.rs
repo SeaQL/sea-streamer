@@ -18,5 +18,5 @@ pub enum StreamErr {
     #[error("Utf8Error: {0}")]
     Utf8Error(Utf8Error),
     #[error("Internal error: {0}")]
-    Internal(Box<dyn std::error::Error>),
+    Internal(Box<dyn std::error::Error + Send + Sync>),
 }
