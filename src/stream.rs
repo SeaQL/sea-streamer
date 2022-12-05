@@ -4,6 +4,8 @@ pub use time::OffsetDateTime as Timestamp;
 
 use crate::StreamErr;
 
+pub const MAX_STREAM_KEY_LEN: usize = 249;
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StreamKey {
     name: String,
@@ -46,6 +48,15 @@ impl FromStr for StreamKey {
     type Err = StreamErr;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(StreamKey::new(s.to_owned()))
+        if s.len() <= MAX_STREAM_KEY_LEN && s.chars().all(is_valid_stream_key_char) {
+            Ok(StreamKey::new(s.to_owned()))
+        } else {
+            Err(StreamErr::InvalidStreamKey)
+        }
     }
+}
+
+pub fn is_valid_stream_key_char(c: char) -> bool {
+    // https://stackoverflow.com/questions/37062904/what-are-apache-kafka-topic-name-limitations
+    c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-')
 }

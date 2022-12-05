@@ -17,6 +17,8 @@ pub enum StreamErr {
     AlreadyAssigned,
     #[error("Utf8Error: {0}")]
     Utf8Error(Utf8Error),
+    #[error("Invalid stream key: valid pattern is [a-zA-Z0-9._-]{{1, 249}}")]
+    InvalidStreamKey,
     #[error("Internal error: {0}")]
     Internal(Box<dyn std::error::Error + Send + Sync>),
 }

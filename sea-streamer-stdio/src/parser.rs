@@ -31,7 +31,9 @@ use nom::{
     sequence::delimited,
     IResult,
 };
-use sea_streamer::{SequenceNo, ShardId, StreamKey, Timestamp};
+use sea_streamer::{
+    is_valid_stream_key_char, SequenceNo, ShardId, StreamKey, Timestamp, MAX_STREAM_KEY_LEN,
+};
 pub use serde_json::Value as Json;
 use thiserror::Error;
 use time::{format_description::FormatItem, macros::format_description, PrimitiveDateTime};
@@ -113,13 +115,8 @@ pub fn parse_meta(input: &str) -> Result<(PartialMeta, &str), ParseErr> {
     Ok((meta, o.trim()))
 }
 
-fn is_valid_stream_key_char(c: char) -> bool {
-    c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-')
-}
-
 fn parse_stream_key(input: &str) -> IResult<&str, &str> {
-    // https://stackoverflow.com/questions/37062904/what-are-apache-kafka-topic-name-limitations
-    take_while_m_n(1, 249, is_valid_stream_key_char)(input)
+    take_while_m_n(1, MAX_STREAM_KEY_LEN, is_valid_stream_key_char)(input)
 }
 
 fn parens(input: &str) -> IResult<&str, &str> {
