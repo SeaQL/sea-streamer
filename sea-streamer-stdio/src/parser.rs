@@ -34,7 +34,6 @@ use nom::{
 use sea_streamer::{
     is_valid_stream_key_char, SequenceNo, ShardId, StreamKey, Timestamp, MAX_STREAM_KEY_LEN,
 };
-pub use serde_json::Value as Json;
 use thiserror::Error;
 use time::{format_description::FormatItem, macros::format_description, PrimitiveDateTime};
 

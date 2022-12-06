@@ -106,3 +106,10 @@ impl<T: AsRef<str>> Sendable for T {
         self.as_ref().as_bytes()
     }
 }
+
+impl<'a> Payload<'a> {
+    #[cfg(feature = "json")]
+    pub fn deserialize_json<D: serde::de::DeserializeOwned>(&self) -> Result<D, crate::JsonErr> {
+        Ok(serde_json::from_str(self.as_str()?)?)
+    }
+}

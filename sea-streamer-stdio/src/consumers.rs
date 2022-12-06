@@ -172,16 +172,16 @@ impl StdioConsumer {
 impl ConsumerTrait for StdioConsumer {
     type Stream = Pin<Box<dyn Stream<Item = StreamResult<Message>>>>;
 
-    fn seek(&self, to: Timestamp) -> StreamResult<()> {
-        return Err(StreamErr::ConnectionError);
+    fn seek(&self, _: Timestamp) -> StreamResult<()> {
+        Err(StreamErr::Unsupported("StdioConsumer::seek".to_owned()))
     }
 
-    fn rewind(&self, seq: SequenceNo) -> StreamResult<()> {
-        return Err(StreamErr::ConnectionError);
+    fn rewind(&self, _: SequenceNo) -> StreamResult<()> {
+        Err(StreamErr::Unsupported("StdioConsumer::rewind".to_owned()))
     }
 
-    fn assign(&self, shard: ShardId) -> StreamResult<()> {
-        return Err(StreamErr::ConnectionError);
+    fn assign(&self, _: ShardId) -> StreamResult<()> {
+        Err(StreamErr::Unsupported("StdioConsumer::assign".to_owned()))
     }
 
     async fn next(&self) -> StreamResult<Message> {

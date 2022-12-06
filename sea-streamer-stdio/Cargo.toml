@@ -26,8 +26,7 @@ lazy_static = { version = "^1.4" }
 log = { version = "^0.4", default-features = false }
 nom = { version = "7" }
 sea-streamer = { version = "^0.1.0", path = ".." }
-serde = { version = "1" }
-serde_json = { version = "1" }
+serde_json = { version = "1", optional = true }
 structopt = { version = "^0.3", optional = true }
 thiserror = { version = "1", default-features = false }
 time = { version = "^0.3", default-features = false, features = ["std", "macros", "parsing", "formatting"] }
@@ -36,7 +35,8 @@ tokio = { version = "1.10.0", optional = true }
 [dev-dependencies]
 
 [features]
-executables = ["tokio/full", "env_logger", "structopt"]
+# default = ["executables"]
+executables = ["tokio/full", "env_logger", "structopt", "serde_json", "sea-streamer/json"]
 
 [[bin]]
 name = "relay"

@@ -19,9 +19,9 @@ fn parse_duration(src: &str) -> Result<Duration> {
         Ok(Duration::from_micros(s.parse()?))
     } else if let Some(s) = src.strip_suffix("ms") {
         Ok(Duration::from_millis(s.parse()?))
-    } else if let Some(s) = src.strip_suffix("s") {
+    } else if let Some(s) = src.strip_suffix('s') {
         Ok(Duration::from_secs(s.parse()?))
-    } else if let Some(s) = src.strip_suffix("m") {
+    } else if let Some(s) = src.strip_suffix('m') {
         Ok(Duration::from_secs(s.parse::<u64>()? * 60))
     } else {
         Err(anyhow!("Failed to parse {} as Duration", src))
@@ -31,6 +31,7 @@ fn parse_duration(src: &str) -> Result<Duration> {
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
+
     let Args {
         stream_key,
         interval,
@@ -40,10 +41,10 @@ async fn main() -> Result<()> {
     let producer = streamer
         .create_producer(stream_key, Default::default())
         .await?;
-    let mut tick: usize = 0;
+    let mut tick: u64 = 0;
 
     loop {
-        producer.send(format!(r#"{{ "tick": {tick} }}"#));
+        producer.send(format!(r#"{{ "tick": {tick} }}"#))?;
         tick += 1;
         tokio::time::sleep(interval).await;
     }
