@@ -21,6 +21,8 @@ pub enum StreamErr {
     InvalidStreamKey,
     #[error("Unsupported feature: {0}")]
     Unsupported(String),
+    #[error("IO error: {0}")]
+    IO(Box<dyn std::error::Error + Send + Sync>),
     #[error("Internal error: {0}")]
     Internal(Box<dyn std::error::Error + Send + Sync>),
 }

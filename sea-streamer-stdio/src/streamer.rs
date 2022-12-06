@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use std::time::Duration;
 
-use crate::{create_consumer, StdioConsumer, StdioProducer};
+use crate::{create_consumer, shutdown, StdioConsumer, StdioProducer};
 use sea_streamer::{
     ConnectOptions as ConnectOptionsTrait, ConsumerGroup, ConsumerMode,
     ConsumerOptions as ConsumerOptionsTrait, ProducerOptions as ProducerOptionsTrait, StreamErr,
@@ -33,6 +33,11 @@ impl StreamerTrait for StdioStreamer {
 
     async fn connect(_: StreamerUri, _: Self::ConnectOptions) -> StreamResult<Self> {
         Ok(StdioStreamer {})
+    }
+
+    fn disconnect(self) -> StreamResult<()> {
+        shutdown();
+        Ok(())
     }
 
     fn create_generic_producer(&self, _: Self::ProducerOptions) -> StreamResult<Self::Producer> {

@@ -19,6 +19,8 @@ pub trait Streamer: Sized {
 
     async fn connect(streamer: StreamerUri, options: Self::ConnectOptions) -> Result<Self>;
 
+    fn disconnect(self) -> Result<()>;
+
     fn create_generic_producer(&self, options: Self::ProducerOptions) -> Result<Self::Producer>;
 
     async fn create_producer(

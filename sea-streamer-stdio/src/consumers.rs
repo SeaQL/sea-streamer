@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use flume::{unbounded, Receiver, Sender};
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     pin::Pin,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -28,7 +28,7 @@ type Cid = u64;
 
 #[derive(Debug, Default)]
 struct Consumers {
-    consumers: HashMap<Cid, ConsumerRelay>,
+    consumers: BTreeMap<Cid, ConsumerRelay>,
     sequences: HashMap<(StreamKey, ShardId), SequenceNo>,
 }
 
@@ -47,19 +47,15 @@ pub struct StdioConsumer {
 
 impl Consumers {
     fn add(&mut self, group: Option<ConsumerGroup>, streams: Vec<StreamKey>) -> StdioConsumer {
-        let (con, sender) = StdioConsumer::new();
-        assert!(
-            self.consumers
-                .insert(
-                    con.id,
-                    ConsumerRelay {
-                        group,
-                        streams,
-                        sender
-                    }
-                )
-                .is_none(),
-            "Duplicate consumer id"
+        let id = self.consumers.len() as u64;
+        let (con, sender) = StdioConsumer::new(id);
+        self.consumers.insert(
+            id,
+            ConsumerRelay {
+                group,
+                streams,
+                sender,
+            },
         );
         con
     }
@@ -101,7 +97,7 @@ impl Consumers {
             offset,
         );
 
-        let mut groups: HashMap<ConsumerGroup, Vec<Cid>> = Default::default();
+        let mut groups: BTreeMap<ConsumerGroup, Vec<Cid>> = Default::default();
         for (cid, consumer) in self.consumers.iter() {
             if meta.stream_key.is_none()
                 || consumer.streams.contains(meta.stream_key.as_ref().unwrap())
@@ -161,8 +157,19 @@ pub(crate) fn init() {
                 dispatch(meta, line.into_bytes(), offset);
             }
             log::info!("stdin thread exit");
+            {
+                let mut thread = THREAD.lock().expect("Failed to lock thread");
+                thread.take(); // set to none
+            }
         });
         thread.replace(flag);
+    }
+}
+
+pub(crate) fn shutdown() {
+    let mut thread = THREAD.lock().expect("Failed to lock thread");
+    if let Some(flag) = thread.as_mut() {
+        flag.swap(false, Ordering::Relaxed);
     }
 }
 
@@ -172,15 +179,9 @@ pub(crate) fn dispatch(meta: PartialMeta, bytes: Vec<u8>, offset: usize) {
 }
 
 impl StdioConsumer {
-    fn new() -> (Self, Sender<Message>) {
+    fn new(id: Cid) -> (Self, Sender<Message>) {
         let (sender, receiver) = unbounded();
-        (
-            Self {
-                id: fastrand::u64(..),
-                receiver,
-            },
-            sender,
-        )
+        (Self { id, receiver }, sender)
     }
 }
 

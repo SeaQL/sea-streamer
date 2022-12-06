@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Mutex};
+use std::{collections::HashMap, io::Write, sync::Mutex};
 
 use sea_streamer::{
     Producer as ProducerTrait, Sendable, SequenceNo, StreamErr, StreamKey, StreamResult, Timestamp,
@@ -33,7 +33,10 @@ impl ProducerTrait for StdioProducer {
                 0
             }
         };
-        println!(
+        let stdout = std::io::stdout();
+        let mut stdout = stdout.lock();
+        writeln!(
+            stdout,
             "[{} | {} | {}] {}",
             Timestamp::now_utc()
                 .format(TIME_FORMAT)
@@ -41,7 +44,8 @@ impl ProducerTrait for StdioProducer {
             stream,
             seq,
             payload.as_str().map_err(StreamErr::Utf8Error)?,
-        );
+        )
+        .map_err(|e| StreamErr::IO(Box::new(e)))?;
         Ok(())
     }
 
