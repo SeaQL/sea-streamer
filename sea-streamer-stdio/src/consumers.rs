@@ -10,8 +10,8 @@ use std::{
 };
 
 use sea_streamer::{
-    export::futures::Stream, Consumer as ConsumerTrait, Message, MessageMeta, SequenceNo, ShardId,
-    StreamErr, StreamKey, StreamResult, Timestamp,
+    export::futures::Stream, Consumer as ConsumerTrait, ConsumerGroup, Message, MessageMeta,
+    SequenceNo, ShardId, StreamErr, StreamKey, StreamResult, Timestamp,
 };
 
 use crate::{
@@ -24,30 +24,40 @@ lazy_static::lazy_static! {
     static ref THREAD: Mutex<Option<Arc<AtomicBool>>> = Mutex::new(None);
 }
 
+type Cid = u64;
+
 #[derive(Debug, Default)]
 struct Consumers {
-    consumers: HashMap<u64, ConsumerRelay>,
+    consumers: HashMap<Cid, ConsumerRelay>,
     sequences: HashMap<(StreamKey, ShardId), SequenceNo>,
 }
 
 #[derive(Debug)]
-pub struct ConsumerRelay {
+struct ConsumerRelay {
+    group: Option<ConsumerGroup>,
     streams: Vec<StreamKey>,
     sender: Sender<Message>,
 }
 
 #[derive(Debug)]
 pub struct StdioConsumer {
-    id: u64,
+    id: Cid,
     receiver: Receiver<Message>,
 }
 
 impl Consumers {
-    fn add(&mut self, streams: Vec<StreamKey>) -> StdioConsumer {
+    fn add(&mut self, group: Option<ConsumerGroup>, streams: Vec<StreamKey>) -> StdioConsumer {
         let (con, sender) = StdioConsumer::new();
         assert!(
             self.consumers
-                .insert(con.id, ConsumerRelay { streams, sender })
+                .insert(
+                    con.id,
+                    ConsumerRelay {
+                        group,
+                        streams,
+                        sender
+                    }
+                )
                 .is_none(),
             "Duplicate consumer id"
         );
@@ -90,20 +100,42 @@ impl Consumers {
             bytes,
             offset,
         );
-        for consumer in self.consumers.values() {
+
+        let mut groups: HashMap<ConsumerGroup, Vec<Cid>> = Default::default();
+        for (cid, consumer) in self.consumers.iter() {
             if meta.stream_key.is_none()
                 || consumer.streams.contains(meta.stream_key.as_ref().unwrap())
             {
-                consumer.sender.send(message.clone()).ok();
+                match &consumer.group {
+                    Some(group) => {
+                        if let Some(vec) = groups.get_mut(group) {
+                            vec.push(*cid);
+                        } else {
+                            groups.insert(group.to_owned(), vec![*cid]);
+                        }
+                    }
+                    None => {
+                        consumer.sender.send(message.clone()).ok();
+                    }
+                }
             }
+        }
+
+        for ids in groups.values() {
+            let id = ids[message.sequence() as usize % ids.len()];
+            let consumer = self.consumers.get(&id).unwrap();
+            consumer.sender.send(message.clone()).ok();
         }
     }
 }
 
-pub(crate) fn create_consumer(streams: Vec<StreamKey>) -> StdioConsumer {
+pub(crate) fn create_consumer(
+    group: Option<ConsumerGroup>,
+    streams: Vec<StreamKey>,
+) -> StdioConsumer {
     init();
     let mut consumers = CONSUMERS.lock().expect("Failed to lock Consumers");
-    consumers.add(streams)
+    consumers.add(group, streams)
 }
 
 pub(crate) fn init() {

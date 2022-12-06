@@ -14,8 +14,9 @@ pub struct StdioStreamer {}
 #[derive(Debug, Default, Clone)]
 pub struct StdioConnectOptions {}
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct StdioConsumerOptions {
+    mode: ConsumerMode,
     group: Option<ConsumerGroup>,
 }
 
@@ -41,9 +42,14 @@ impl StreamerTrait for StdioStreamer {
     async fn create_consumer(
         &self,
         streams: &[StreamKey],
-        _: Self::ConsumerOptions,
+        options: Self::ConsumerOptions,
     ) -> StreamResult<Self::Consumer> {
-        Ok(create_consumer(streams.to_vec()))
+        if options.mode != ConsumerMode::RealTime {
+            return Err(StreamErr::Unsupported(
+                "stdio only supports RealTime".to_owned(),
+            ));
+        }
+        Ok(create_consumer(options.group, streams.to_vec()))
     }
 }
 
@@ -51,23 +57,32 @@ impl ConnectOptionsTrait for StdioConnectOptions {
     fn timeout(&self) -> StreamResult<Duration> {
         Ok(Duration::from_secs(0))
     }
+
+    /// This parameter is ignored because this should never fail
     fn set_timeout(&mut self, _: Duration) -> StreamResult<()> {
         Ok(())
     }
 }
 
 impl ConsumerOptionsTrait for StdioConsumerOptions {
-    fn new(_: ConsumerMode) -> Self {
-        Self { group: None }
+    fn new(mode: ConsumerMode) -> Self {
+        Self { mode, group: None }
     }
 
     fn consumer_group(&self) -> StreamResult<&ConsumerGroup> {
         self.group.as_ref().ok_or(StreamErr::ConsumerGroupNotSet)
     }
 
+    /// If multiple consumers shares the same group, only one in the group will receive a message
     fn set_consumer_group(&mut self, group: ConsumerGroup) -> StreamResult<()> {
         self.group = Some(group);
         Ok(())
+    }
+}
+
+impl Default for StdioConsumerOptions {
+    fn default() -> Self {
+        Self::new(ConsumerMode::RealTime)
     }
 }
 

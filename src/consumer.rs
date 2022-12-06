@@ -2,7 +2,7 @@ use crate::{Message, Result, SequenceNo, ShardId, Timestamp};
 use async_trait::async_trait;
 use futures::Stream;
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ConsumerMode {
     /// This is the 'vanilla' stream consumer. It does not commit, and only consumes messages from now on
     RealTime,
