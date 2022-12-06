@@ -1,8 +1,19 @@
+use std::{collections::HashMap, sync::Mutex};
+
 use sea_streamer::{
-    Producer as ProducerTrait, Sendable, StreamErr, StreamKey, StreamResult, Timestamp,
+    Producer as ProducerTrait, Sendable, SequenceNo, StreamErr, StreamKey, StreamResult, Timestamp,
 };
 
 use crate::parser::TIME_FORMAT;
+
+lazy_static::lazy_static! {
+    static ref PRODUCERS: Mutex<Producers> = Mutex::new(Default::default());
+}
+
+#[derive(Debug, Default)]
+struct Producers {
+    sequences: HashMap<StreamKey, SequenceNo>,
+}
 
 #[derive(Debug, Clone)]
 pub struct StdioProducer {
@@ -11,13 +22,25 @@ pub struct StdioProducer {
 
 impl ProducerTrait for StdioProducer {
     fn send_to<S: Sendable>(&self, stream: &StreamKey, payload: S) -> StreamResult<()> {
+        let seq = {
+            let mut producers = PRODUCERS.lock().expect("Failed to lock Producers");
+            if let Some(val) = producers.sequences.get_mut(stream) {
+                let seq = *val;
+                *val += 1;
+                seq
+            } else {
+                producers.sequences.insert(stream.to_owned(), 1);
+                0
+            }
+        };
         println!(
-            "[{} | {}] {}",
+            "[{} | {} | {}] {}",
             Timestamp::now_utc()
                 .format(TIME_FORMAT)
                 .expect("Timestamp format error"),
             stream,
-            payload.as_str().map_err(StreamErr::Utf8Error)?
+            seq,
+            payload.as_str().map_err(StreamErr::Utf8Error)?,
         );
         Ok(())
     }
