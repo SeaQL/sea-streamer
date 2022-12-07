@@ -43,7 +43,10 @@ impl StreamerTrait for StdioStreamer {
         Ok(())
     }
 
-    fn create_generic_producer(&self, _: Self::ProducerOptions) -> StreamResult<Self::Producer> {
+    async fn create_generic_producer(
+        &self,
+        _: Self::ProducerOptions,
+    ) -> StreamResult<Self::Producer> {
         Ok(StdioProducer::new())
     }
 

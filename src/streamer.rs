@@ -21,14 +21,17 @@ pub trait Streamer: Sized {
 
     async fn disconnect(self) -> Result<()>;
 
-    fn create_generic_producer(&self, options: Self::ProducerOptions) -> Result<Self::Producer>;
+    async fn create_generic_producer(
+        &self,
+        options: Self::ProducerOptions,
+    ) -> Result<Self::Producer>;
 
     async fn create_producer(
         &self,
         stream: StreamKey,
         options: Self::ProducerOptions,
     ) -> Result<Self::Producer> {
-        let mut producer = self.create_generic_producer(options)?;
+        let mut producer = self.create_generic_producer(options).await?;
         producer.anchor(stream)?;
         Ok(producer)
     }

@@ -1,5 +1,5 @@
 //! This is just to demonstrate and the more complex behaviour of the streamer
-//! 
+//!
 //! Should later put this under a test framework that can manage subprocesses
 //!
 //! ```
