@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "sea-streamer-stdio"]
+members = [".", "sea-streamer-stdio", "sea-streamer-runtime"]
 
 [package]
 name = "sea-streamer"

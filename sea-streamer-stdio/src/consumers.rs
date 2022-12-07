@@ -173,6 +173,11 @@ pub(crate) fn shutdown() {
     }
 }
 
+pub(crate) fn shutdown_already() -> bool {
+    let thread = THREAD.lock().expect("Failed to lock thread");
+    thread.is_none()
+}
+
 pub(crate) fn dispatch(meta: PartialMeta, bytes: Vec<u8>, offset: usize) {
     let mut consumers = CONSUMERS.lock().expect("Failed to lock Consumers");
     consumers.dispatch(meta, bytes, offset)

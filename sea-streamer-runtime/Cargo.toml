@@ -1,0 +1,26 @@
+[package]
+name = "sea-streamer-runtime"
+version = "0.1.0"
+authors = ["Chris Tsang <chris.2y3@outlook.com>"]
+edition = "2021"
+description = "🌊 SeaStreamer async runtime abstraction"
+license = "MIT OR Apache-2.0"
+documentation = "https://docs.rs/sea-streamer"
+repository = "https://github.com/SeaQL/sea-streamer"
+categories = ["database"]
+# keywords = []
+rust-version = "1.60"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+async-std  = { version = "^1.12", optional = true }
+tokio = { version = "^1.10", optional = true }
+
+[dev-dependencies]
+
+[features]
+runtime-async-std = ["async-std"]
+runtime-tokio = ["tokio"]
