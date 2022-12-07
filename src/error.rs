@@ -5,8 +5,6 @@ pub type StreamResult<T> = std::result::Result<T, StreamErr>;
 
 #[derive(Error, Debug)]
 pub enum StreamErr {
-    #[error("Cannot reach streamer")]
-    ConnectionError,
     #[error("Producer has already been anchored")]
     AlreadyAnchored,
     #[error("Producer has not yet been anchored")]
