@@ -32,6 +32,7 @@ struct Consumers {
     sequences: HashMap<(StreamKey, ShardId), SequenceNo>,
 }
 
+/// We use flume because it works on any async runtime. But actually we only wanted a SPSC queue.
 #[derive(Debug)]
 struct ConsumerRelay {
     group: Option<ConsumerGroup>,
@@ -76,7 +77,7 @@ impl Consumers {
         let shard_id = meta.shard_id.unwrap_or_default();
         let entry = self
             .sequences
-            .entry((stream_key.clone(), shard_id))
+            .entry((stream_key.clone(), shard_id)) // unfortunate we have to clone
             .or_default();
         let sequence = if let Some(sequence) = meta.sequence {
             *entry = sequence;
@@ -97,7 +98,9 @@ impl Consumers {
             offset,
         );
 
+        // We construct group membership on-the-fly so that consumers can join/leave a group anytime
         let mut groups: BTreeMap<ConsumerGroup, Vec<Cid>> = Default::default();
+
         for (cid, consumer) in self.consumers.iter() {
             if meta.stream_key.is_none()
                 || consumer.streams.contains(meta.stream_key.as_ref().unwrap())
@@ -118,6 +121,7 @@ impl Consumers {
         }
 
         for ids in groups.values() {
+            // This round-robin is deterministic
             let id = ids[message.sequence() as usize % ids.len()];
             let consumer = self.consumers.get(&id).unwrap();
             consumer.sender.send(message.clone()).ok();

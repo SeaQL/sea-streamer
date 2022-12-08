@@ -1,3 +1,5 @@
+> Before this repository is changed to `public`, the content of this repository is considered proprietary.
+
 # SeaStreamer
 
 The stream processing toolkit for Rust
