@@ -55,12 +55,24 @@ impl StreamerTrait for StdioStreamer {
         streams: &[StreamKey],
         options: Self::ConsumerOptions,
     ) -> StreamResult<Self::Consumer> {
-        if options.mode != ConsumerMode::RealTime {
-            return Err(StreamErr::Unsupported(
-                "stdio only supports RealTime".to_owned(),
-            ));
+        match options.mode {
+            ConsumerMode::RealTime => {
+                if options.group.is_some() {
+                    log::warn!("Consumer group is set and thus will be load-balanced.");
+                }
+                Ok(create_consumer(options.group, streams.to_vec()))
+            }
+            ConsumerMode::Resumable => Err(StreamErr::Unsupported(
+                "stdio does not support Resumable".to_owned(),
+            )),
+            ConsumerMode::LoadBalanced => {
+                if options.group.is_some() {
+                    Ok(create_consumer(options.group, streams.to_vec()))
+                } else {
+                    Err(StreamErr::ConsumerGroupNotSet)
+                }
+            }
         }
-        Ok(create_consumer(options.group, streams.to_vec()))
     }
 }
 
@@ -85,6 +97,7 @@ impl ConsumerOptionsTrait for StdioConsumerOptions {
     }
 
     /// If multiple consumers shares the same group, only one in the group will receive a message
+    /// This is load-balanced in a round-robin fashion
     fn set_consumer_group(&mut self, group: ConsumerGroup) -> StreamResult<()> {
         self.group = Some(group);
         Ok(())

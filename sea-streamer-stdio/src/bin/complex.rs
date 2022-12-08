@@ -50,7 +50,7 @@ async fn main() -> Result<()> {
     let Args { input, output } = Args::from_args();
 
     let streamer = StdioStreamer::connect(StreamerUri::zero(), Default::default()).await?;
-    let mut consumer_opt = StdioConsumerOptions::new(sea_streamer::ConsumerMode::RealTime);
+    let mut consumer_opt = StdioConsumerOptions::new(sea_streamer::ConsumerMode::LoadBalanced);
     consumer_opt.set_consumer_group(ConsumerGroup::new("abc".to_owned()))?;
     let producer = streamer.create_producer(output, Default::default()).await?;
 
