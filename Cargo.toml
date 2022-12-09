@@ -1,5 +1,10 @@
 [workspace]
-members = [".", "sea-streamer-stdio", "sea-streamer-runtime"]
+members = [
+    ".",
+    "sea-streamer-kafka",
+    "sea-streamer-runtime",
+    "sea-streamer-stdio",
+]
 
 [package]
 name = "sea-streamer"
