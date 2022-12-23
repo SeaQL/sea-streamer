@@ -1,6 +1,18 @@
-use rdkafka::config::ClientConfig;
-use sea_streamer::Timestamp;
+use async_trait::async_trait;
+pub use rdkafka::error::KafkaError;
+use rdkafka::{
+    config::ClientConfig,
+    consumer::{MessageStream as RawMessageStream, StreamConsumer as RawConsumer},
+    message::BorrowedMessage as RawMessage,
+    Message as KafkaMessageTrait,
+};
 use std::time::Duration;
+
+use sea_streamer::{
+    export::futures::{stream::Map as StreamMap, StreamExt},
+    Consumer as ConsumerTrait, Message, Payload, SequenceNo, ShardId, StreamErr, StreamKey,
+    StreamResult, Timestamp,
+};
 
 #[derive(Debug, Default, Clone)]
 pub struct ConsumerOption {
@@ -122,3 +134,89 @@ macro_rules! impl_into_string {
 
 impl_into_string!(OptionKey);
 impl_into_string!(AutoOffsetReset);
+
+pub struct KafkaConsumer {
+    inner: RawConsumer,
+}
+
+pub struct KafkaMessage<'a> {
+    stream_key: StreamKey,
+    mess: RawMessage<'a>,
+}
+
+impl std::fmt::Debug for KafkaConsumer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KafkaConsumer").finish()
+    }
+}
+
+#[async_trait]
+impl ConsumerTrait for KafkaConsumer {
+    type Message<'a> = KafkaMessage<'a>;
+    /// See, we don't actually have to Box this! Looking forward to `type_alias_impl_trait`
+    type Stream<'a> = StreamMap<
+        RawMessageStream<'a>,
+        fn(Result<RawMessage<'a>, KafkaError>) -> StreamResult<KafkaMessage<'a>>,
+    >;
+
+    fn seek(&self, _: Timestamp) -> StreamResult<()> {
+        Err(StreamErr::Unsupported("KafkaConsumer::seek".to_owned()))
+    }
+
+    fn rewind(&self, _: SequenceNo) -> StreamResult<()> {
+        Err(StreamErr::Unsupported("KafkaConsumer::rewind".to_owned()))
+    }
+
+    fn assign(&self, _: ShardId) -> StreamResult<()> {
+        Err(StreamErr::Unsupported("KafkaConsumer::assign".to_owned()))
+    }
+
+    async fn next<'a>(&'a self) -> StreamResult<Self::Message<'a>> {
+        Self::process(self.inner.recv().await)
+    }
+
+    fn stream<'a, 'b: 'a>(&'b self) -> Self::Stream<'a> {
+        self.inner.stream().map(Self::process)
+    }
+}
+
+impl KafkaConsumer {
+    fn process(res: Result<RawMessage, KafkaError>) -> StreamResult<KafkaMessage> {
+        match res {
+            Ok(mess) => {
+                let stream_key = StreamKey::new(mess.topic().to_owned());
+                Ok(KafkaMessage { stream_key, mess })
+            }
+            Err(err) => Err(StreamErr::Backend(Box::new(err))),
+        }
+    }
+}
+
+impl<'a> Message for KafkaMessage<'a> {
+    fn stream_key(&self) -> &StreamKey {
+        &self.stream_key
+    }
+
+    fn shard_id(&self) -> ShardId {
+        ShardId::new(self.mess.partition() as u64)
+    }
+
+    fn sequence(&self) -> SequenceNo {
+        self.mess.offset() as SequenceNo
+    }
+
+    fn timestamp(&self) -> Timestamp {
+        Timestamp::from_unix_timestamp_nanos(
+            self.mess
+                .timestamp()
+                .to_millis()
+                .expect("message.timestamp() is None") as i128
+                * 1_000_000,
+        )
+        .expect("from_unix_timestamp_nanos")
+    }
+
+    fn message(&self) -> Payload {
+        Payload::new(self.mess.payload().unwrap())
+    }
+}

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use sea_streamer::{Consumer, Producer, StreamKey, Streamer, StreamerUri};
+use sea_streamer::{Consumer, Message, Producer, StreamKey, Streamer, StreamerUri};
 use sea_streamer_stdio::StdioStreamer;
 use structopt::StructOpt;
 

@@ -16,6 +16,7 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
+async-trait = { version = "^0.1" }
 fastrand = { version = "^1.8" }
 rdkafka = { version = "^0.29", default-features = false, features = ["libz"] }
 sea-streamer = { version = "^0.1.0", path = ".." }

@@ -31,7 +31,12 @@ pub trait ConsumerOptions: Default + Clone + Send {
 
 #[async_trait]
 pub trait Consumer: Sized + Send + Sync {
-    type Stream: Stream<Item = Result<Message>>;
+    type Message<'a>: Message
+    where
+        Self: 'a;
+    type Stream<'a>: Stream<Item = Result<Self::Message<'a>>>
+    where
+        Self: 'a;
 
     /// Seek to an arbitrary point in time; start consuming the closest message
     fn seek(&self, to: Timestamp) -> Result<()>;
@@ -44,10 +49,10 @@ pub trait Consumer: Sized + Send + Sync {
     fn assign(&self, shard: ShardId) -> Result<()>;
 
     /// Poll and receive one message: it awaits until there are new messages
-    async fn next(&self) -> Result<Message>;
+    async fn next<'a>(&'a self) -> Result<Self::Message<'a>>;
 
-    /// Returns an async stream
-    fn stream(self) -> Self::Stream;
+    /// Returns an async stream. You should not create multiple streams from the same consumer
+    fn stream<'a, 'b: 'a>(&'b self) -> Self::Stream<'a>;
 }
 
 impl ConsumerGroup {

@@ -1,4 +1,4 @@
-use std::str::Utf8Error;
+use std::{any::Any, str::Utf8Error};
 use thiserror::Error;
 
 pub type StreamResult<T> = std::result::Result<T, StreamErr>;
@@ -21,8 +21,8 @@ pub enum StreamErr {
     Unsupported(String),
     #[error("IO error: {0}")]
     IO(Box<dyn std::error::Error + Send + Sync>),
-    #[error("Internal error: {0}")]
-    Internal(Box<dyn std::error::Error + Send + Sync>),
+    #[error("Backend error; please call reveal() to get the details")]
+    Backend(Box<dyn Any + Send + Sync>),
 }
 
 #[cfg(feature = "json")]
@@ -32,4 +32,13 @@ pub enum JsonErr {
     Utf8Error(#[from] std::str::Utf8Error),
     #[error("Producer has already been anchored")]
     SerdeJson(#[from] serde_json::Error),
+}
+
+impl StreamErr {
+    pub fn reveal<T: 'static>(&self) -> Option<&T> {
+        match self {
+            Self::Backend(real) => real.downcast_ref::<T>(),
+            _ => None,
+        }
+    }
 }

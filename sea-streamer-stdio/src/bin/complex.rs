@@ -30,7 +30,7 @@
 //! ```
 use anyhow::Result;
 use sea_streamer::{
-    Consumer, ConsumerGroup, ConsumerOptions, Producer, StreamKey, Streamer, StreamerUri,
+    Consumer, ConsumerGroup, ConsumerOptions, Message, Producer, StreamKey, Streamer, StreamerUri,
 };
 use sea_streamer_stdio::{StdioConsumerOptions, StdioStreamer};
 use structopt::StructOpt;

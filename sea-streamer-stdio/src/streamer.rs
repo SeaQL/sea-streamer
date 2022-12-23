@@ -31,10 +31,13 @@ impl StreamerTrait for StdioStreamer {
     type ConsumerOptions = StdioConsumerOptions;
     type ProducerOptions = StdioProducerOptions;
 
+    /// Nothing will happen until you create a producer/consumer
     async fn connect(_: StreamerUri, _: Self::ConnectOptions) -> StreamResult<Self> {
         Ok(StdioStreamer {})
     }
 
+    /// Call this method if you want to exit gracefully.
+    /// This waits asynchronously until the background thread exits.
     async fn disconnect(self) -> StreamResult<()> {
         shutdown();
         while !shutdown_already() {
@@ -50,6 +53,8 @@ impl StreamerTrait for StdioStreamer {
         Ok(StdioProducer::new())
     }
 
+    /// A background thread will be spawned to read stdin dedicatedly.
+    /// It is safe to spawn multiple consumers.
     async fn create_consumer(
         &self,
         streams: &[StreamKey],

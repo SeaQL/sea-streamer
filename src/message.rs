@@ -3,7 +3,7 @@ use std::{str::Utf8Error, sync::Arc};
 use crate::{SequenceNo, ShardId, StreamKey, Timestamp};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Message {
+pub struct SharedMessage {
     meta: MessageMeta,
     bytes: Arc<Vec<u8>>,
     offset: usize,
@@ -30,7 +30,19 @@ pub trait Sendable {
     }
 }
 
-impl Message {
+pub trait Message {
+    fn stream_key(&self) -> &StreamKey;
+
+    fn shard_id(&self) -> ShardId;
+
+    fn sequence(&self) -> SequenceNo;
+
+    fn timestamp(&self) -> Timestamp;
+
+    fn message(&self) -> Payload;
+}
+
+impl SharedMessage {
     pub fn new(meta: MessageMeta, bytes: Vec<u8>, offset: usize) -> Self {
         assert!(offset <= bytes.len());
         Self {
@@ -39,24 +51,26 @@ impl Message {
             offset,
         }
     }
+}
 
-    pub fn stream_key(&self) -> &StreamKey {
+impl Message for SharedMessage {
+    fn stream_key(&self) -> &StreamKey {
         self.meta.stream_key()
     }
 
-    pub fn shard_id(&self) -> ShardId {
+    fn shard_id(&self) -> ShardId {
         *self.meta.shard_id()
     }
 
-    pub fn sequence(&self) -> SequenceNo {
+    fn sequence(&self) -> SequenceNo {
         *self.meta.sequence()
     }
 
-    pub fn timestamp(&self) -> Timestamp {
+    fn timestamp(&self) -> Timestamp {
         *self.meta.timestamp()
     }
 
-    pub fn message(&self) -> Payload {
+    fn message(&self) -> Payload {
         Payload {
             bytes: &self.bytes[self.offset..],
         }
@@ -108,6 +122,10 @@ impl<T: AsRef<str>> Sendable for T {
 }
 
 impl<'a> Payload<'a> {
+    pub fn new(bytes: &'a [u8]) -> Self {
+        Self { bytes }
+    }
+
     #[cfg(feature = "json")]
     pub fn deserialize_json<D: serde::de::DeserializeOwned>(&self) -> Result<D, crate::JsonErr> {
         Ok(serde_json::from_str(self.as_str()?)?)

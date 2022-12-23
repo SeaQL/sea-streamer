@@ -1,8 +1,7 @@
 use async_trait::async_trait;
-use flume::{unbounded, Receiver, Sender};
+use flume::{r#async::RecvStream, unbounded, Receiver, Sender};
 use std::{
     collections::{BTreeMap, HashMap},
-    pin::Pin,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex,
@@ -10,13 +9,15 @@ use std::{
 };
 
 use sea_streamer::{
-    export::futures::Stream, Consumer as ConsumerTrait, ConsumerGroup, Message, MessageMeta,
-    SequenceNo, ShardId, StreamErr, StreamKey, StreamResult, Timestamp,
+    export::futures::{stream::Map as StreamMap, StreamExt},
+    Consumer as ConsumerTrait, ConsumerGroup, Message, MessageMeta, SequenceNo, ShardId,
+    SharedMessage, StreamErr, StreamKey, StreamResult, Timestamp,
 };
 
 use crate::{
     parser::{parse_meta, PartialMeta},
     util::PanicGuard,
+    StdioStreamErr,
 };
 
 lazy_static::lazy_static! {
@@ -37,13 +38,13 @@ struct Consumers {
 struct ConsumerRelay {
     group: Option<ConsumerGroup>,
     streams: Vec<StreamKey>,
-    sender: Sender<Message>,
+    sender: Sender<SharedMessage>,
 }
 
 #[derive(Debug)]
 pub struct StdioConsumer {
     id: Cid,
-    receiver: Receiver<Message>,
+    receiver: Receiver<SharedMessage>,
 }
 
 impl Consumers {
@@ -87,7 +88,7 @@ impl Consumers {
             *entry = ret + 1;
             ret
         };
-        let message = Message::new(
+        let message = SharedMessage::new(
             MessageMeta::new(
                 stream_key,
                 shard_id,
@@ -188,7 +189,7 @@ pub(crate) fn dispatch(meta: PartialMeta, bytes: Vec<u8>, offset: usize) {
 }
 
 impl StdioConsumer {
-    fn new(id: Cid) -> (Self, Sender<Message>) {
+    fn new(id: Cid) -> (Self, Sender<SharedMessage>) {
         let (sender, receiver) = unbounded();
         (Self { id, receiver }, sender)
     }
@@ -202,17 +203,20 @@ impl Drop for StdioConsumer {
 }
 
 impl StdioConsumer {
-    pub(crate) async fn next(&self) -> StreamResult<Message> {
+    pub(crate) async fn next(&self) -> StreamResult<SharedMessage> {
         self.receiver
             .recv_async()
             .await
-            .map_err(|e| StreamErr::Internal(Box::new(e)))
+            .map_err(|e| StreamErr::Backend(Box::new(StdioStreamErr::RecvError(e))))
     }
 }
 
 #[async_trait]
 impl ConsumerTrait for StdioConsumer {
-    type Stream = Pin<Box<dyn Stream<Item = StreamResult<Message>>>>;
+    type Message<'a> = SharedMessage;
+    /// See, we don't actually have to Box this! Looking forward to `type_alias_impl_trait`
+    type Stream<'a> =
+        StreamMap<RecvStream<'a, SharedMessage>, fn(SharedMessage) -> StreamResult<SharedMessage>>;
 
     fn seek(&self, _: Timestamp) -> StreamResult<()> {
         Err(StreamErr::Unsupported("StdioConsumer::seek".to_owned()))
@@ -226,16 +230,12 @@ impl ConsumerTrait for StdioConsumer {
         Err(StreamErr::Unsupported("StdioConsumer::assign".to_owned()))
     }
 
-    async fn next(&self) -> StreamResult<Message> {
+    /// Backend error can be casted to [`StdioStreamErr`] using [`GetStreamErr`]
+    async fn next<'a>(&'a self) -> StreamResult<Self::Message<'a>> {
         self.next().await
     }
 
-    fn stream(self) -> Self::Stream {
-        Box::pin(async_stream::try_stream! {
-            loop {
-                let mess = self.next().await?;
-                yield mess;
-            }
-        })
+    fn stream<'a, 'b: 'a>(&'b self) -> Self::Stream<'a> {
+        self.receiver.stream().map(Result::Ok)
     }
 }
