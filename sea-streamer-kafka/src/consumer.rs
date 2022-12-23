@@ -140,7 +140,6 @@ pub struct KafkaConsumer {
 }
 
 pub struct KafkaMessage<'a> {
-    stream_key: StreamKey,
     mess: RawMessage<'a>,
 }
 
@@ -183,18 +182,15 @@ impl ConsumerTrait for KafkaConsumer {
 impl KafkaConsumer {
     fn process(res: Result<RawMessage, KafkaError>) -> StreamResult<KafkaMessage> {
         match res {
-            Ok(mess) => {
-                let stream_key = StreamKey::new(mess.topic().to_owned());
-                Ok(KafkaMessage { stream_key, mess })
-            }
+            Ok(mess) => Ok(KafkaMessage { mess }),
             Err(err) => Err(StreamErr::Backend(Box::new(err))),
         }
     }
 }
 
 impl<'a> Message for KafkaMessage<'a> {
-    fn stream_key(&self) -> &StreamKey {
-        &self.stream_key
+    fn stream_key(&self) -> StreamKey {
+        StreamKey::new(self.mess.topic().to_owned())
     }
 
     fn shard_id(&self) -> ShardId {

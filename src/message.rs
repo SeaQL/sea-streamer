@@ -32,7 +32,7 @@ pub trait Sendable {
 }
 
 pub trait Message {
-    fn stream_key(&self) -> &StreamKey;
+    fn stream_key(&self) -> StreamKey;
 
     fn shard_id(&self) -> ShardId;
 
@@ -56,8 +56,8 @@ impl SharedMessage {
 }
 
 impl Message for SharedMessage {
-    fn stream_key(&self) -> &StreamKey {
-        self.meta.stream_key()
+    fn stream_key(&self) -> StreamKey {
+        self.meta.stream_key().to_owned()
     }
 
     fn shard_id(&self) -> ShardId {
