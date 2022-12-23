@@ -88,6 +88,7 @@ impl Consumers {
             *entry = ret + 1;
             ret
         };
+        let length = bytes.len() - offset;
         let message = SharedMessage::new(
             MessageMeta::new(
                 stream_key,
@@ -97,6 +98,7 @@ impl Consumers {
             ),
             bytes,
             offset,
+            length,
         );
 
         // We construct group membership on-the-fly so that consumers can join/leave a group anytime

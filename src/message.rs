@@ -6,7 +6,8 @@ use crate::{SequenceNo, ShardId, StreamKey, Timestamp};
 pub struct SharedMessage {
     meta: MessageMeta,
     bytes: Arc<Vec<u8>>,
-    offset: usize,
+    offset: u32,
+    length: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -43,12 +44,13 @@ pub trait Message {
 }
 
 impl SharedMessage {
-    pub fn new(meta: MessageMeta, bytes: Vec<u8>, offset: usize) -> Self {
+    pub fn new(meta: MessageMeta, bytes: Vec<u8>, offset: usize, length: usize) -> Self {
         assert!(offset <= bytes.len());
         Self {
             meta,
             bytes: Arc::new(bytes),
-            offset,
+            offset: offset as u32,
+            length: length as u32,
         }
     }
 }
@@ -72,7 +74,7 @@ impl Message for SharedMessage {
 
     fn message(&self) -> Payload {
         Payload {
-            bytes: &self.bytes[self.offset..],
+            bytes: &self.bytes[self.offset as usize..(self.offset + self.length) as usize],
         }
     }
 }
