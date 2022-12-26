@@ -5,10 +5,14 @@ pub type StreamResult<T> = std::result::Result<T, StreamErr>;
 
 #[derive(Error, Debug)]
 pub enum StreamErr {
+    #[error("Timeout has not yet been set")]
+    TimeoutNotSet,
     #[error("Producer has already been anchored")]
     AlreadyAnchored,
     #[error("Producer has not yet been anchored")]
     NotAnchored,
+    #[error("Consumer group is set; but not expected")]
+    ConsumerGroupIsSet,
     #[error("Consumer group has not yet been set")]
     ConsumerGroupNotSet,
     #[error("Consumer has already been assigned")]

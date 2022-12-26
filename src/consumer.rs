@@ -64,3 +64,9 @@ impl ConsumerGroup {
         &self.name
     }
 }
+
+impl Default for ConsumerMode {
+    fn default() -> Self {
+        Self::RealTime
+    }
+}

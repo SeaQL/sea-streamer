@@ -7,11 +7,11 @@ pub enum StdioStreamErr {
     RecvError(flume::RecvError),
 }
 
-pub trait GetStreamErr {
+pub trait GetStdioErr {
     fn get(&self) -> Option<&StdioStreamErr>;
 }
 
-impl GetStreamErr for StreamErr {
+impl GetStdioErr for StreamErr {
     fn get(&self) -> Option<&StdioStreamErr> {
         self.reveal()
     }

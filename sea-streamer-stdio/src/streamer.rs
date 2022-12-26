@@ -87,8 +87,8 @@ impl ConnectOptionsTrait for StdioConnectOptions {
     }
 
     /// This parameter is ignored because this should never fail
-    fn set_timeout(&mut self, _: Duration) -> StreamResult<()> {
-        Ok(())
+    fn set_timeout(&mut self, _: Duration) -> StreamResult<&mut Self> {
+        Ok(self)
     }
 }
 
