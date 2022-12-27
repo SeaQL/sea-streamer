@@ -90,6 +90,9 @@ impl Streamer for KafkaStreamer {
         streams: &[StreamKey],
         mut options: Self::ConsumerOptions,
     ) -> KafkaResult<Self::Consumer> {
+        if streams.is_empty() {
+            return Err(StreamErr::StreamKeyEmpty);
+        }
         match options.mode {
             ConsumerMode::RealTime => {
                 if options.group_id.is_some() {

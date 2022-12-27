@@ -15,6 +15,8 @@ pub enum StreamErr<E: std::error::Error> {
     ConsumerGroupIsSet,
     #[error("Consumer group has not yet been set")]
     ConsumerGroupNotSet,
+    #[error("Stream key set is empty")]
+    StreamKeyEmpty,
     #[error("Consumer has already been assigned")]
     AlreadyAssigned,
     #[error("Utf8Error: {0}")]

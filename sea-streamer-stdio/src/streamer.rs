@@ -64,6 +64,9 @@ impl StreamerTrait for StdioStreamer {
         streams: &[StreamKey],
         options: Self::ConsumerOptions,
     ) -> StdioResult<Self::Consumer> {
+        if streams.is_empty() {
+            return Err(StreamErr::StreamKeyEmpty);
+        }
         match options.mode {
             ConsumerMode::RealTime => {
                 if options.group.is_some() {
