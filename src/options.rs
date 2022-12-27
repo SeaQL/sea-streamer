@@ -1,7 +1,9 @@
-use crate::Result;
+use crate::StreamResult;
 use std::time::Duration;
 
 pub trait ConnectOptions: Default + Clone + Send {
-    fn timeout(&self) -> Result<Duration>;
-    fn set_timeout(&mut self, d: Duration) -> Result<&mut Self>;
+    type Error: std::error::Error;
+
+    fn timeout(&self) -> StreamResult<Duration, Self::Error>;
+    fn set_timeout(&mut self, d: Duration) -> StreamResult<&mut Self, Self::Error>;
 }

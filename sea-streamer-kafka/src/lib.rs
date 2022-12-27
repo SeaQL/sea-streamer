@@ -1,8 +1,12 @@
 mod consumer;
+mod error;
+mod host;
 mod producer;
 mod streamer;
 
 pub use consumer::*;
+pub use error::*;
+pub use host::*;
 pub use producer::*;
 pub use streamer::*;
 

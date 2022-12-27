@@ -44,5 +44,3 @@ pub use stream::*;
 pub use streamer::*;
 
 pub mod export;
-
-pub(crate) use StreamResult as Result;

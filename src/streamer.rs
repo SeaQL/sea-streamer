@@ -1,5 +1,5 @@
 use crate::{
-    ConnectOptions, Consumer, ConsumerOptions, Producer, ProducerOptions, Result, StreamKey,
+    ConnectOptions, Consumer, ConsumerOptions, Producer, ProducerOptions, StreamKey, StreamResult,
 };
 use async_trait::async_trait;
 use url::Url;
@@ -11,26 +11,30 @@ pub struct StreamerUri {
 
 #[async_trait]
 pub trait Streamer: Sized {
-    type Producer: Producer;
-    type Consumer: Consumer;
+    type Error: std::error::Error;
+    type Producer: Producer<Error = Self::Error>;
+    type Consumer: Consumer<Error = Self::Error>;
     type ConnectOptions: ConnectOptions;
     type ConsumerOptions: ConsumerOptions;
     type ProducerOptions: ProducerOptions;
 
-    async fn connect(streamer: StreamerUri, options: Self::ConnectOptions) -> Result<Self>;
+    async fn connect(
+        streamer: StreamerUri,
+        options: Self::ConnectOptions,
+    ) -> StreamResult<Self, Self::Error>;
 
-    async fn disconnect(self) -> Result<()>;
+    async fn disconnect(self) -> StreamResult<(), Self::Error>;
 
     async fn create_generic_producer(
         &self,
         options: Self::ProducerOptions,
-    ) -> Result<Self::Producer>;
+    ) -> StreamResult<Self::Producer, Self::Error>;
 
     async fn create_producer(
         &self,
         stream: StreamKey,
         options: Self::ProducerOptions,
-    ) -> Result<Self::Producer> {
+    ) -> StreamResult<Self::Producer, Self::Error> {
         let mut producer = self.create_generic_producer(options).await?;
         producer.anchor(stream)?;
         Ok(producer)
@@ -40,7 +44,7 @@ pub trait Streamer: Sized {
         &self,
         streams: &[StreamKey],
         options: Self::ConsumerOptions,
-    ) -> Result<Self::Consumer>;
+    ) -> StreamResult<Self::Consumer, Self::Error>;
 }
 
 impl StreamerUri {

@@ -1,18 +1,12 @@
-use sea_streamer::StreamErr;
+use sea_streamer::StreamResult;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum StdioStreamErr {
+pub enum StdioErr {
     #[error("Flume RecvError: {0}")]
     RecvError(flume::RecvError),
+    #[error("IO Error: {0}")]
+    IoError(std::io::Error),
 }
 
-pub trait GetStdioErr {
-    fn get(&self) -> Option<&StdioStreamErr>;
-}
-
-impl GetStdioErr for StreamErr {
-    fn get(&self) -> Option<&StdioStreamErr> {
-        self.reveal()
-    }
-}
+pub type StdioResult<T> = StreamResult<T, StdioErr>;

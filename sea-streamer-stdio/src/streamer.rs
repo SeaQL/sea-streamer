@@ -1,11 +1,14 @@
 use async_trait::async_trait;
 use std::time::Duration;
 
-use crate::{create_consumer, shutdown, shutdown_already, StdioConsumer, StdioProducer};
+use crate::{
+    create_consumer, shutdown, shutdown_already, StdioConsumer, StdioErr, StdioProducer,
+    StdioResult,
+};
 use sea_streamer::{
     ConnectOptions as ConnectOptionsTrait, ConsumerGroup, ConsumerMode,
     ConsumerOptions as ConsumerOptionsTrait, ProducerOptions as ProducerOptionsTrait, StreamErr,
-    StreamKey, StreamResult, Streamer as StreamerTrait, StreamerUri,
+    StreamKey, Streamer as StreamerTrait, StreamerUri,
 };
 
 #[derive(Debug, Default, Clone)]
@@ -25,6 +28,7 @@ pub struct StdioProducerOptions {}
 
 #[async_trait]
 impl StreamerTrait for StdioStreamer {
+    type Error = StdioErr;
     type Producer = StdioProducer;
     type Consumer = StdioConsumer;
     type ConnectOptions = StdioConnectOptions;
@@ -32,13 +36,13 @@ impl StreamerTrait for StdioStreamer {
     type ProducerOptions = StdioProducerOptions;
 
     /// Nothing will happen until you create a producer/consumer
-    async fn connect(_: StreamerUri, _: Self::ConnectOptions) -> StreamResult<Self> {
+    async fn connect(_: StreamerUri, _: Self::ConnectOptions) -> StdioResult<Self> {
         Ok(StdioStreamer {})
     }
 
     /// Call this method if you want to exit gracefully.
     /// This waits asynchronously until the background thread exits.
-    async fn disconnect(self) -> StreamResult<()> {
+    async fn disconnect(self) -> StdioResult<()> {
         shutdown();
         while !shutdown_already() {
             sea_streamer_runtime::sleep(Duration::from_millis(1)).await;
@@ -49,7 +53,7 @@ impl StreamerTrait for StdioStreamer {
     async fn create_generic_producer(
         &self,
         _: Self::ProducerOptions,
-    ) -> StreamResult<Self::Producer> {
+    ) -> StdioResult<Self::Producer> {
         Ok(StdioProducer::new())
     }
 
@@ -59,7 +63,7 @@ impl StreamerTrait for StdioStreamer {
         &self,
         streams: &[StreamKey],
         options: Self::ConsumerOptions,
-    ) -> StreamResult<Self::Consumer> {
+    ) -> StdioResult<Self::Consumer> {
         match options.mode {
             ConsumerMode::RealTime => {
                 if options.group.is_some() {
@@ -82,28 +86,32 @@ impl StreamerTrait for StdioStreamer {
 }
 
 impl ConnectOptionsTrait for StdioConnectOptions {
-    fn timeout(&self) -> StreamResult<Duration> {
+    type Error = StdioErr;
+
+    fn timeout(&self) -> StdioResult<Duration> {
         Ok(Duration::from_secs(0))
     }
 
     /// This parameter is ignored because this should never fail
-    fn set_timeout(&mut self, _: Duration) -> StreamResult<&mut Self> {
+    fn set_timeout(&mut self, _: Duration) -> StdioResult<&mut Self> {
         Ok(self)
     }
 }
 
 impl ConsumerOptionsTrait for StdioConsumerOptions {
+    type Error = StdioErr;
+
     fn new(mode: ConsumerMode) -> Self {
         Self { mode, group: None }
     }
 
-    fn consumer_group(&self) -> StreamResult<&ConsumerGroup> {
+    fn consumer_group(&self) -> StdioResult<&ConsumerGroup> {
         self.group.as_ref().ok_or(StreamErr::ConsumerGroupNotSet)
     }
 
     /// If multiple consumers shares the same group, only one in the group will receive a message
     /// This is load-balanced in a round-robin fashion
-    fn set_consumer_group(&mut self, group: ConsumerGroup) -> StreamResult<&mut Self> {
+    fn set_consumer_group(&mut self, group: ConsumerGroup) -> StdioResult<&mut Self> {
         self.group = Some(group);
         Ok(self)
     }

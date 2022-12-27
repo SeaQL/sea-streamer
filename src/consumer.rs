@@ -1,4 +1,4 @@
-use crate::{Message, Result, SequenceNo, ShardId, Timestamp};
+use crate::{Message, SequenceNo, ShardId, StreamResult, Timestamp};
 use async_trait::async_trait;
 use futures::Stream;
 
@@ -20,36 +20,43 @@ pub struct ConsumerGroup {
 }
 
 pub trait ConsumerOptions: Default + Clone + Send {
+    type Error: std::error::Error;
+
     fn new(mode: ConsumerMode) -> Self;
 
     /// Get currently set consumer group; may return [`StreamErr::ConsumerGroupNotSet`].
-    fn consumer_group(&self) -> Result<&ConsumerGroup>;
+    fn consumer_group(&self) -> StreamResult<&ConsumerGroup, Self::Error>;
 
     /// Set consumer group for this consumer. Note the semantic is implementation-specific.
-    fn set_consumer_group(&mut self, group_id: ConsumerGroup) -> Result<&mut Self>;
+    fn set_consumer_group(
+        &mut self,
+        group_id: ConsumerGroup,
+    ) -> StreamResult<&mut Self, Self::Error>;
 }
 
 #[async_trait]
 pub trait Consumer: Sized + Send + Sync {
+    type Error: std::error::Error;
+
     type Message<'a>: Message
     where
         Self: 'a;
-    type Stream<'a>: Stream<Item = Result<Self::Message<'a>>>
+    type Stream<'a>: Stream<Item = StreamResult<Self::Message<'a>, Self::Error>>
     where
         Self: 'a;
 
     /// Seek to an arbitrary point in time; start consuming the closest message
-    fn seek(&self, to: Timestamp) -> Result<()>;
+    fn seek(&self, to: Timestamp) -> StreamResult<(), Self::Error>;
 
     /// Rewind the stream to a particular sequence number
-    fn rewind(&self, seq: SequenceNo) -> Result<()>;
+    fn rewind(&self, seq: SequenceNo) -> StreamResult<(), Self::Error>;
 
     /// Assign this consumer to a particular shard; This function can only be called once.
     /// Subsequent calls should return [`AlreadyAssigned`] error.
-    fn assign(&self, shard: ShardId) -> Result<()>;
+    fn assign(&self, shard: ShardId) -> StreamResult<(), Self::Error>;
 
     /// Poll and receive one message: it awaits until there are new messages
-    async fn next<'a>(&'a self) -> Result<Self::Message<'a>>;
+    async fn next<'a>(&'a self) -> StreamResult<Self::Message<'a>, Self::Error>;
 
     /// Returns an async stream. You should not create multiple streams from the same consumer
     fn stream<'a, 'b: 'a>(&'b self) -> Self::Stream<'a>;

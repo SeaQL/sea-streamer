@@ -1,5 +1,5 @@
 use std::{fmt::Display, str::FromStr};
-
+use thiserror::Error;
 pub use time::OffsetDateTime as Timestamp;
 
 use crate::StreamErr;
@@ -44,8 +44,11 @@ impl Display for StreamKey {
     }
 }
 
+#[derive(Error, Debug)]
+pub enum NeverErr {}
+
 impl FromStr for StreamKey {
-    type Err = StreamErr;
+    type Err = StreamErr<NeverErr>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.len() <= MAX_STREAM_KEY_LEN && s.chars().all(is_valid_stream_key_char) {

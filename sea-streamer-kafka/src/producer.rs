@@ -1,4 +1,5 @@
-use sea_streamer::{Producer, ProducerOptions, Sendable, StreamKey, StreamResult};
+use crate::{KafkaErr, KafkaResult};
+use sea_streamer::{Producer, ProducerOptions, Sendable, StreamKey};
 
 #[derive(Debug, Clone)]
 pub struct KafkaProducer {
@@ -9,15 +10,17 @@ pub struct KafkaProducer {
 pub struct KafkaProducerOptions {}
 
 impl Producer for KafkaProducer {
-    fn send_to<S: Sendable>(&self, stream: &StreamKey, payload: S) -> StreamResult<()> {
+    type Error = KafkaErr;
+
+    fn send_to<S: Sendable>(&self, stream: &StreamKey, payload: S) -> KafkaResult<()> {
         unimplemented!()
     }
 
-    fn anchor(&mut self, stream: StreamKey) -> StreamResult<()> {
+    fn anchor(&mut self, stream: StreamKey) -> KafkaResult<()> {
         unimplemented!()
     }
 
-    fn anchored(&self) -> StreamResult<&StreamKey> {
+    fn anchored(&self) -> KafkaResult<&StreamKey> {
         unimplemented!()
     }
 }

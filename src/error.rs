@@ -1,10 +1,10 @@
-use std::{any::Any, str::Utf8Error};
+use std::str::Utf8Error;
 use thiserror::Error;
 
-pub type StreamResult<T> = std::result::Result<T, StreamErr>;
+pub type StreamResult<T, E> = std::result::Result<T, StreamErr<E>>;
 
 #[derive(Error, Debug)]
-pub enum StreamErr {
+pub enum StreamErr<E: std::error::Error> {
     #[error("Timeout has not yet been set")]
     TimeoutNotSet,
     #[error("Producer has already been anchored")]
@@ -23,10 +23,8 @@ pub enum StreamErr {
     InvalidStreamKey,
     #[error("Unsupported feature: {0}")]
     Unsupported(String),
-    #[error("IO error: {0}")]
-    IO(Box<dyn std::error::Error + Send + Sync>),
     #[error("Backend error; please call reveal() to get the details")]
-    Backend(Box<dyn Any + Send + Sync>),
+    Backend(E),
 }
 
 #[cfg(feature = "json")]
@@ -36,13 +34,4 @@ pub enum JsonErr {
     Utf8Error(#[from] std::str::Utf8Error),
     #[error("Producer has already been anchored")]
     SerdeJson(#[from] serde_json::Error),
-}
-
-impl StreamErr {
-    pub fn reveal<T: 'static>(&self) -> Option<&T> {
-        match self {
-            Self::Backend(real) => real.downcast_ref::<T>(),
-            _ => None,
-        }
-    }
 }

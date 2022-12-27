@@ -11,13 +11,13 @@ use std::{
 use sea_streamer::{
     export::futures::{stream::Map as StreamMap, StreamExt},
     Consumer as ConsumerTrait, ConsumerGroup, Message, MessageMeta, SequenceNo, ShardId,
-    SharedMessage, StreamErr, StreamKey, StreamResult, Timestamp,
+    SharedMessage, StreamErr, StreamKey, Timestamp,
 };
 
 use crate::{
     parser::{parse_meta, PartialMeta},
     util::PanicGuard,
-    StdioStreamErr,
+    StdioErr, StdioResult,
 };
 
 lazy_static::lazy_static! {
@@ -205,35 +205,36 @@ impl Drop for StdioConsumer {
 }
 
 impl StdioConsumer {
-    pub(crate) async fn next(&self) -> StreamResult<SharedMessage> {
+    pub(crate) async fn next(&self) -> StdioResult<SharedMessage> {
         self.receiver
             .recv_async()
             .await
-            .map_err(|e| StreamErr::Backend(Box::new(StdioStreamErr::RecvError(e))))
+            .map_err(|e| StreamErr::Backend(StdioErr::RecvError(e)))
     }
 }
 
 #[async_trait]
 impl ConsumerTrait for StdioConsumer {
+    type Error = StdioErr;
     type Message<'a> = SharedMessage;
     /// See, we don't actually have to Box this! Looking forward to `type_alias_impl_trait`
     type Stream<'a> =
-        StreamMap<RecvStream<'a, SharedMessage>, fn(SharedMessage) -> StreamResult<SharedMessage>>;
+        StreamMap<RecvStream<'a, SharedMessage>, fn(SharedMessage) -> StdioResult<SharedMessage>>;
 
-    fn seek(&self, _: Timestamp) -> StreamResult<()> {
+    fn seek(&self, _: Timestamp) -> StdioResult<()> {
         Err(StreamErr::Unsupported("StdioConsumer::seek".to_owned()))
     }
 
-    fn rewind(&self, _: SequenceNo) -> StreamResult<()> {
+    fn rewind(&self, _: SequenceNo) -> StdioResult<()> {
         Err(StreamErr::Unsupported("StdioConsumer::rewind".to_owned()))
     }
 
-    fn assign(&self, _: ShardId) -> StreamResult<()> {
+    fn assign(&self, _: ShardId) -> StdioResult<()> {
         Err(StreamErr::Unsupported("StdioConsumer::assign".to_owned()))
     }
 
-    /// Backend error can be casted to [`StdioStreamErr`] using [`GetStreamErr`]
-    async fn next<'a>(&'a self) -> StreamResult<Self::Message<'a>> {
+    /// Backend error can be casted to [`StdioErr`] using [`GetStreamErr`]
+    async fn next<'a>(&'a self) -> StdioResult<Self::Message<'a>> {
         self.next().await
     }
 

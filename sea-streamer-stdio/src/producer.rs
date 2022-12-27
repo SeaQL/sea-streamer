@@ -1,10 +1,10 @@
 use std::{collections::HashMap, io::Write, sync::Mutex};
 
 use sea_streamer::{
-    Producer as ProducerTrait, Sendable, SequenceNo, StreamErr, StreamKey, StreamResult, Timestamp,
+    Producer as ProducerTrait, Sendable, SequenceNo, StreamErr, StreamKey, Timestamp,
 };
 
-use crate::parser::TIME_FORMAT;
+use crate::{parser::TIME_FORMAT, StdioErr, StdioResult};
 
 lazy_static::lazy_static! {
     static ref PRODUCERS: Mutex<Producers> = Mutex::new(Default::default());
@@ -21,7 +21,9 @@ pub struct StdioProducer {
 }
 
 impl ProducerTrait for StdioProducer {
-    fn send_to<S: Sendable>(&self, stream: &StreamKey, payload: S) -> StreamResult<()> {
+    type Error = StdioErr;
+
+    fn send_to<S: Sendable>(&self, stream: &StreamKey, payload: S) -> StdioResult<()> {
         let seq = {
             let mut producers = PRODUCERS.lock().expect("Failed to lock Producers");
             if let Some(val) = producers.sequences.get_mut(stream) {
@@ -45,11 +47,11 @@ impl ProducerTrait for StdioProducer {
             seq,
             payload.as_str().map_err(StreamErr::Utf8Error)?,
         )
-        .map_err(|e| StreamErr::IO(Box::new(e)))?;
+        .map_err(|e| StreamErr::Backend(StdioErr::IoError(e)))?;
         Ok(())
     }
 
-    fn anchor(&mut self, stream: StreamKey) -> StreamResult<()> {
+    fn anchor(&mut self, stream: StreamKey) -> StdioResult<()> {
         if self.stream.is_none() {
             self.stream = Some(stream);
             Ok(())
@@ -58,7 +60,7 @@ impl ProducerTrait for StdioProducer {
         }
     }
 
-    fn anchored(&self) -> StreamResult<&StreamKey> {
+    fn anchored(&self) -> StdioResult<&StreamKey> {
         if let Some(stream) = &self.stream {
             Ok(stream)
         } else {

@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-pub use rdkafka::error::KafkaError;
 use rdkafka::{
     config::ClientConfig,
     consumer::{Consumer, MessageStream as RawMessageStream, StreamConsumer as RawConsumer},
@@ -11,10 +10,10 @@ use std::time::Duration;
 use sea_streamer::{
     export::futures::{stream::Map as StreamMap, StreamExt},
     Consumer as ConsumerTrait, ConsumerGroup, ConsumerMode, ConsumerOptions, Message, Payload,
-    SequenceNo, ShardId, StreamErr, StreamKey, StreamResult, StreamerUri, Timestamp,
+    SequenceNo, ShardId, StreamErr, StreamKey, StreamerUri, Timestamp,
 };
 
-use crate::{impl_into_string, KafkaConnectOptions};
+use crate::{impl_into_string, KafkaConnectOptions, KafkaErr, KafkaResult};
 
 pub struct KafkaConsumer {
     inner: RawConsumer,
@@ -56,16 +55,6 @@ pub enum AutoOffsetReset {
     NoReset,
 }
 
-pub trait GetKafkaErr {
-    fn get(&self) -> Option<&KafkaError>;
-}
-
-impl GetKafkaErr for StreamErr {
-    fn get(&self) -> Option<&KafkaError> {
-        self.reveal()
-    }
-}
-
 impl KafkaConsumerOptions {
     /// A unique string that identifies the consumer group this consumer belongs to.
     /// This property is required if the consumer uses either the group management functionality
@@ -103,7 +92,7 @@ impl KafkaConsumerOptions {
             // https://github.com/edenhill/librdkafka/issues/3261
             // librdkafka always require a group_id even when not joining a consumer group
             // But this is purely a client side issue
-            client_config.set(OptionKey::GroupId, random_id());
+            client_config.set(OptionKey::GroupId, "abcdefg");
         }
         if let Some(v) = self.session_timeout {
             client_config.set(OptionKey::SessionTimeout, format!("{}", v.as_millis()));
@@ -150,26 +139,27 @@ impl std::fmt::Debug for KafkaConsumer {
 
 #[async_trait]
 impl ConsumerTrait for KafkaConsumer {
+    type Error = KafkaErr;
     type Message<'a> = KafkaMessage<'a>;
     /// See, we don't actually have to Box this! Looking forward to `type_alias_impl_trait`
     type Stream<'a> = StreamMap<
         RawMessageStream<'a>,
-        fn(Result<RawMessage<'a>, KafkaError>) -> StreamResult<KafkaMessage<'a>>,
+        fn(Result<RawMessage<'a>, KafkaErr>) -> KafkaResult<KafkaMessage<'a>>,
     >;
 
-    fn seek(&self, _: Timestamp) -> StreamResult<()> {
+    fn seek(&self, _: Timestamp) -> KafkaResult<()> {
         Err(StreamErr::Unsupported("KafkaConsumer::seek".to_owned()))
     }
 
-    fn rewind(&self, _: SequenceNo) -> StreamResult<()> {
+    fn rewind(&self, _: SequenceNo) -> KafkaResult<()> {
         Err(StreamErr::Unsupported("KafkaConsumer::rewind".to_owned()))
     }
 
-    fn assign(&self, _: ShardId) -> StreamResult<()> {
+    fn assign(&self, _: ShardId) -> KafkaResult<()> {
         Err(StreamErr::Unsupported("KafkaConsumer::assign".to_owned()))
     }
 
-    async fn next<'a>(&'a self) -> StreamResult<Self::Message<'a>> {
+    async fn next<'a>(&'a self) -> KafkaResult<Self::Message<'a>> {
         Self::process(self.inner.recv().await)
     }
 
@@ -179,10 +169,10 @@ impl ConsumerTrait for KafkaConsumer {
 }
 
 impl KafkaConsumer {
-    fn process(res: Result<RawMessage, KafkaError>) -> StreamResult<KafkaMessage> {
+    fn process(res: Result<RawMessage, KafkaErr>) -> KafkaResult<KafkaMessage> {
         match res {
             Ok(mess) => Ok(KafkaMessage { mess }),
-            Err(err) => Err(StreamErr::Backend(Box::new(err))),
+            Err(err) => Err(StreamErr::Backend(err)),
         }
     }
 }
@@ -217,6 +207,8 @@ impl<'a> Message for KafkaMessage<'a> {
 }
 
 impl ConsumerOptions for KafkaConsumerOptions {
+    type Error = KafkaErr;
+
     fn new(mode: ConsumerMode) -> Self {
         KafkaConsumerOptions {
             mode,
@@ -224,7 +216,7 @@ impl ConsumerOptions for KafkaConsumerOptions {
         }
     }
 
-    fn consumer_group(&self) -> StreamResult<&ConsumerGroup> {
+    fn consumer_group(&self) -> KafkaResult<&ConsumerGroup> {
         self.group_id.as_ref().ok_or(StreamErr::ConsumerGroupNotSet)
     }
 
@@ -242,18 +234,10 @@ impl ConsumerOptions for KafkaConsumerOptions {
     /// However if the stream has only 1 partition, even if there are many consumers,
     /// these messages will only be received by the assigned consumer, and other consumers
     /// will be in stand-by mode, resulting in a hot-failover setup.
-    fn set_consumer_group(&mut self, group: ConsumerGroup) -> StreamResult<&mut Self> {
+    fn set_consumer_group(&mut self, group: ConsumerGroup) -> KafkaResult<&mut Self> {
         self.group_id = Some(group);
         Ok(self)
     }
-}
-
-// TODO remove this function and generate host specific ID with suffix
-pub(crate) fn random_id() -> String {
-    format!(
-        "{}",
-        Timestamp::now_utc().unix_timestamp() * 1000 + fastrand::i64(0..1000),
-    )
 }
 
 pub(crate) fn create_consumer(
@@ -261,7 +245,7 @@ pub(crate) fn create_consumer(
     base_options: &KafkaConnectOptions,
     options: &KafkaConsumerOptions,
     streams: Vec<StreamKey>,
-) -> Result<KafkaConsumer, KafkaError> {
+) -> Result<KafkaConsumer, KafkaErr> {
     let mut client_config = ClientConfig::new();
     client_config.set(OptionKey::BootstrapServers, streamer.nodes[0].as_str());
     base_options.make_client_config(&mut client_config);

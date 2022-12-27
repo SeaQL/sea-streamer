@@ -1,7 +1,7 @@
 use anyhow::Result;
 use sea_streamer::{
-    Consumer, ConsumerGroup, ConsumerMode, ConsumerOptions, Message, Sendable, StreamKey, Streamer,
-    StreamerUri,
+    Consumer, ConsumerGroup, ConsumerMode, ConsumerOptions, Message, Sendable, StreamErr,
+    StreamKey, Streamer, StreamerUri,
 };
 use sea_streamer_kafka::{AutoOffsetReset, KafkaConsumerOptions, KafkaStreamer};
 use structopt::StructOpt;
@@ -26,7 +26,6 @@ async fn main() -> Result<()> {
     let mut options = KafkaConsumerOptions::new(ConsumerMode::RealTime);
     options.set_auto_offset_reset(AutoOffsetReset::Earliest);
     let consumer = streamer.create_consumer(&[input], options).await?;
-    println!("Ready");
 
     loop {
         let mess = consumer.next().await?;
