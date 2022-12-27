@@ -111,7 +111,7 @@ impl MessageMeta {
     }
 }
 
-impl<'a> Sendable for &Payload<'a> {
+impl<'a> Sendable for Payload<'a> {
     fn as_bytes(&self) -> &[u8] {
         self.bytes
     }

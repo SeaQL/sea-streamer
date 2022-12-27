@@ -4,7 +4,7 @@ use crate::{
 use async_trait::async_trait;
 use url::Url;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StreamerUri {
     pub nodes: Vec<Url>,
 }
@@ -50,5 +50,11 @@ impl StreamerUri {
 
     pub fn one(url: Url) -> Self {
         Self { nodes: vec![url] }
+    }
+
+    pub fn many(urls: impl Iterator<Item = Url>) -> Self {
+        Self {
+            nodes: urls.collect(),
+        }
     }
 }

@@ -12,8 +12,9 @@ use crate::{
     KafkaConsumerOptions, KafkaProducer, KafkaProducerOptions,
 };
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct KafkaStreamer {
+    uri: StreamerUri,
     options: KafkaConnectOptions,
 }
 
@@ -66,8 +67,8 @@ impl Streamer for KafkaStreamer {
     type ProducerOptions = KafkaProducerOptions;
 
     /// Nothing will happen until you create a producer/consumer
-    async fn connect(_: StreamerUri, options: Self::ConnectOptions) -> StreamResult<Self> {
-        Ok(KafkaStreamer { options })
+    async fn connect(uri: StreamerUri, options: Self::ConnectOptions) -> StreamResult<Self> {
+        Ok(KafkaStreamer { uri, options })
     }
 
     /// It will flush all producers
@@ -92,10 +93,16 @@ impl Streamer for KafkaStreamer {
                 if options.group_id.is_some() {
                     return Err(StreamErr::ConsumerGroupIsSet);
                 }
-                options.set_auto_offset_reset(AutoOffsetReset::Latest);
                 options.set_group_id(ConsumerGroup::new(random_id()));
+                options.set_enable_auto_commit(false);
             }
-            ConsumerMode::Resumable => todo!(),
+            ConsumerMode::Resumable => {
+                if options.group_id.is_some() {
+                    return Err(StreamErr::ConsumerGroupIsSet);
+                }
+                options.set_group_id(ConsumerGroup::new(random_id()));
+                options.set_enable_auto_commit(true);
+            }
             ConsumerMode::LoadBalanced => {
                 if options.group_id.is_none() {
                     return Err(StreamErr::ConsumerGroupNotSet);
@@ -103,7 +110,9 @@ impl Streamer for KafkaStreamer {
             }
         }
 
-        Ok(create_consumer(&self.options, &options, streams.to_vec())
-            .map_err(|e| StreamErr::Backend(Box::new(e)))?)
+        Ok(
+            create_consumer(&self.uri, &self.options, &options, streams.to_vec())
+                .map_err(|e| StreamErr::Backend(Box::new(e)))?,
+        )
     }
 }

@@ -4,7 +4,7 @@ use futures::Stream;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ConsumerMode {
-    /// This is the 'vanilla' stream consumer. It does not commit, and only consumes messages from now on
+    /// This is the 'vanilla' stream consumer. It does not auto-commit, and thus only consumes messages from now on
     RealTime,
     /// When the process restarts, it will resume the stream from the previous committed sequence.
     /// It will use a consumer id unique to this host: on a physical machine, it will use the mac address.
@@ -26,7 +26,7 @@ pub trait ConsumerOptions: Default + Clone + Send {
     fn consumer_group(&self) -> Result<&ConsumerGroup>;
 
     /// Set consumer group for this consumer. Note the semantic is implementation-specific.
-    fn set_consumer_group(&mut self, group_id: ConsumerGroup) -> Result<()>;
+    fn set_consumer_group(&mut self, group_id: ConsumerGroup) -> Result<&mut Self>;
 }
 
 #[async_trait]

@@ -103,9 +103,9 @@ impl ConsumerOptionsTrait for StdioConsumerOptions {
 
     /// If multiple consumers shares the same group, only one in the group will receive a message
     /// This is load-balanced in a round-robin fashion
-    fn set_consumer_group(&mut self, group: ConsumerGroup) -> StreamResult<()> {
+    fn set_consumer_group(&mut self, group: ConsumerGroup) -> StreamResult<&mut Self> {
         self.group = Some(group);
-        Ok(())
+        Ok(self)
     }
 }
 

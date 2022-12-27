@@ -11,7 +11,7 @@ use std::time::Duration;
 use sea_streamer::{
     export::futures::{stream::Map as StreamMap, StreamExt},
     Consumer as ConsumerTrait, ConsumerGroup, ConsumerMode, ConsumerOptions, Message, Payload,
-    SequenceNo, ShardId, StreamErr, StreamKey, StreamResult, Timestamp,
+    SequenceNo, ShardId, StreamErr, StreamKey, StreamResult, StreamerUri, Timestamp,
 };
 
 use crate::{impl_into_string, KafkaConnectOptions};
@@ -242,12 +242,13 @@ impl ConsumerOptions for KafkaConsumerOptions {
     /// However if the stream has only 1 partition, even if there are many consumers,
     /// these messages will only be received by the assigned consumer, and other consumers
     /// will be in stand-by mode, resulting in a hot-failover setup.
-    fn set_consumer_group(&mut self, group: ConsumerGroup) -> StreamResult<()> {
+    fn set_consumer_group(&mut self, group: ConsumerGroup) -> StreamResult<&mut Self> {
         self.group_id = Some(group);
-        Ok(())
+        Ok(self)
     }
 }
 
+// TODO remove this function and generate host specific ID with suffix
 pub(crate) fn random_id() -> String {
     format!(
         "{}",
@@ -256,11 +257,13 @@ pub(crate) fn random_id() -> String {
 }
 
 pub(crate) fn create_consumer(
+    streamer: &StreamerUri,
     base_options: &KafkaConnectOptions,
     options: &KafkaConsumerOptions,
     streams: Vec<StreamKey>,
 ) -> Result<KafkaConsumer, KafkaError> {
     let mut client_config = ClientConfig::new();
+    client_config.set(OptionKey::BootstrapServers, streamer.nodes[0].as_str());
     base_options.make_client_config(&mut client_config);
     options.make_client_config(&mut client_config);
     let consumer: RawConsumer = client_config.create()?;
@@ -268,6 +271,8 @@ pub(crate) fn create_consumer(
     if !streams.is_empty() {
         let topics: Vec<&str> = streams.iter().map(|s| s.name()).collect();
         consumer.subscribe(&topics)?;
+    } else {
+        panic!("no topic?");
     }
 
     Ok(KafkaConsumer { inner: consumer })
