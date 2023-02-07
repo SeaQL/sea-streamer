@@ -8,7 +8,7 @@ use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 struct Args {
-    #[structopt(long, help = "Stream key of input")]
+    #[structopt(long, help = "Input stream")]
     input: StreamKey,
 }
 

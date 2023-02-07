@@ -7,8 +7,8 @@ use sea_streamer::{
 };
 
 use crate::{
-    create_consumer, host_id, impl_into_string, KafkaConsumer, KafkaConsumerOptions, KafkaErr,
-    KafkaProducer, KafkaProducerOptions, KafkaResult,
+    create_consumer, create_producer, host_id, impl_into_string, KafkaConsumer,
+    KafkaConsumerOptions, KafkaErr, KafkaProducer, KafkaProducerOptions, KafkaResult,
 };
 
 #[derive(Debug, Clone)]
@@ -82,7 +82,7 @@ impl Streamer for KafkaStreamer {
         &self,
         _: Self::ProducerOptions,
     ) -> KafkaResult<Self::Producer> {
-        unimplemented!()
+        create_producer(&self.uri).map_err(StreamErr::Backend)
     }
 
     async fn create_consumer(

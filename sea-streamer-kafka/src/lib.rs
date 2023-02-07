@@ -1,9 +1,11 @@
+mod cluster;
 mod consumer;
 mod error;
 mod host;
 mod producer;
 mod streamer;
 
+use cluster::*;
 pub use consumer::*;
 pub use error::*;
 pub use host::*;

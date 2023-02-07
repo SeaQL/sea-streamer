@@ -44,7 +44,7 @@ async fn main() -> Result<()> {
     let mut tick: u64 = 0;
 
     loop {
-        producer.send(format!(r#"{{ "tick": {tick} }}"#))?;
+        let _fut = producer.send(format!(r#"{{ "tick": {tick} }}"#))?;
         tick += 1;
         tokio::time::sleep(interval).await;
     }

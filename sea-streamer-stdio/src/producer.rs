@@ -1,7 +1,9 @@
 use std::{collections::HashMap, io::Write, sync::Mutex};
 
 use sea_streamer::{
-    Producer as ProducerTrait, Sendable, SequenceNo, StreamErr, StreamKey, Timestamp,
+    export::futures::future::{ready, Ready},
+    MessageMeta, Producer as ProducerTrait, Sendable, SequenceNo, ShardId, StreamErr, StreamKey,
+    Timestamp,
 };
 
 use crate::{parser::TIME_FORMAT, StdioErr, StdioResult};
@@ -20,10 +22,19 @@ pub struct StdioProducer {
     stream: Option<StreamKey>,
 }
 
+const ZERO: u64 = 0;
+
 impl ProducerTrait for StdioProducer {
     type Error = StdioErr;
+    type SendFuture = Ready<Result<MessageMeta, StdioErr>>;
 
-    fn send_to<S: Sendable>(&self, stream: &StreamKey, payload: S) -> StdioResult<()> {
+    /// The current implementation blocks. In the future we might spawn a background thread
+    /// to handle write if true non-blocking behaviour is desired.
+    fn send_to<S: Sendable>(
+        &self,
+        stream: &StreamKey,
+        payload: S,
+    ) -> StdioResult<Self::SendFuture> {
         let seq = {
             let mut producers = PRODUCERS.lock().expect("Failed to lock Producers");
             if let Some(val) = producers.sequences.get_mut(stream) {
@@ -37,18 +48,16 @@ impl ProducerTrait for StdioProducer {
         };
         let stdout = std::io::stdout();
         let mut stdout = stdout.lock();
+        let now = Timestamp::now_utc();
+        let receipt = MessageMeta::new(stream.to_owned(), ShardId::new(ZERO), seq, now);
         writeln!(
             stdout,
-            "[{} | {} | {}] {}",
-            Timestamp::now_utc()
-                .format(TIME_FORMAT)
-                .expect("Timestamp format error"),
-            stream,
-            seq,
-            payload.as_str().map_err(StreamErr::Utf8Error)?,
+            "[{timestamp} | {stream} | {seq}] {payload}",
+            timestamp = now.format(TIME_FORMAT).expect("Timestamp format error"),
+            payload = payload.as_str().map_err(StreamErr::Utf8Error)?,
         )
         .map_err(|e| StreamErr::Backend(StdioErr::IoError(e)))?;
-        Ok(())
+        Ok(ready(Ok(receipt)))
     }
 
     fn anchor(&mut self, stream: StreamKey) -> StdioResult<()> {

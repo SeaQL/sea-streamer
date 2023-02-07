@@ -42,3 +42,8 @@ runtime-tokio = ["tokio/full", "rdkafka/tokio", "sea-streamer-runtime/runtime-to
 name = "consumer"
 path = "src/bin/consumer.rs"
 required-features = ["executables"]
+
+[[bin]]
+name = "producer"
+path = "src/bin/producer.rs"
+required-features = ["executables"]

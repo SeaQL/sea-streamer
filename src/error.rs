@@ -25,7 +25,7 @@ pub enum StreamErr<E: std::error::Error> {
     InvalidStreamKey,
     #[error("Unsupported feature: {0}")]
     Unsupported(String),
-    #[error("Backend error; please call reveal() to get the details")]
+    #[error("Backend error: {0:?}")]
     Backend(E),
 }
 

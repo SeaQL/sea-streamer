@@ -13,7 +13,7 @@ use sea_streamer::{
     SequenceNo, ShardId, StreamErr, StreamKey, StreamerUri, Timestamp,
 };
 
-use crate::{impl_into_string, KafkaConnectOptions, KafkaErr, KafkaResult};
+use crate::{cluster_uri, impl_into_string, KafkaConnectOptions, KafkaErr, KafkaResult};
 
 pub struct KafkaConsumer {
     inner: RawConsumer,
@@ -202,7 +202,7 @@ impl<'a> Message for KafkaMessage<'a> {
     }
 
     fn message(&self) -> Payload {
-        Payload::new(self.mess.payload().unwrap())
+        Payload::new(self.mess.payload().unwrap_or_default())
     }
 }
 
@@ -247,7 +247,7 @@ pub(crate) fn create_consumer(
     streams: Vec<StreamKey>,
 ) -> Result<KafkaConsumer, KafkaErr> {
     let mut client_config = ClientConfig::new();
-    client_config.set(OptionKey::BootstrapServers, streamer.nodes[0].as_str());
+    client_config.set(OptionKey::BootstrapServers, cluster_uri(streamer));
     base_options.make_client_config(&mut client_config);
     options.make_client_config(&mut client_config);
     let consumer: RawConsumer = client_config.create()?;

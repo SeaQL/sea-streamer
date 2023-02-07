@@ -65,8 +65,7 @@ impl Consumers {
     fn remove(&mut self, id: u64) {
         assert!(
             self.consumers.remove(&id).is_some(),
-            "StdioConsumer with id {} does not exist",
-            id
+            "StdioConsumer with id {id} does not exist"
         );
     }
 
@@ -155,11 +154,11 @@ pub(crate) fn init() {
                     Ok(0) => break, // this means stdin is closed
                     Ok(_) => {}
                     Err(e) => {
-                        panic!("{:?}", e);
+                        panic!("{e:?}");
                     }
                 }
                 let (meta, remaining) =
-                    parse_meta(&line).unwrap_or_else(|_| panic!("Failed to parse line: {}", line));
+                    parse_meta(&line).unwrap_or_else(|_| panic!("Failed to parse line: {line}"));
                 let offset = remaining.as_ptr() as usize - line.as_ptr() as usize;
                 dispatch(meta, line.into_bytes(), offset);
             }
