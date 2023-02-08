@@ -17,10 +17,11 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 async-std  = { version = "^1.12", optional = true }
-tokio = { version = "^1.10", optional = true }
+futures = { version = "^0.3", default-features = false }
+tokio = { version = "^1.10", optional = true, features = ["time", "rt"] }
 
 [dev-dependencies]
 
 [features]
 runtime-async-std = ["async-std"]
-runtime-tokio = ["tokio/time"]
+runtime-tokio = ["tokio"]

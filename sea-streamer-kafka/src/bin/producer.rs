@@ -1,5 +1,5 @@
 use anyhow::Result;
-use sea_streamer::{Message, Producer, Sendable, StreamErr, StreamKey, Streamer, StreamerUri};
+use sea_streamer::{Producer, StreamKey, Streamer, StreamerUri};
 use sea_streamer_kafka::KafkaStreamer;
 use structopt::StructOpt;
 
@@ -22,15 +22,12 @@ async fn main() -> Result<()> {
     .await?;
     let producer = streamer.create_producer(output, Default::default()).await?;
 
-    for i in 0..10 {
+    for i in 0..100_000 {
         let message = format!("{{\"hello\": {}}}", i);
         let _fut = producer.send(message).unwrap();
-        println!("{i}");
     }
 
-    loop {
-        // we need to disconnect and end producer properly
-    }
+    streamer.disconnect().await?;
 
     Ok(())
 }

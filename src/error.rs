@@ -27,6 +27,8 @@ pub enum StreamErr<E: std::error::Error> {
     Unsupported(String),
     #[error("Backend error: {0:?}")]
     Backend(E),
+    #[error("Runtime error: {0:?}")]
+    Runtime(Box<dyn std::error::Error + Send + Sync>),
 }
 
 #[cfg(feature = "json")]
@@ -36,4 +38,10 @@ pub enum JsonErr {
     Utf8Error(#[from] std::str::Utf8Error),
     #[error("Producer has already been anchored")]
     SerdeJson(#[from] serde_json::Error),
+}
+
+pub fn runtime_error<T: std::error::Error, E: std::error::Error + Send + Sync + 'static>(
+    e: E,
+) -> StreamErr<T> {
+    StreamErr::Runtime(Box::new(e))
 }

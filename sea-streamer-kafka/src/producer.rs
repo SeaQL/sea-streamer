@@ -3,7 +3,10 @@ use std::{fmt::Debug, future::Future};
 use crate::{cluster::cluster_uri, KafkaErr, KafkaResult};
 use rdkafka::{
     config::ClientConfig,
-    producer::{DeliveryFuture, FutureProducer as RawProducer, FutureRecord as RawPayload},
+    producer::{
+        DeliveryFuture, FutureProducer as RawProducer, FutureRecord as RawPayload,
+        Producer as ProducerTrait,
+    },
 };
 use sea_streamer::{
     export::futures::FutureExt, MessageMeta, Producer, ProducerOptions, Sendable, ShardId,
@@ -65,6 +68,12 @@ impl Producer for KafkaProducer {
         } else {
             Err(StreamErr::NotAnchored)
         }
+    }
+}
+
+impl KafkaProducer {
+    pub fn flush(&self, timeout: std::time::Duration) -> KafkaResult<()> {
+        self.inner.flush(timeout).map_err(StreamErr::Backend)
     }
 }
 
