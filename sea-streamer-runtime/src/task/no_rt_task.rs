@@ -1,29 +1,24 @@
-use std::{
-    future::Future,
-    marker::PhantomData,
-    pin::Pin,
-    task::{Context, Poll},
-};
-
-pub struct FutureResult<T> {
-    phantom: PhantomData<T>,
-}
-pub use FutureResult as TaskHandle;
+use futures::future::{ready, Ready};
+use std::future::Future;
 
 #[derive(Debug)]
 pub struct Error;
 
-pub fn spawn_task<F, T>(_: F) -> FutureResult<T>
+pub fn spawn_task<F, T>(_: F) -> Ready<Result<T, Error>>
 where
     F: Future<Output = T> + Send + 'static,
     T: Send + 'static,
 {
-    FutureResult {
-        phantom: PhantomData,
-    }
+    ready(Err(Error))
 }
 
-pub use spawn_task as spawn_blocking;
+pub fn spawn_blocking<F, T>(_: F) -> Ready<Result<T, Error>>
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+{
+    ready(Err(Error))
+}
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -32,11 +27,3 @@ impl std::fmt::Display for Error {
 }
 
 impl std::error::Error for Error {}
-
-impl<T> Future for FutureResult<T> {
-    type Output = Result<T, Error>;
-
-    fn poll(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<<Self as Future>::Output> {
-        Poll::Ready(Err(Error))
-    }
-}
