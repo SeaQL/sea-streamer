@@ -24,11 +24,13 @@ pub struct MessageMeta {
 }
 
 pub trait Sendable {
+    fn size(&self) -> usize;
+
+    fn into_bytes(self) -> Vec<u8>;
+
     fn as_bytes(&self) -> &[u8];
 
-    fn as_str(&self) -> Result<&str, Utf8Error> {
-        std::str::from_utf8(self.as_bytes())
-    }
+    fn as_str(&self) -> Result<&str, Utf8Error>;
 }
 
 pub trait Message {
@@ -52,6 +54,15 @@ impl SharedMessage {
             offset: offset as u32,
             length: length as u32,
         }
+    }
+
+    /// Touch the timestamp to now
+    pub fn touch(&mut self) {
+        self.meta.timestamp = Timestamp::now_utc();
+    }
+
+    pub fn take_meta(self) -> MessageMeta {
+        self.meta
     }
 }
 
@@ -112,14 +123,56 @@ impl MessageMeta {
 }
 
 impl<'a> Sendable for Payload<'a> {
+    fn size(&self) -> usize {
+        self.bytes.len()
+    }
+
+    fn into_bytes(self) -> Vec<u8> {
+        self.bytes.to_owned()
+    }
+
     fn as_bytes(&self) -> &[u8] {
         self.bytes
     }
+
+    fn as_str(&self) -> Result<&str, Utf8Error> {
+        std::str::from_utf8(self.bytes)
+    }
 }
 
-impl<T: AsRef<str>> Sendable for T {
+impl<'a> Sendable for &'a str {
+    fn size(&self) -> usize {
+        self.len()
+    }
+
+    fn into_bytes(self) -> Vec<u8> {
+        self.to_owned().into_bytes()
+    }
+
     fn as_bytes(&self) -> &[u8] {
-        self.as_ref().as_bytes()
+        str::as_bytes(self)
+    }
+
+    fn as_str(&self) -> Result<&str, Utf8Error> {
+        Ok(self)
+    }
+}
+
+impl Sendable for String {
+    fn size(&self) -> usize {
+        self.len()
+    }
+
+    fn into_bytes(self) -> Vec<u8> {
+        String::into_bytes(self)
+    }
+
+    fn as_bytes(&self) -> &[u8] {
+        String::as_bytes(self)
+    }
+
+    fn as_str(&self) -> Result<&str, Utf8Error> {
+        Ok(self.as_str())
     }
 }
 

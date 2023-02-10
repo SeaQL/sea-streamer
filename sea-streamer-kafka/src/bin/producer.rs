@@ -23,8 +23,8 @@ async fn main() -> Result<()> {
     let producer = streamer.create_producer(output, Default::default()).await?;
 
     for i in 0..100_000 {
-        let message = format!("{{\"hello\": {}}}", i);
-        let _fut = producer.send(message).unwrap();
+        let message = format!("{{\"hello\": {i}}}");
+        producer.send(message)?;
     }
 
     streamer.disconnect().await?;

@@ -33,7 +33,7 @@ tokio = { version = "1.10.0", optional = true }
 [dev-dependencies]
 
 [features]
-default = ["runtime-tokio"]
+default = ["executables"] # NOTE remove before publish
 executables = ["anyhow", "env_logger", "structopt", "serde_json", "sea-streamer/json", "runtime-tokio"]
 runtime-async-std = ["sea-streamer-runtime/runtime-async-std"]
 runtime-tokio = ["tokio/full", "rdkafka/tokio", "sea-streamer-runtime/runtime-tokio"]

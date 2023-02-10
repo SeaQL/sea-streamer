@@ -25,9 +25,9 @@ pub enum StreamErr<E: std::error::Error> {
     InvalidStreamKey,
     #[error("Unsupported feature: {0}")]
     Unsupported(String),
-    #[error("Backend error: {0:?}")]
+    #[error("Backend error: {0}")]
     Backend(E),
-    #[error("Runtime error: {0:?}")]
+    #[error("Runtime error: {0}")]
     Runtime(Box<dyn std::error::Error + Send + Sync>),
 }
 

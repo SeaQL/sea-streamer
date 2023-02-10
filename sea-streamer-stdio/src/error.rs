@@ -7,6 +7,8 @@ pub enum StdioErr {
     RecvError(flume::RecvError),
     #[error("IO Error: {0}")]
     IoError(std::io::Error),
+    #[error("StdioStreamer has been disconnected")]
+    Disconnected,
 }
 
 pub type StdioResult<T> = StreamResult<T, StdioErr>;

@@ -1,15 +1,16 @@
-use std::{collections::HashMap, io::Write, sync::Mutex};
+use flume::{bounded, r#async::RecvFut, unbounded, Sender};
+use std::{collections::HashMap, fmt::Debug, future::Future, sync::Mutex};
 
 use sea_streamer::{
-    export::futures::future::{ready, Ready},
-    MessageMeta, Producer as ProducerTrait, Sendable, SequenceNo, ShardId, StreamErr, StreamKey,
-    Timestamp,
+    export::futures::FutureExt, Message, MessageMeta, Producer as ProducerTrait, Receipt, Sendable,
+    SequenceNo, ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
 };
 
-use crate::{parser::TIME_FORMAT, StdioErr, StdioResult};
+use crate::{parser::TIME_FORMAT, util::PanicGuard, StdioErr, StdioResult};
 
 lazy_static::lazy_static! {
-    static ref PRODUCERS: Mutex<Producers> = Mutex::new(Default::default());
+    static ref PRODUCERS: Mutex<Producers> = Default::default();
+    static ref THREAD: Mutex<Option<Sender<Signal>>> = Mutex::new(None);
 }
 
 #[derive(Debug, Default)]
@@ -17,47 +18,169 @@ struct Producers {
     sequences: HashMap<StreamKey, SequenceNo>,
 }
 
+enum Signal {
+    SendRequest {
+        message: SharedMessage,
+        receipt: Sender<Receipt>,
+    },
+    Shutdown,
+}
+
 #[derive(Debug, Clone)]
 pub struct StdioProducer {
     stream: Option<StreamKey>,
+    request: Sender<Signal>,
+}
+
+pub struct SendFuture {
+    fut: RecvFut<'static, Receipt>,
 }
 
 const ZERO: u64 = 0;
 
+pub(crate) fn init() {
+    let mut thread = THREAD.lock().expect("Failed to lock stdout thread");
+    if thread.is_none() {
+        let (sender, receiver) = unbounded();
+        std::thread::spawn(move || {
+            log::info!("[{pid}] stdout thread spawned", pid = std::process::id());
+            let _guard = PanicGuard;
+            // this thread locks the mutex forever
+            let mut producers = PRODUCERS
+                .try_lock()
+                .expect("Should have no other thread trying to access Producers");
+            while let Ok(signal) = receiver.recv() {
+                match signal {
+                    Signal::SendRequest {
+                        mut message,
+                        receipt,
+                    } => {
+                        message.touch(); // set timestamp to now
+
+                        // I believe println is atomic now, so we don't have to lock stdout
+                        // fn main() {
+                        //     std::thread::scope(|s| {
+                        //         for num in 0..100 {
+                        //             s.spawn(move || {
+                        //                 println!("Hello from thread number {}", num);
+                        //             });
+                        //         }
+                        //     });
+                        // }
+                        let stream_key = message.stream_key();
+                        println!(
+                            "[{timestamp} | {stream} | {seq}] {payload}",
+                            timestamp = message
+                                .timestamp()
+                                .format(TIME_FORMAT)
+                                .expect("Timestamp format error"),
+                            stream = stream_key,
+                            seq = producers.append(&stream_key),
+                            payload = message
+                                .message()
+                                .as_str()
+                                .expect("Should have already checked is valid string"),
+                        );
+                        let meta = message.take_meta();
+                        // we don't care if the receipt can be delivered
+                        receipt.send(meta).ok();
+                    }
+                    Signal::Shutdown => break,
+                }
+            }
+            log::info!("[{pid}] stdout thread exit", pid = std::process::id());
+            {
+                let mut thread = THREAD.lock().expect("Failed to lock stdout thread");
+                thread.take(); // set to none
+            }
+        });
+        thread.replace(sender);
+    }
+}
+
+pub(crate) fn shutdown() {
+    let thread = THREAD.lock().expect("Failed to lock stdout thread");
+    if let Some(sender) = thread.as_ref() {
+        sender
+            .send(Signal::Shutdown)
+            .expect("stdout thread might have been shutdown already");
+    }
+}
+
+pub(crate) fn shutdown_already() -> bool {
+    let thread = THREAD.lock().expect("Failed to lock stdout thread");
+    thread.is_none()
+}
+
+impl Producers {
+    // returns current Seq No
+    fn append(&mut self, stream: &StreamKey) -> SequenceNo {
+        if let Some(val) = self.sequences.get_mut(stream) {
+            let seq = *val;
+            *val += 1;
+            seq
+        } else {
+            self.sequences.insert(stream.to_owned(), 1);
+            0
+        }
+    }
+}
+
+impl Future for SendFuture {
+    type Output = Result<MessageMeta, StdioErr>;
+
+    fn poll(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        match self.fut.poll_unpin(cx) {
+            std::task::Poll::Ready(res) => std::task::Poll::Ready(match res {
+                Ok(res) => Ok(res),
+                Err(err) => Err(StdioErr::RecvError(err)),
+            }),
+            std::task::Poll::Pending => std::task::Poll::Pending,
+        }
+    }
+}
+
+impl Debug for SendFuture {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SendFuture").finish()
+    }
+}
+
 impl ProducerTrait for StdioProducer {
     type Error = StdioErr;
-    type SendFuture = Ready<Result<MessageMeta, StdioErr>>;
+    type SendFuture = SendFuture;
 
-    /// The current implementation blocks. In the future we might spawn a background thread
-    /// to handle write if true non-blocking behaviour is desired.
     fn send_to<S: Sendable>(
         &self,
         stream: &StreamKey,
         payload: S,
     ) -> StdioResult<Self::SendFuture> {
-        let seq = {
-            let mut producers = PRODUCERS.lock().expect("Failed to lock Producers");
-            if let Some(val) = producers.sequences.get_mut(stream) {
-                let seq = *val;
-                *val += 1;
-                seq
-            } else {
-                producers.sequences.insert(stream.to_owned(), 1);
-                0
-            }
-        };
-        let stdout = std::io::stdout();
-        let mut stdout = stdout.lock();
-        let now = Timestamp::now_utc();
-        let receipt = MessageMeta::new(stream.to_owned(), ShardId::new(ZERO), seq, now);
-        writeln!(
-            stdout,
-            "[{timestamp} | {stream} | {seq}] {payload}",
-            timestamp = now.format(TIME_FORMAT).expect("Timestamp format error"),
-            payload = payload.as_str().map_err(StreamErr::Utf8Error)?,
-        )
-        .map_err(|e| StreamErr::Backend(StdioErr::IoError(e)))?;
-        Ok(ready(Ok(receipt)))
+        let payload = payload.as_str().map_err(StreamErr::Utf8Error)?.to_owned();
+        // basically using this as oneshot
+        let (sender, receiver) = bounded(1);
+        let size = payload.len();
+        self.request
+            .send(Signal::SendRequest {
+                message: SharedMessage::new(
+                    MessageMeta::new(
+                        stream.to_owned(),
+                        ShardId::new(ZERO),
+                        ZERO,
+                        Timestamp::now_utc(),
+                    ),
+                    payload.into_bytes(),
+                    0,
+                    size,
+                ),
+                receipt: sender,
+            })
+            .map_err(|_| StreamErr::Backend(StdioErr::Disconnected))?;
+        Ok(SendFuture {
+            fut: receiver.into_recv_async(),
+        })
     }
 
     fn anchor(&mut self, stream: StreamKey) -> StdioResult<()> {
@@ -81,6 +204,14 @@ impl ProducerTrait for StdioProducer {
 impl StdioProducer {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
-        Self { stream: None }
+        init();
+        let request = {
+            let thread = THREAD.lock().expect("Failed to lock stdout thread");
+            thread.as_ref().expect("Should have initialized").to_owned()
+        };
+        Self {
+            stream: None,
+            request,
+        }
     }
 }

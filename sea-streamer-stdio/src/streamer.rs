@@ -2,8 +2,7 @@ use async_trait::async_trait;
 use std::time::Duration;
 
 use crate::{
-    create_consumer, shutdown, shutdown_already, StdioConsumer, StdioErr, StdioProducer,
-    StdioResult,
+    consumers, create_consumer, producer, StdioConsumer, StdioErr, StdioProducer, StdioResult,
 };
 use sea_streamer::{
     ConnectOptions as ConnectOptionsTrait, ConsumerGroup, ConsumerMode,
@@ -40,11 +39,13 @@ impl StreamerTrait for StdioStreamer {
         Ok(StdioStreamer {})
     }
 
-    /// Call this method if you want to exit gracefully.
-    /// This waits asynchronously until the background thread exits.
+    /// Call this method if you want to exit gracefully. This waits asynchronously until the background thread(s) exit.
+    /// Meanwhile pending input and output messages will be flushed.
+    /// The side effects is global: all existing consumers and producers will become unusable, until you connect again.
     async fn disconnect(self) -> StdioResult<()> {
-        shutdown();
-        while !shutdown_already() {
+        consumers::shutdown();
+        producer::shutdown();
+        while !consumers::shutdown_already() || !producer::shutdown_already() {
             sea_streamer_runtime::sleep(Duration::from_millis(1)).await;
         }
         Ok(())

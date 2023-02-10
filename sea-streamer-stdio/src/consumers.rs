@@ -126,6 +126,7 @@ impl Consumers {
             // This round-robin is deterministic
             let id = ids[message.sequence() as usize % ids.len()];
             let consumer = self.consumers.get(&id).unwrap();
+            // ignore any error
             consumer.sender.send(message.clone()).ok();
         }
     }
@@ -141,12 +142,12 @@ pub(crate) fn create_consumer(
 }
 
 pub(crate) fn init() {
-    let mut thread = THREAD.lock().expect("Failed to lock thread");
+    let mut thread = THREAD.lock().expect("Failed to lock stdin thread");
     if thread.is_none() {
         let flag = Arc::new(AtomicBool::new(true));
         let local_flag = flag.clone();
         std::thread::spawn(move || {
-            log::info!("stdin thread spawned");
+            log::info!("[{pid}] stdin thread spawned", pid = std::process::id());
             let _guard = PanicGuard;
             while local_flag.load(Ordering::Relaxed) {
                 let mut line = String::new();
@@ -162,9 +163,9 @@ pub(crate) fn init() {
                 let offset = remaining.as_ptr() as usize - line.as_ptr() as usize;
                 dispatch(meta, line.into_bytes(), offset);
             }
-            log::info!("stdin thread exit");
+            log::info!("[{pid}] stdin thread exit", pid = std::process::id());
             {
-                let mut thread = THREAD.lock().expect("Failed to lock thread");
+                let mut thread = THREAD.lock().expect("Failed to lock stdin thread");
                 thread.take(); // set to none
             }
         });
@@ -173,14 +174,14 @@ pub(crate) fn init() {
 }
 
 pub(crate) fn shutdown() {
-    let mut thread = THREAD.lock().expect("Failed to lock thread");
+    let mut thread = THREAD.lock().expect("Failed to lock stdin thread");
     if let Some(flag) = thread.as_mut() {
         flag.swap(false, Ordering::Relaxed);
     }
 }
 
 pub(crate) fn shutdown_already() -> bool {
-    let thread = THREAD.lock().expect("Failed to lock thread");
+    let thread = THREAD.lock().expect("Failed to lock stdin thread");
     thread.is_none()
 }
 

@@ -27,7 +27,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 async-trait = { version = "^0.1" }
 futures = { version = "^0.3", default-features = false }
 thiserror = { version = "^1", default-features = false }
-time = { version = "^0.3", default-features = false }
+time = { version = "^0.3", default-features = false, features = ["std"] }
 url = { version = "^2.2", default-features = false }
 serde = { version = "1", default-features = false, optional = true }
 serde_json = { version = "1", optional = true }
