@@ -10,7 +10,7 @@ use std::{
 
 use sea_streamer::{
     export::futures::{stream::Map as StreamMap, StreamExt},
-    Consumer as ConsumerTrait, ConsumerGroup, Message, MessageMeta, SequenceNo, ShardId,
+    Consumer as ConsumerTrait, ConsumerGroup, Message, MessageHeader, SequenceNo, ShardId,
     SharedMessage, StreamErr, StreamKey, Timestamp,
 };
 
@@ -89,7 +89,7 @@ impl Consumers {
         };
         let length = bytes.len() - offset;
         let message = SharedMessage::new(
-            MessageMeta::new(
+            MessageHeader::new(
                 stream_key,
                 shard_id,
                 sequence,

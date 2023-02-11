@@ -1,10 +1,10 @@
 use futures::Future;
 
-use crate::{MessageMeta, Sendable, StreamKey, StreamResult};
+use crate::{MessageHeader, Sendable, StreamKey, StreamResult};
 
 pub trait ProducerOptions: Default + Clone + Send {}
 
-pub type Receipt = MessageMeta;
+pub type Receipt = MessageHeader;
 
 pub trait Producer: Clone + Send + Sync {
     type Error: std::error::Error;

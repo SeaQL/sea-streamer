@@ -2,8 +2,8 @@ use flume::{bounded, r#async::RecvFut, unbounded, Sender};
 use std::{collections::HashMap, fmt::Debug, future::Future, sync::Mutex};
 
 use sea_streamer::{
-    export::futures::FutureExt, Message, MessageMeta, Producer as ProducerTrait, Receipt, Sendable,
-    SequenceNo, ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
+    export::futures::FutureExt, Message, MessageHeader, Producer as ProducerTrait, Receipt,
+    Sendable, SequenceNo, ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
 };
 
 use crate::{parser::TIME_FORMAT, util::PanicGuard, StdioErr, StdioResult};
@@ -127,7 +127,7 @@ impl Producers {
 }
 
 impl Future for SendFuture {
-    type Output = Result<MessageMeta, StdioErr>;
+    type Output = Result<MessageHeader, StdioErr>;
 
     fn poll(
         mut self: std::pin::Pin<&mut Self>,
@@ -165,7 +165,7 @@ impl ProducerTrait for StdioProducer {
         self.request
             .send(Signal::SendRequest {
                 message: SharedMessage::new(
-                    MessageMeta::new(
+                    MessageHeader::new(
                         stream.to_owned(),
                         ShardId::new(ZERO),
                         ZERO,

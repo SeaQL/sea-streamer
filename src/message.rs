@@ -4,19 +4,32 @@ use crate::{SequenceNo, ShardId, StreamKey, Timestamp};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SharedMessage {
-    meta: MessageMeta,
+    meta: MessageHeader,
     bytes: Arc<Vec<u8>>,
     offset: u32,
     length: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Payload<'a> {
-    bytes: &'a [u8],
+    data: BytesOrStr<'a>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum BytesOrStr<'a> {
+    Bytes(&'a [u8]),
+    Str(&'a str),
+}
+
+pub trait IntoBytesOrStr<'a>
+where
+    Self: 'a,
+{
+    fn into_bytes_or_str(self) -> BytesOrStr<'a>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MessageMeta {
+pub struct MessageHeader {
     stream_key: StreamKey,
     shard_id: ShardId,
     sequence: SequenceNo,
@@ -46,7 +59,7 @@ pub trait Message {
 }
 
 impl SharedMessage {
-    pub fn new(meta: MessageMeta, bytes: Vec<u8>, offset: usize, length: usize) -> Self {
+    pub fn new(meta: MessageHeader, bytes: Vec<u8>, offset: usize, length: usize) -> Self {
         assert!(offset <= bytes.len());
         Self {
             meta,
@@ -61,7 +74,7 @@ impl SharedMessage {
         self.meta.timestamp = Timestamp::now_utc();
     }
 
-    pub fn take_meta(self) -> MessageMeta {
+    pub fn take_meta(self) -> MessageHeader {
         self.meta
     }
 }
@@ -85,12 +98,14 @@ impl Message for SharedMessage {
 
     fn message(&self) -> Payload {
         Payload {
-            bytes: &self.bytes[self.offset as usize..(self.offset + self.length) as usize],
+            data: BytesOrStr::Bytes(
+                &self.bytes[self.offset as usize..(self.offset + self.length) as usize],
+            ),
         }
     }
 }
 
-impl MessageMeta {
+impl MessageHeader {
     pub fn new(
         stream_key: StreamKey,
         shard_id: ShardId,
@@ -124,19 +139,46 @@ impl MessageMeta {
 
 impl<'a> Sendable for Payload<'a> {
     fn size(&self) -> usize {
-        self.bytes.len()
+        self.data.len()
     }
 
     fn into_bytes(self) -> Vec<u8> {
-        self.bytes.to_owned()
+        match self.data {
+            BytesOrStr::Bytes(bytes) => bytes.into_bytes(),
+            BytesOrStr::Str(str) => str.into_bytes(),
+        }
     }
 
     fn as_bytes(&self) -> &[u8] {
-        self.bytes
+        match self.data {
+            BytesOrStr::Bytes(bytes) => bytes,
+            BytesOrStr::Str(str) => str.as_bytes(),
+        }
     }
 
     fn as_str(&self) -> Result<&str, Utf8Error> {
-        std::str::from_utf8(self.bytes)
+        match &self.data {
+            BytesOrStr::Bytes(bytes) => bytes.as_str(),
+            BytesOrStr::Str(str) => Ok(str),
+        }
+    }
+}
+
+impl<'a> Sendable for &'a [u8] {
+    fn size(&self) -> usize {
+        self.len()
+    }
+
+    fn into_bytes(self) -> Vec<u8> {
+        self.to_owned()
+    }
+
+    fn as_bytes(&self) -> &[u8] {
+        self
+    }
+
+    fn as_str(&self) -> Result<&str, Utf8Error> {
+        std::str::from_utf8(self)
     }
 }
 
@@ -146,7 +188,7 @@ impl<'a> Sendable for &'a str {
     }
 
     fn into_bytes(self) -> Vec<u8> {
-        self.to_owned().into_bytes()
+        self.as_bytes().to_owned()
     }
 
     fn as_bytes(&self) -> &[u8] {
@@ -177,12 +219,39 @@ impl Sendable for String {
 }
 
 impl<'a> Payload<'a> {
-    pub fn new(bytes: &'a [u8]) -> Self {
-        Self { bytes }
+    pub fn new<D: IntoBytesOrStr<'a>>(data: D) -> Self {
+        Self {
+            data: data.into_bytes_or_str(),
+        }
     }
 
     #[cfg(feature = "json")]
     pub fn deserialize_json<D: serde::de::DeserializeOwned>(&self) -> Result<D, crate::JsonErr> {
         Ok(serde_json::from_str(self.as_str()?)?)
+    }
+}
+
+impl<'a> BytesOrStr<'a> {
+    pub fn len(&self) -> usize {
+        match self {
+            BytesOrStr::Bytes(bytes) => bytes.len(),
+            BytesOrStr::Str(str) => str.len(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+impl<'a> IntoBytesOrStr<'a> for &'a str {
+    fn into_bytes_or_str(self) -> BytesOrStr<'a> {
+        BytesOrStr::Str(self)
+    }
+}
+
+impl<'a> IntoBytesOrStr<'a> for &'a [u8] {
+    fn into_bytes_or_str(self) -> BytesOrStr<'a> {
+        BytesOrStr::Bytes(self)
     }
 }

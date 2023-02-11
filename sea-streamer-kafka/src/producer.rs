@@ -9,7 +9,7 @@ use rdkafka::{
     },
 };
 use sea_streamer::{
-    export::futures::FutureExt, MessageMeta, Producer, ProducerOptions, Sendable, ShardId,
+    export::futures::FutureExt, MessageHeader, Producer, ProducerOptions, Sendable, ShardId,
     StreamErr, StreamKey, StreamerUri, Timestamp,
 };
 
@@ -80,7 +80,7 @@ impl KafkaProducer {
 impl ProducerOptions for KafkaProducerOptions {}
 
 impl Future for SendFuture {
-    type Output = Result<MessageMeta, KafkaErr>;
+    type Output = Result<MessageHeader, KafkaErr>;
 
     fn poll(
         mut self: std::pin::Pin<&mut Self>,
@@ -90,7 +90,7 @@ impl Future for SendFuture {
         match self.fut.poll_unpin(cx) {
             std::task::Poll::Ready(res) => std::task::Poll::Ready(match res {
                 Ok(res) => match res {
-                    Ok((part, offset)) => Ok(MessageMeta::new(
+                    Ok((part, offset)) => Ok(MessageHeader::new(
                         stream_key,
                         ShardId::new(part as u64),
                         offset as u64,
