@@ -55,6 +55,7 @@ pub(crate) fn init() {
                         mut message,
                         receipt,
                     } => {
+                        // we can time the difference from send() until now()
                         message.touch(); // set timestamp to now
 
                         // I believe println is atomic now, so we don't have to lock stdout
