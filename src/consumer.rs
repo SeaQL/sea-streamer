@@ -4,11 +4,9 @@ use futures::Stream;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ConsumerMode {
-    /// This is the 'vanilla' stream consumer. It does not auto-commit, and thus only consumes messages from now on
+    /// This is the 'vanilla' stream consumer. It does not auto-commit, and thus only consumes messages from now on.
     RealTime,
     /// When the process restarts, it will resume the stream from the previous committed sequence.
-    /// It will use a consumer id unique to this host: on a physical machine, it will use the mac address.
-    /// Inside a docker container, it will use the container id.
     Resumable,
     /// You should assign a consumer group manually. The load-balancing mechanism is implementation-specific.
     LoadBalanced,

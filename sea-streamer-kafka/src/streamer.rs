@@ -90,7 +90,7 @@ impl Streamer for KafkaStreamer {
             mutex.drain(..).collect()
         };
         for producer in producers {
-            spawn_blocking(move || producer.flush(std::time::Duration::from_secs(60)))
+            spawn_blocking(move || producer.flush_sync(std::time::Duration::from_secs(60)))
                 .await
                 .map_err(runtime_error)??;
         }
@@ -109,6 +109,14 @@ impl Streamer for KafkaStreamer {
         Ok(producer)
     }
 
+    /// If ConsumerMode is RealTime, auto commit will be disabled and it always stream from latest. `group_id` must not be set.
+    ///
+    /// If ConsumerMode is Resumable, it will use a group id unique to this host:
+    /// on a physical machine, it will use the mac address. Inside a docker container, it will use the container id.
+    /// So when the process restarts, it will resume from last committed offset. `group_id` must not be set.
+    ///
+    /// If ConsumerMode is LoadBalanced, shards will be divided-and-assigned by the broker to consumers sharing the same `group_id`.
+    /// `group_id` must already be set.
     async fn create_consumer(
         &self,
         streams: &[StreamKey],
@@ -122,6 +130,7 @@ impl Streamer for KafkaStreamer {
                 if options.group_id.is_some() {
                     return Err(StreamErr::ConsumerGroupIsSet);
                 }
+                // I don't want to use a randomly generated ID because it creates too much garbage
                 options.set_group_id(ConsumerGroup::new(format!("{}s", host_id())));
                 options.set_session_timeout(std::time::Duration::from_secs(6)); // trying to set it as low as allowed
                 options.set_enable_auto_commit(false);

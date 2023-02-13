@@ -1,4 +1,4 @@
-use std::{fmt::Debug, future::Future};
+use std::{fmt::Debug, future::Future, time::Duration};
 
 use crate::{cluster::cluster_uri, KafkaErr, KafkaResult};
 use rdkafka::{
@@ -9,9 +9,10 @@ use rdkafka::{
     },
 };
 use sea_streamer::{
-    export::futures::FutureExt, MessageHeader, Producer, ProducerOptions, Sendable, ShardId,
-    StreamErr, StreamKey, StreamerUri, Timestamp,
+    export::futures::FutureExt, runtime_error, MessageHeader, Producer, ProducerOptions, Sendable,
+    ShardId, StreamErr, StreamKey, StreamerUri, Timestamp,
 };
+use sea_streamer_runtime::spawn_blocking;
 
 #[derive(Clone)]
 pub struct KafkaProducer {
@@ -72,8 +73,15 @@ impl Producer for KafkaProducer {
 }
 
 impl KafkaProducer {
-    pub fn flush(&self, timeout: std::time::Duration) -> KafkaResult<()> {
+    /// Flushes any pending messages. This method blocks
+    pub(crate) fn flush_sync(&self, timeout: Duration) -> KafkaResult<()> {
         self.inner.flush(timeout).map_err(StreamErr::Backend)
+    }
+
+    pub async fn flush(self, timeout: Duration) -> KafkaResult<()> {
+        spawn_blocking(move || self.flush_sync(timeout))
+            .await
+            .map_err(runtime_error)?
     }
 }
 

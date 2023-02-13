@@ -1,9 +1,0 @@
-use std::sync::Once;
-
-static INIT: Once = Once::new();
-
-#[tokio::test]
-async fn main() {
-    INIT.call_once(env_logger::init);
-    log::info!("hello");
-}
