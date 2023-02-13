@@ -18,6 +18,13 @@ pub struct ShardId {
 
 pub type SequenceNo = u64;
 
+#[derive(Debug)]
+pub enum SequencePos {
+    Beginning,
+    End,
+    At(SequenceNo),
+}
+
 impl StreamKey {
     pub fn new(name: String) -> Self {
         Self { name }
@@ -41,6 +48,12 @@ impl ShardId {
 impl Display for StreamKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.name)
+    }
+}
+
+impl Display for ShardId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
     }
 }
 

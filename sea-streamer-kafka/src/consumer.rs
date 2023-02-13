@@ -3,20 +3,24 @@ use rdkafka::{
     config::ClientConfig,
     consumer::{Consumer, MessageStream as RawMessageStream, StreamConsumer as RawConsumer},
     message::BorrowedMessage as RawMessage,
-    Message as KafkaMessageTrait,
+    Message as KafkaMessageTrait, Offset, TopicPartitionList,
 };
 use std::time::Duration;
 
 use sea_streamer::{
     export::futures::{stream::Map as StreamMap, StreamExt},
     Consumer as ConsumerTrait, ConsumerGroup, ConsumerMode, ConsumerOptions, Message, Payload,
-    SequenceNo, ShardId, StreamErr, StreamKey, StreamerUri, Timestamp,
+    SequenceNo, SequencePos, ShardId, StreamErr, StreamKey, StreamerUri, Timestamp,
 };
 
-use crate::{cluster_uri, impl_into_string, KafkaConnectOptions, KafkaErr, KafkaResult};
+use crate::{
+    cluster_uri, impl_into_string, stream_err, KafkaConnectOptions, KafkaErr, KafkaResult,
+};
 
 pub struct KafkaConsumer {
     inner: RawConsumer,
+    shard: Option<ShardId>,
+    streams: Vec<StreamKey>,
 }
 
 pub struct KafkaMessage<'a> {
@@ -148,15 +152,48 @@ impl ConsumerTrait for KafkaConsumer {
     >;
 
     fn seek(&self, _: Timestamp) -> KafkaResult<()> {
-        Err(StreamErr::Unsupported("KafkaConsumer::seek".to_owned()))
+        if self.shard.is_none() {
+            Err(StreamErr::NotAssigned)
+        } else {
+            Err(StreamErr::Unsupported("KafkaConsumer::seek".to_owned()))
+        }
     }
 
-    fn rewind(&self, _: SequenceNo) -> KafkaResult<()> {
-        Err(StreamErr::Unsupported("KafkaConsumer::rewind".to_owned()))
+    fn rewind(&self, offset: SequencePos) -> KafkaResult<()> {
+        let mut tpl = TopicPartitionList::new();
+
+        if let Some(shard) = self.shard {
+            for stream in self.streams.iter() {
+                tpl.add_partition_offset(
+                    stream.name(),
+                    shard.id() as i32,
+                    match offset {
+                        SequencePos::Beginning => Offset::Beginning,
+                        SequencePos::End => Offset::End,
+                        SequencePos::At(seq) => Offset::Offset(
+                            seq.try_into()
+                                .expect("KafkaConsumer::rewind: u64 out of range"),
+                        ),
+                    },
+                )
+                .map_err(stream_err)?;
+            }
+
+            self.inner.assign(&tpl).map_err(stream_err)?;
+
+            Ok(())
+        } else {
+            Err(StreamErr::Unsupported("KafkaConsumer::rewind".to_owned()))
+        }
     }
 
-    fn assign(&self, _: ShardId) -> KafkaResult<()> {
-        Err(StreamErr::Unsupported("KafkaConsumer::assign".to_owned()))
+    fn assign(&mut self, shard: ShardId) -> KafkaResult<()> {
+        if self.shard.is_none() {
+            self.shard = Some(shard);
+            Ok(())
+        } else {
+            Err(StreamErr::AlreadyAssigned)
+        }
     }
 
     async fn next<'a>(&'a self) -> KafkaResult<Self::Message<'a>> {
@@ -259,5 +296,9 @@ pub(crate) fn create_consumer(
         panic!("no topic?");
     }
 
-    Ok(KafkaConsumer { inner: consumer })
+    Ok(KafkaConsumer {
+        inner: consumer,
+        shard: None,
+        streams,
+    })
 }

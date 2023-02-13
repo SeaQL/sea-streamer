@@ -19,6 +19,8 @@ pub enum StreamErr<E: std::error::Error> {
     StreamKeyEmpty,
     #[error("Consumer has already been assigned")]
     AlreadyAssigned,
+    #[error("Consumer has not yet been assigned")]
+    NotAssigned,
     #[error("Utf8Error: {0}")]
     Utf8Error(Utf8Error),
     #[error("Invalid stream key: valid pattern is [a-zA-Z0-9._-]{{1, 249}}")]

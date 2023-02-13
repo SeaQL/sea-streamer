@@ -19,7 +19,7 @@ pub trait Producer: Clone + Send + Sync {
     ) -> StreamResult<Self::SendFuture, Self::Error>;
 
     /// Send a message to the already anchored stream.
-    /// If the producer was not anchored, this will return [`NotAnchored`] error.
+    /// If the producer is not anchored, this will return [`StreamErr::NotAnchored`] error.
     fn send<S: Sendable>(&self, payload: S) -> StreamResult<Self::SendFuture, Self::Error> {
         self.send_to(self.anchored()?, payload)
     }
@@ -29,6 +29,6 @@ pub trait Producer: Clone + Send + Sync {
     fn anchor(&mut self, stream: StreamKey) -> StreamResult<(), Self::Error>;
 
     /// If the producer is already anchored, return a reference to the StreamKey
-    /// If the producer was not anchored, this will return [`NotAnchored`] error.
+    /// If the producer is not anchored, this will return [`StreamErr::NotAnchored`] error.
     fn anchored(&self) -> StreamResult<&StreamKey, Self::Error>;
 }

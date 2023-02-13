@@ -10,8 +10,8 @@ use std::{
 
 use sea_streamer::{
     export::futures::{stream::Map as StreamMap, StreamExt},
-    Consumer as ConsumerTrait, ConsumerGroup, Message, MessageHeader, SequenceNo, ShardId,
-    SharedMessage, StreamErr, StreamKey, Timestamp,
+    Consumer as ConsumerTrait, ConsumerGroup, Message, MessageHeader, SequenceNo, SequencePos,
+    ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
 };
 
 use crate::{
@@ -225,12 +225,13 @@ impl ConsumerTrait for StdioConsumer {
         Err(StreamErr::Unsupported("StdioConsumer::seek".to_owned()))
     }
 
-    fn rewind(&self, _: SequenceNo) -> StdioResult<()> {
+    fn rewind(&self, _: SequencePos) -> StdioResult<()> {
         Err(StreamErr::Unsupported("StdioConsumer::rewind".to_owned()))
     }
 
-    fn assign(&self, _: ShardId) -> StdioResult<()> {
-        Err(StreamErr::Unsupported("StdioConsumer::assign".to_owned()))
+    // Always succeed
+    fn assign(&mut self, _: ShardId) -> StdioResult<()> {
+        Ok(())
     }
 
     /// Backend error can be casted to [`StdioErr`] using [`GetStreamErr`]
