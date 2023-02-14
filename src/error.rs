@@ -21,6 +21,8 @@ pub enum StreamErr<E: std::error::Error> {
     AlreadyAssigned,
     #[error("Consumer has not yet been assigned")]
     NotAssigned,
+    #[error("You cannot commit on a real-time consumer")]
+    CommitNotAllowed,
     #[error("Utf8Error: {0}")]
     Utf8Error(Utf8Error),
     #[error("Invalid stream key: valid pattern is [a-zA-Z0-9._-]{{1, 249}}")]

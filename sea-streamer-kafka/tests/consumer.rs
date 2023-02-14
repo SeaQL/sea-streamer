@@ -18,6 +18,7 @@ async fn main() -> Result<()> {
     )
     .await?;
     let topic = StreamKey::new(format!("basic-{}", Timestamp::now_utc().unix_timestamp()));
+    let zero = ShardId::new(0);
 
     let producer = streamer
         .create_producer(topic.clone(), Default::default())
@@ -32,12 +33,15 @@ async fn main() -> Result<()> {
 
     let mut options = KafkaConsumerOptions::new(ConsumerMode::RealTime);
     options.set_auto_offset_reset(AutoOffsetReset::Earliest);
-    let mut consumer = streamer.create_consumer(&[topic], options).await?;
+
+    let mut consumer = streamer
+        .create_consumer(&[topic.clone()], options.clone())
+        .await?;
 
     let seq = consume(&consumer, 10).await;
     assert_eq!(seq, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
-    consumer.assign(ShardId::new(0))?;
+    consumer.assign(zero)?;
     consumer.rewind(sea_streamer::SequencePos::Beginning)?;
     let seq = consume(&consumer, 10).await;
     assert_eq!(seq, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
@@ -45,6 +49,31 @@ async fn main() -> Result<()> {
     consumer.rewind(sea_streamer::SequencePos::At(5))?;
     let seq = consume(&consumer, 5).await;
     assert_eq!(seq, [5, 6, 7, 8, 9]);
+
+    // create a new consumer
+    let mut options = KafkaConsumerOptions::new(ConsumerMode::Resumable);
+    options.set_auto_offset_reset(AutoOffsetReset::Earliest);
+    options.set_enable_auto_commit(false);
+
+    std::mem::drop(consumer);
+    let mut consumer = streamer
+        .create_consumer(&[topic.clone()], options.clone())
+        .await?;
+    let seq = consume(&consumer, 10).await;
+    // this should start again from beginning
+    assert_eq!(seq, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+
+    // commit up to 6
+    consumer.commit(&topic, &zero, &6).await?;
+
+    // create a new consumer
+    std::mem::drop(consumer);
+    let consumer = streamer
+        .create_consumer(&[topic.clone()], options.clone())
+        .await?;
+    let seq = consume(&consumer, 4).await;
+    // this should resume from 6
+    assert_eq!(seq, [6, 7, 8, 9]);
 
     Ok(())
 }

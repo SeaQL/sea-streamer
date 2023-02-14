@@ -1,16 +1,20 @@
 use async_trait::async_trait;
 use rdkafka::{
     config::ClientConfig,
-    consumer::{Consumer, MessageStream as RawMessageStream, StreamConsumer as RawConsumer},
+    consumer::{
+        CommitMode, Consumer, MessageStream as RawMessageStream, StreamConsumer as RawConsumer,
+    },
     message::BorrowedMessage as RawMessage,
     Message as KafkaMessageTrait, Offset, TopicPartitionList,
 };
+use sea_streamer_runtime::spawn_blocking;
 use std::time::Duration;
 
 use sea_streamer::{
     export::futures::{stream::Map as StreamMap, StreamExt},
-    Consumer as ConsumerTrait, ConsumerGroup, ConsumerMode, ConsumerOptions, Message, Payload,
-    SequenceNo, SequencePos, ShardId, StreamErr, StreamKey, StreamerUri, Timestamp,
+    runtime_error, Consumer as ConsumerTrait, ConsumerGroup, ConsumerMode, ConsumerOptions,
+    Message, Payload, SequenceNo, SequencePos, ShardId, StreamErr, StreamKey, StreamerUri,
+    Timestamp,
 };
 
 use crate::{
@@ -18,7 +22,8 @@ use crate::{
 };
 
 pub struct KafkaConsumer {
-    inner: RawConsumer,
+    mode: ConsumerMode,
+    inner: Option<RawConsumer>,
     shard: Option<ShardId>,
     streams: Vec<StreamKey>,
 }
@@ -67,6 +72,9 @@ impl KafkaConsumerOptions {
         self.group_id = Some(id);
         self
     }
+    pub fn group_id(&self) -> Option<&ConsumerGroup> {
+        self.group_id.as_ref()
+    }
 
     /// The timeout used to detect worker failures. The worker sends periodic heartbeats
     /// to indicate its liveness to the broker. If no heartbeats are received by the broker
@@ -76,6 +84,9 @@ impl KafkaConsumerOptions {
         self.session_timeout = Some(v);
         self
     }
+    pub fn session_timeout(&self) -> Option<&Duration> {
+        self.session_timeout.as_ref()
+    }
 
     /// What to do when there is no initial offset in Kafka or if the current offset does
     /// not exist any more on the server.
@@ -83,10 +94,16 @@ impl KafkaConsumerOptions {
         self.auto_offset_reset = Some(v);
         self
     }
+    pub fn auto_offset_reset(&self) -> Option<&AutoOffsetReset> {
+        self.auto_offset_reset.as_ref()
+    }
 
     pub fn set_enable_auto_commit(&mut self, v: bool) -> &mut Self {
         self.enable_auto_commit = Some(v);
         self
+    }
+    pub fn enable_auto_commit(&self) -> Option<&bool> {
+        self.enable_auto_commit.as_ref()
     }
 
     fn make_client_config(&self, client_config: &mut ClientConfig) {
@@ -179,7 +196,7 @@ impl ConsumerTrait for KafkaConsumer {
                 .map_err(stream_err)?;
             }
 
-            self.inner.assign(&tpl).map_err(stream_err)?;
+            self.get().assign(&tpl).map_err(stream_err)?;
 
             Ok(())
         } else {
@@ -197,19 +214,98 @@ impl ConsumerTrait for KafkaConsumer {
     }
 
     async fn next<'a>(&'a self) -> KafkaResult<Self::Message<'a>> {
-        Self::process(self.inner.recv().await)
+        Self::process(self.get().recv().await)
     }
 
     fn stream<'a, 'b: 'a>(&'b self) -> Self::Stream<'a> {
-        self.inner.stream().map(Self::process)
+        self.get().stream().map(Self::process)
     }
 }
 
 impl KafkaConsumer {
+    fn get(&self) -> &RawConsumer {
+        self.inner
+            .as_ref()
+            .expect("Client is still inside a transaction, please await the future")
+    }
+
     fn process(res: Result<RawMessage, KafkaErr>) -> KafkaResult<KafkaMessage> {
         match res {
             Ok(mess) => Ok(KafkaMessage { mess }),
             Err(err) => Err(StreamErr::Backend(err)),
+        }
+    }
+
+    /// Commit an "ack" to broker for having processed this message.
+    /// You must await this future, and this Consumer will be unusable for any operations
+    /// until it finishes.
+    ///
+    /// # Warning
+    ///
+    /// This async method is not cancel safe.
+    pub async fn commit_message(&mut self, mess: &KafkaMessage<'_>) -> KafkaResult<()> {
+        self.commit(&mess.stream_key(), &mess.shard_id(), &mess.sequence())
+            .await
+    }
+
+    /// Commit an "ack" to broker for having processed up to this cursor.
+    /// You must await this future, and this Consumer will be unusable for any operations
+    /// until it finishes.
+    ///
+    /// # Warning
+    ///
+    /// This async method is not cancel safe.
+    pub async fn commit(
+        &mut self,
+        stream: &StreamKey,
+        shard: &ShardId,
+        seq: &SequenceNo,
+    ) -> KafkaResult<()> {
+        if self.mode == ConsumerMode::RealTime {
+            return Err(StreamErr::CommitNotAllowed);
+        }
+        if self.inner.is_none() {
+            panic!("You can't commit again while the previous commit is in progress");
+        }
+        let mut tpl = TopicPartitionList::new();
+        tpl.add_partition_offset(
+            stream.name(),
+            shard.id() as i32,
+            Offset::Offset(
+                (*seq)
+                    .try_into()
+                    .expect("KafkaConsumer::commit: u64 out of range"),
+            ),
+        )
+        .map_err(stream_err)?;
+
+        // Sadly, `commit` is a sync function, but we want an async API
+        // to await when transaction finishes. To avoid Client being dropped while
+        // committing, we transfer the ownership into the handler thread,
+        // and we take back the ownership after it finishes.
+        // Meanwhile, any Client operation will panic.
+        // This constraint should be held by the `&mut` signature of this method,
+        // but if someone ignores or discards this future, this Consumer will be broken.
+        let client = self.inner.take().unwrap();
+        let inner = spawn_blocking(move || {
+            let tpl = tpl;
+            match client.commit(&tpl, CommitMode::Sync) {
+                Ok(()) => Ok(client),
+                Err(err) => Err((err, client)),
+            }
+        })
+        .await
+        .map_err(runtime_error)?;
+
+        match inner {
+            Ok(inner) => {
+                self.inner = Some(inner);
+                Ok(())
+            }
+            Err((err, inner)) => {
+                self.inner = Some(inner);
+                Err(stream_err(err))
+            }
         }
     }
 }
@@ -297,7 +393,8 @@ pub(crate) fn create_consumer(
     }
 
     Ok(KafkaConsumer {
-        inner: consumer,
+        mode: options.mode,
+        inner: Some(consumer),
         shard: None,
         streams,
     })

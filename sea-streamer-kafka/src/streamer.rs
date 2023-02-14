@@ -133,14 +133,17 @@ impl Streamer for KafkaStreamer {
                 // I don't want to use a randomly generated ID because it creates too much garbage
                 options.set_group_id(ConsumerGroup::new(format!("{}s", host_id())));
                 options.set_session_timeout(std::time::Duration::from_secs(6)); // trying to set it as low as allowed
-                options.set_enable_auto_commit(false);
+                options.set_enable_auto_commit(false); // shall not auto-commit
             }
             ConsumerMode::Resumable => {
                 if options.group_id.is_some() {
                     return Err(StreamErr::ConsumerGroupIsSet);
                 }
                 options.set_group_id(ConsumerGroup::new(format!("{}r", host_id())));
-                options.set_enable_auto_commit(true);
+                if options.enable_auto_commit().is_none() {
+                    // user might want to manually commit
+                    options.set_enable_auto_commit(true);
+                }
             }
             ConsumerMode::LoadBalanced => {
                 if options.group_id.is_none() {
