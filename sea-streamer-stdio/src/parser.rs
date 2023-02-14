@@ -1,30 +1,3 @@
-//! The SeaStreamer file format should be simple (like ndjson):
-//!
-//! ```json
-//! [timestamp | stream key | sequence | shard_id] { "payload": "anything" }
-//! ```
-//!
-//! The square brackets are literal `[]`.
-//!
-//! The following are all valid:
-//!
-//! ```json
-//! [2022-01-01T00:00:00] { "payload": "anything" }
-//! [2022-01-01T00:00:00 | my_topic] "A string payload"
-//! [2022-01-01T00:00:00 | my-topic-2 | 123] ["array", "of", "values"]
-//! [2022-01-01T00:00:00 | my-topic-2 | 123 | 4] { "payload": "anything" }
-//! [my_topic] "A string payload"
-//! [my_topic | 123] { "payload": "anything" }
-//! [my_topic | 123 | 4] { "payload": "anything" }
-//! ```
-//!
-//! The following are all invalid:
-//!
-//! ```json
-//! [Jan 1, 2022] { "payload": "anything" }
-//! [2022-01-01T00:00:00] 12345
-//! ```
-
 use nom::{
     bytes::complete::{is_not, take_while_m_n},
     character::complete::char,
@@ -38,7 +11,10 @@ use thiserror::Error;
 use time::{format_description::FormatItem, macros::format_description, PrimitiveDateTime};
 
 pub const TIME_FORMAT: &[FormatItem<'static>] =
-    format_description!("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:6]");
+    format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]");
+// have no idea to how to make subsecond optional
+pub const TIME_FORMAT_SUBSEC: &[FormatItem<'static>] =
+    format_description!("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond]");
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct PartialMeta {
@@ -52,14 +28,23 @@ pub struct PartialMeta {
 pub enum ParseErr {
     #[error("Empty PartialMeta")]
     Empty,
-    #[error("Error parsing parens: {0}")]
-    Nom(String),
     #[error("Unknown part: {0}")]
     Unknown(String),
 }
 
 pub fn parse_meta(input: &str) -> Result<(PartialMeta, &str), ParseErr> {
-    let (o, raw) = parens(input).map_err(|e| ParseErr::Nom(e.to_string()))?;
+    let (o, raw) = match parens(input) {
+        Ok(ok) => ok,
+        Err(_) => {
+            return Ok((
+                PartialMeta {
+                    timestamp: Some(Timestamp::now_utc()),
+                    ..Default::default()
+                },
+                input,
+            ))
+        }
+    };
     let parts = raw.split('|').map(|s| s.trim());
     let mut meta = PartialMeta::default();
     for part in parts {
@@ -69,7 +54,7 @@ pub fn parse_meta(input: &str) -> Result<(PartialMeta, &str), ParseErr> {
             && meta.sequence.is_none()
             && meta.shard_id.is_none()
         {
-            if let Ok(timestamp) = PrimitiveDateTime::parse(part, &TIME_FORMAT) {
+            if let Ok(timestamp) = parse_timestamp(part) {
                 meta.timestamp = Some(timestamp.assume_utc());
                 parsed = true;
             }
@@ -114,6 +99,11 @@ pub fn parse_meta(input: &str) -> Result<(PartialMeta, &str), ParseErr> {
     Ok((meta, o.trim()))
 }
 
+fn parse_timestamp(input: &str) -> Result<PrimitiveDateTime, time::error::Parse> {
+    PrimitiveDateTime::parse(input, &TIME_FORMAT_SUBSEC)
+        .or_else(|_| PrimitiveDateTime::parse(input, &TIME_FORMAT))
+}
+
 fn parse_stream_key(input: &str) -> IResult<&str, &str> {
     take_while_m_n(1, MAX_STREAM_KEY_LEN, is_valid_stream_key_char)(input)
 }
@@ -129,6 +119,18 @@ mod test {
     use super::*;
 
     #[test]
+    fn test_parse_meta_0() {
+        assert_eq!(
+            parse_meta(r#"a plain, raw message"#).unwrap().1,
+            r#"a plain, raw message"#
+        );
+        assert_eq!(
+            parse_meta(r#"{ "payload": "anything" }"#).unwrap().1,
+            r#"{ "payload": "anything" }"#
+        );
+    }
+
+    #[test]
     fn test_parse_meta_1() {
         assert_eq!(
             parse_meta(r#"[2022-01-02T03:04:05] { "payload": "anything" }"#).unwrap(),
@@ -139,24 +141,24 @@ mod test {
                 },
                 r#"{ "payload": "anything" }"#
             )
-        )
+        );
     }
 
     #[test]
     fn test_parse_meta_2() {
         assert_eq!(
-            parse_meta(r#"[2022-01-02T03:04:05 | my-fancy_topic.1] ["array", "of", "values"]"#)
+            parse_meta(r#"[2022-01-02T03:04:05.678 | my-fancy_topic.1] ["array", "of", "values"]"#)
                 .unwrap(),
             (
                 PartialMeta {
-                    timestamp: Some(datetime!(2022-01-02 03:04:05).assume_utc()),
+                    timestamp: Some(datetime!(2022-01-02 03:04:05.678).assume_utc()),
                     stream_key: Some(StreamKey::new("my-fancy_topic.1".to_owned())),
                     sequence: None,
                     shard_id: None,
                 },
                 r#"["array", "of", "values"]"#
             )
-        )
+        );
     }
 
     #[test]
@@ -175,7 +177,7 @@ mod test {
                 },
                 r#"{ "payload": "anything" }"#
             )
-        )
+        );
     }
 
     #[test]
@@ -194,7 +196,7 @@ mod test {
                 },
                 r#"{ "payload": "anything" }"#
             )
-        )
+        );
     }
 
     #[test]
@@ -210,7 +212,7 @@ mod test {
                 },
                 r#"{ "payload": "anything" }"#
             )
-        )
+        );
     }
 
     #[test]
@@ -226,7 +228,7 @@ mod test {
                 },
                 r#"["array", "of", "values"]"#
             )
-        )
+        );
     }
 
     #[test]
@@ -242,7 +244,7 @@ mod test {
                 },
                 r#"{ "payload": "anything" }"#
             )
-        )
+        );
     }
 
     #[test]

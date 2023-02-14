@@ -1,5 +1,20 @@
 # SeaStreamer Stdio Utils
 
+> These are not very interesting, unless used in combination with file and Kafka.
+
+You can connect process together with pipes: `program_a | program_b`.
+
+However you can also connect them asynchronously:
+
+```sh
+touch stream
+tail -f stream | program_a
+program_b >> stream
+```
+
+You can also use `cat` to replay a file, but it runs from start to end as fast as possible then stops,
+which may or may not be the desired behavior.
+
 ## clock
 
 + Generate a stream of ticks

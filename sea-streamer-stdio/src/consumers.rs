@@ -27,6 +27,8 @@ lazy_static::lazy_static! {
 
 type Cid = u64;
 
+const BROADCAST: &str = "broadcast";
+
 #[derive(Debug, Default)]
 struct Consumers {
     consumers: BTreeMap<Cid, ConsumerRelay>,
@@ -73,7 +75,7 @@ impl Consumers {
         let stream_key = meta
             .stream_key
             .to_owned()
-            .unwrap_or_else(|| StreamKey::new("broadcast".to_owned()));
+            .unwrap_or_else(|| StreamKey::new(BROADCAST.to_owned()));
         let shard_id = meta.shard_id.unwrap_or_default();
         let entry = self
             .sequences
