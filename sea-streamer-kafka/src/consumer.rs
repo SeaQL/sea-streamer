@@ -41,15 +41,17 @@ pub struct KafkaMessage<'a> {
 pub struct KafkaConsumerOptions {
     pub(crate) mode: ConsumerMode,
     /// https://kafka.apache.org/documentation/#connectconfigs_group.id
-    pub(crate) group_id: Option<ConsumerGroup>,
+    group_id: Option<ConsumerGroup>,
     /// https://kafka.apache.org/documentation/#connectconfigs_session.timeout.ms
-    pub(crate) session_timeout: Option<Duration>,
+    session_timeout: Option<Duration>,
     /// https://kafka.apache.org/documentation/#consumerconfigs_auto.offset.reset
-    pub(crate) auto_offset_reset: Option<AutoOffsetReset>,
+    auto_offset_reset: Option<AutoOffsetReset>,
     /// https://kafka.apache.org/documentation/#consumerconfigs_enable.auto.commit
-    pub(crate) enable_auto_commit: Option<bool>,
+    enable_auto_commit: Option<bool>,
+    /// https://kafka.apache.org/documentation/#consumerconfigs_auto.commit.interval.ms
+    auto_commit_interval: Option<Duration>,
     /// https://kafka.apache.org/documentation/#consumerconfigs_enable.auto.commit
-    pub(crate) enable_auto_offset_store: Option<bool>,
+    enable_auto_offset_store: Option<bool>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -59,6 +61,7 @@ pub enum OptionKey {
     SessionTimeout,
     AutoOffsetReset,
     EnableAutoCommit,
+    AutoCommitInterval,
     EnableAutoOffsetStore,
 }
 
@@ -98,6 +101,8 @@ impl KafkaConsumerOptions {
 
     /// What to do when there is no initial offset in Kafka or if the current offset does
     /// not exist any more on the server.
+    ///
+    /// If unset, defaults to Latest
     pub fn set_auto_offset_reset(&mut self, v: AutoOffsetReset) -> &mut Self {
         self.auto_offset_reset = Some(v);
         self
@@ -115,6 +120,16 @@ impl KafkaConsumerOptions {
     }
     pub fn enable_auto_commit(&self) -> Option<&bool> {
         self.enable_auto_commit.as_ref()
+    }
+
+    /// The interval for offsets to be auto-committed. If `enable_auto_commit` is set to false,
+    /// this will have no effect.
+    pub fn set_auto_commit_interval(&mut self, v: Duration) -> &mut Self {
+        self.auto_commit_interval = Some(v);
+        self
+    }
+    pub fn auto_commit_interval(&self) -> Option<&Duration> {
+        self.auto_commit_interval.as_ref()
     }
 
     /// If enabled, the consumer's offset will be updated as the messages are *read*. This does
@@ -148,6 +163,9 @@ impl KafkaConsumerOptions {
         if let Some(v) = self.enable_auto_commit {
             client_config.set(OptionKey::EnableAutoCommit, v.to_string());
         }
+        if let Some(v) = self.auto_commit_interval {
+            client_config.set(OptionKey::AutoCommitInterval, format!("{}", v.as_millis()));
+        }
         if let Some(v) = self.enable_auto_offset_store {
             client_config.set(OptionKey::EnableAutoOffsetStore, v.to_string());
         }
@@ -162,6 +180,7 @@ impl OptionKey {
             Self::SessionTimeout => "session.timeout.ms",
             Self::AutoOffsetReset => "auto.offset.reset",
             Self::EnableAutoCommit => "enable.auto.commit",
+            Self::AutoCommitInterval => "auto.commit.interval.ms",
             Self::EnableAutoOffsetStore => "enable.auto.offset.store",
         }
     }

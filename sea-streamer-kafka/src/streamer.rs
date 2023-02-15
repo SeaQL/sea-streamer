@@ -127,7 +127,7 @@ impl Streamer for KafkaStreamer {
         }
         match options.mode {
             ConsumerMode::RealTime => {
-                if options.group_id.is_some() {
+                if options.group_id().is_some() {
                     return Err(StreamErr::ConsumerGroupIsSet);
                 }
                 // I don't want to use a randomly generated ID because it creates too much garbage
@@ -136,7 +136,7 @@ impl Streamer for KafkaStreamer {
                 options.set_enable_auto_commit(false); // shall not auto-commit
             }
             ConsumerMode::Resumable => {
-                if options.group_id.is_some() {
+                if options.group_id().is_some() {
                     return Err(StreamErr::ConsumerGroupIsSet);
                 }
                 options.set_group_id(ConsumerGroup::new(format!("{}r", host_id())));
@@ -146,7 +146,7 @@ impl Streamer for KafkaStreamer {
                 }
             }
             ConsumerMode::LoadBalanced => {
-                if options.group_id.is_none() {
+                if options.group_id().is_none() {
                     return Err(StreamErr::ConsumerGroupNotSet);
                 }
             }
