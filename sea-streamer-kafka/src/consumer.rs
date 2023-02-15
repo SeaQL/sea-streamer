@@ -48,6 +48,8 @@ pub struct KafkaConsumerOptions {
     pub(crate) auto_offset_reset: Option<AutoOffsetReset>,
     /// https://kafka.apache.org/documentation/#consumerconfigs_enable.auto.commit
     pub(crate) enable_auto_commit: Option<bool>,
+    /// https://kafka.apache.org/documentation/#consumerconfigs_enable.auto.commit
+    pub(crate) enable_auto_offset_store: Option<bool>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -57,6 +59,7 @@ pub enum OptionKey {
     SessionTimeout,
     AutoOffsetReset,
     EnableAutoCommit,
+    EnableAutoOffsetStore,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -103,12 +106,28 @@ impl KafkaConsumerOptions {
         self.auto_offset_reset.as_ref()
     }
 
+    /// If enabled, the consumer's offset will be periodically committed in the background.
+    ///
+    /// If unset, defaults to true.
     pub fn set_enable_auto_commit(&mut self, v: bool) -> &mut Self {
         self.enable_auto_commit = Some(v);
         self
     }
     pub fn enable_auto_commit(&self) -> Option<&bool> {
         self.enable_auto_commit.as_ref()
+    }
+
+    /// If enabled, the consumer's offset will be updated as the messages are *read*. This does
+    /// not equate to them being *processed*. So if you want to make sure to commit only what
+    /// have been processed, set it to false. You will have to manually update these offsets.
+    ///
+    /// If unset, defaults to true.
+    pub fn set_enable_auto_offset_store(&mut self, v: bool) -> &mut Self {
+        self.enable_auto_offset_store = Some(v);
+        self
+    }
+    pub fn enable_auto_offset_store(&self) -> Option<&bool> {
+        self.enable_auto_offset_store.as_ref()
     }
 
     fn make_client_config(&self, client_config: &mut ClientConfig) {
@@ -129,6 +148,9 @@ impl KafkaConsumerOptions {
         if let Some(v) = self.enable_auto_commit {
             client_config.set(OptionKey::EnableAutoCommit, v.to_string());
         }
+        if let Some(v) = self.enable_auto_offset_store {
+            client_config.set(OptionKey::EnableAutoOffsetStore, v.to_string());
+        }
     }
 }
 
@@ -140,6 +162,7 @@ impl OptionKey {
             Self::SessionTimeout => "session.timeout.ms",
             Self::AutoOffsetReset => "auto.offset.reset",
             Self::EnableAutoCommit => "enable.auto.commit",
+            Self::EnableAutoOffsetStore => "enable.auto.offset.store",
         }
     }
 }
@@ -244,10 +267,9 @@ impl ConsumerTrait for KafkaConsumer {
                 match offset {
                     SequencePos::Beginning => Offset::Beginning,
                     SequencePos::End => Offset::End,
-                    SequencePos::At(seq) => Offset::Offset(
-                        seq.try_into()
-                            .expect("KafkaConsumer::rewind: u64 out of range"),
-                    ),
+                    SequencePos::At(seq) => {
+                        Offset::Offset(seq.try_into().expect("u64 out of range"))
+                    }
                 },
             )
             .map_err(stream_err)?;
@@ -323,11 +345,7 @@ impl KafkaConsumer {
         tpl.add_partition_offset(
             stream.name(),
             shard.id() as i32,
-            Offset::Offset(
-                (*seq)
-                    .try_into()
-                    .expect("KafkaConsumer::commit: u64 out of range"),
-            ),
+            Offset::Offset((*seq).try_into().expect("u64 out of range")),
         )
         .map_err(stream_err)?;
 
@@ -356,6 +374,29 @@ impl KafkaConsumer {
                 Err(stream_err(err))
             }
         }
+    }
+
+    /// Store the offset so that it will be committed.
+    /// You must have `set_enable_auto_offset_store` to false.
+    pub fn store_offset(
+        &mut self,
+        stream: &StreamKey,
+        shard: &ShardId,
+        seq: &SequenceNo,
+    ) -> KafkaResult<()> {
+        self.get()
+            .store_offset(
+                stream.name(),
+                shard.id() as i32,
+                (*seq).try_into().expect("u64 out of range"),
+            )
+            .map_err(stream_err)
+    }
+
+    /// Store the offset for this message so that it will be committed.
+    /// You must have `set_enable_auto_offset_store` to false.
+    pub fn store_offset_for_message(&mut self, mess: &KafkaMessage<'_>) -> KafkaResult<()> {
+        self.store_offset(&mess.stream_key(), &mess.shard_id(), &mess.sequence())
     }
 }
 
