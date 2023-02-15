@@ -48,23 +48,26 @@ pub trait Consumer: Sized + Send + Sync {
 
     /// Seek to an arbitrary point in time. If will start consuming from the earliest message
     /// with a timestamp later than `to`.
-    /// If the consumer is not already assigned, this will return [`StreamErr::NotAssigned`] error.
-    async fn seek(&self, to: Timestamp) -> StreamResult<(), Self::Error>;
+    ///
+    /// If the consumer is not already assigned, shard ZERO will be used.
+    async fn seek(&mut self, to: Timestamp) -> StreamResult<(), Self::Error>;
 
     /// Rewind the stream to a particular sequence number.
-    /// If the consumer is not already assigned, this will return [`StreamErr::NotAssigned`] error.
-    fn rewind(&self, offset: SequencePos) -> StreamResult<(), Self::Error>;
+    ///
+    /// If the consumer is not already assigned, shard ZERO will be used.
+    fn rewind(&mut self, offset: SequencePos) -> StreamResult<(), Self::Error>;
 
     /// Assign this consumer to a particular shard.
-    /// This function can only be called once, subsequent calls should return [`StreamErr::AlreadyAssigned`] error.
+    ///
     /// It will only take effect on the next [`Consumer::seek`] or [`Consumer::rewind`].
     fn assign(&mut self, shard: ShardId) -> StreamResult<(), Self::Error>;
 
     /// Poll and receive one message: it awaits until there are new messages
     fn next(&self) -> Self::NextFuture<'_>;
 
-    /// Returns an async stream. You should not create multiple streams from the same consumer
-    fn stream<'a, 'b: 'a>(&'b self) -> Self::Stream<'a>;
+    /// Returns an async stream. You cannot create multiple streams from the same consumer,
+    /// nor perform any operation while streaming.
+    fn stream<'a, 'b: 'a>(&'b mut self) -> Self::Stream<'a>;
 }
 
 impl ConsumerGroup {

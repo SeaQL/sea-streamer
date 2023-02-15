@@ -5,6 +5,7 @@ use rdkafka::{
         CommitMode, Consumer, MessageStream as RawMessageStream, StreamConsumer as RawConsumer,
     },
     message::BorrowedMessage as RawMessage,
+    util::Timeout,
     Message as KafkaMessageTrait, Offset, TopicPartitionList,
 };
 use sea_streamer_runtime::spawn_blocking;
@@ -168,9 +169,12 @@ impl ConsumerTrait for KafkaConsumer {
     type Message<'a> = KafkaMessage<'a>;
     /// See, we don't actually have to Box these! Looking forward to `type_alias_impl_trait`
     type NextFuture<'a> = Map<
-        StreamFuture<<KafkaConsumer as ConsumerTrait>::Stream<'a>>,
+        StreamFuture<RawMessageStream<'a>>,
         fn(
-            (Option<KafkaResult<KafkaMessage<'a>>>, Self::Stream<'a>),
+            (
+                Option<Result<RawMessage<'a>, KafkaErr>>,
+                RawMessageStream<'a>,
+            ),
         ) -> KafkaResult<KafkaMessage<'a>>,
     >;
     type Stream<'a> = StreamMap<
@@ -178,60 +182,96 @@ impl ConsumerTrait for KafkaConsumer {
         fn(Result<RawMessage<'a>, KafkaErr>) -> KafkaResult<KafkaMessage<'a>>,
     >;
 
-    async fn seek(&self, _: Timestamp) -> KafkaResult<()> {
-        if self.shard.is_none() {
-            Err(StreamErr::NotAssigned)
-        } else {
-            Err(StreamErr::Unsupported("KafkaConsumer::seek".to_owned()))
-        }
-    }
-
-    fn rewind(&self, offset: SequencePos) -> KafkaResult<()> {
+    /// Seek all streams to the given point in time.
+    ///
+    /// # Warning
+    ///
+    /// This async method is not cancel safe. You must await this future,
+    /// and this Consumer will be unusable for any operations until it finishes.
+    async fn seek(&mut self, timestamp: Timestamp) -> KafkaResult<()> {
+        let shard = self.shard.unwrap_or_default();
         let mut tpl = TopicPartitionList::new();
 
-        if let Some(shard) = self.shard {
-            for stream in self.streams.iter() {
-                tpl.add_partition_offset(
-                    stream.name(),
-                    shard.id() as i32,
-                    match offset {
-                        SequencePos::Beginning => Offset::Beginning,
-                        SequencePos::End => Offset::End,
-                        SequencePos::At(seq) => Offset::Offset(
-                            seq.try_into()
-                                .expect("KafkaConsumer::rewind: u64 out of range"),
-                        ),
-                    },
-                )
-                .map_err(stream_err)?;
+        for stream in self.streams.iter() {
+            tpl.add_partition_offset(
+                stream.name(),
+                shard.id() as i32,
+                Offset::Offset(
+                    (timestamp.unix_timestamp_nanos() / 1_000_000)
+                        .try_into()
+                        .expect("KafkaConsumer::seek: timestamp out of range"),
+                ),
+            )
+            .map_err(stream_err)?;
+        }
+
+        let client = self.inner.take().unwrap();
+        let inner = spawn_blocking(move || {
+            match client.offsets_for_times(tpl, Timeout::After(Duration::from_secs(60))) {
+                Ok(tpl) => Ok((tpl, client)),
+                Err(err) => Err((err, client)),
             }
+        })
+        .await
+        .map_err(runtime_error)?;
 
-            self.get().assign(&tpl).map_err(stream_err)?;
-
-            Ok(())
-        } else {
-            Err(StreamErr::Unsupported("KafkaConsumer::rewind".to_owned()))
+        match inner {
+            Ok((tpl, inner)) => {
+                self.inner = Some(inner);
+                self.inner
+                    .as_mut()
+                    .unwrap()
+                    .assign(&tpl)
+                    .map_err(stream_err)?;
+                Ok(())
+            }
+            Err((err, inner)) => {
+                self.inner = Some(inner);
+                Err(stream_err(err))
+            }
         }
     }
 
-    fn assign(&mut self, shard: ShardId) -> KafkaResult<()> {
-        if self.shard.is_none() {
-            self.shard = Some(shard);
-            Ok(())
-        } else {
-            Err(StreamErr::AlreadyAssigned)
+    /// Note: this rewind all streams
+    fn rewind(&mut self, offset: SequencePos) -> KafkaResult<()> {
+        let shard = self.shard.unwrap_or_default();
+        let mut tpl = TopicPartitionList::new();
+
+        for stream in self.streams.iter() {
+            tpl.add_partition_offset(
+                stream.name(),
+                shard.id() as i32,
+                match offset {
+                    SequencePos::Beginning => Offset::Beginning,
+                    SequencePos::End => Offset::End,
+                    SequencePos::At(seq) => Offset::Offset(
+                        seq.try_into()
+                            .expect("KafkaConsumer::rewind: u64 out of range"),
+                    ),
+                },
+            )
+            .map_err(stream_err)?;
         }
+
+        self.get().assign(&tpl).map_err(stream_err)?;
+
+        Ok(())
+    }
+
+    /// Always succeed
+    fn assign(&mut self, shard: ShardId) -> KafkaResult<()> {
+        self.shard = Some(shard);
+        Ok(())
     }
 
     fn next(&self) -> Self::NextFuture<'_> {
-        self.stream().into_future().map(|(res, _)| match res {
-            Some(Ok(res)) => Ok(res),
-            Some(Err(err)) => Err(err),
+        self.get().stream().into_future().map(|(res, _)| match res {
+            Some(res) => Self::process(res),
             None => panic!("Kafka stream never ends"),
         })
     }
 
-    fn stream<'a, 'b: 'a>(&'b self) -> Self::Stream<'a> {
+    fn stream<'a, 'b: 'a>(&'b mut self) -> Self::Stream<'a> {
         self.get().stream().map(Self::process)
     }
 }
@@ -251,24 +291,22 @@ impl KafkaConsumer {
     }
 
     /// Commit an "ack" to broker for having processed this message.
-    /// You must await this future, and this Consumer will be unusable for any operations
-    /// until it finishes.
     ///
     /// # Warning
     ///
-    /// This async method is not cancel safe.
+    /// This async method is not cancel safe. You must await this future,
+    /// and this Consumer will be unusable for any operations until it finishes.
     pub async fn commit_message(&mut self, mess: &KafkaMessage<'_>) -> KafkaResult<()> {
         self.commit(&mess.stream_key(), &mess.shard_id(), &mess.sequence())
             .await
     }
 
     /// Commit an "ack" to broker for having processed up to this cursor.
-    /// You must await this future, and this Consumer will be unusable for any operations
-    /// until it finishes.
     ///
     /// # Warning
     ///
-    /// This async method is not cancel safe.
+    /// This async method is not cancel safe. You must await this future,
+    /// and this Consumer will be unusable for any operations until it finishes.
     pub async fn commit(
         &mut self,
         stream: &StreamKey,
@@ -301,12 +339,9 @@ impl KafkaConsumer {
         // This constraint should be held by the `&mut` signature of this method,
         // but if someone ignores or discards this future, this Consumer will be broken.
         let client = self.inner.take().unwrap();
-        let inner = spawn_blocking(move || {
-            let tpl = tpl;
-            match client.commit(&tpl, CommitMode::Sync) {
-                Ok(()) => Ok(client),
-                Err(err) => Err((err, client)),
-            }
+        let inner = spawn_blocking(move || match client.commit(&tpl, CommitMode::Sync) {
+            Ok(()) => Ok(client),
+            Err(err) => Err((err, client)),
         })
         .await
         .map_err(runtime_error)?;

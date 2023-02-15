@@ -218,11 +218,11 @@ impl ConsumerTrait for StdioConsumer {
     type Stream<'a> =
         StreamMap<RecvStream<'a, SharedMessage>, fn(SharedMessage) -> StdioResult<SharedMessage>>;
 
-    async fn seek(&self, _: Timestamp) -> StdioResult<()> {
+    async fn seek(&mut self, _: Timestamp) -> StdioResult<()> {
         Err(StreamErr::Unsupported("StdioConsumer::seek".to_owned()))
     }
 
-    fn rewind(&self, _: SequencePos) -> StdioResult<()> {
+    fn rewind(&mut self, _: SequencePos) -> StdioResult<()> {
         Err(StreamErr::Unsupported("StdioConsumer::rewind".to_owned()))
     }
 
@@ -238,7 +238,7 @@ impl ConsumerTrait for StdioConsumer {
             .map_err(|e| StreamErr::Backend(StdioErr::RecvError(e)))
     }
 
-    fn stream<'a, 'b: 'a>(&'b self) -> Self::Stream<'a> {
+    fn stream<'a, 'b: 'a>(&'b mut self) -> Self::Stream<'a> {
         self.receiver.stream().map(Result::Ok)
     }
 }

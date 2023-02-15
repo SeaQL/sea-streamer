@@ -24,7 +24,15 @@ async fn main() -> Result<()> {
         .create_producer(topic.clone(), Default::default())
         .await?;
 
-    for i in 0..10 {
+    for i in 0..7 {
+        let message = format!("{i}");
+        producer.send(message)?;
+    }
+    sea_streamer_runtime::sleep(std::time::Duration::from_secs(1)).await;
+    let point_in_time = Timestamp::now_utc();
+    // the seek function is supposedly up to millisecond precision, but lets not push too hard
+    sea_streamer_runtime::sleep(std::time::Duration::from_secs(1)).await;
+    for i in 7..10 {
         let message = format!("{i}");
         producer.send(message)?;
     }
@@ -38,16 +46,16 @@ async fn main() -> Result<()> {
         .create_consumer(&[topic.clone()], options.clone())
         .await?;
 
-    let seq = consume(&consumer, 10).await;
+    let seq = consume(&mut consumer, 10).await;
     assert_eq!(seq, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
     consumer.assign(zero)?;
     consumer.rewind(sea_streamer::SequencePos::Beginning)?;
-    let seq = consume(&consumer, 10).await;
+    let seq = consume(&mut consumer, 10).await;
     assert_eq!(seq, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
     consumer.rewind(sea_streamer::SequencePos::At(5))?;
-    let seq = consume(&consumer, 5).await;
+    let seq = consume(&mut consumer, 5).await;
     assert_eq!(seq, [5, 6, 7, 8, 9]);
 
     // create a new consumer
@@ -59,7 +67,7 @@ async fn main() -> Result<()> {
     let mut consumer = streamer
         .create_consumer(&[topic.clone()], options.clone())
         .await?;
-    let seq = consume(&consumer, 10).await;
+    let seq = consume(&mut consumer, 10).await;
     // this should start again from beginning
     assert_eq!(seq, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
@@ -68,17 +76,23 @@ async fn main() -> Result<()> {
 
     // create a new consumer
     std::mem::drop(consumer);
-    let consumer = streamer
+    let mut consumer = streamer
         .create_consumer(&[topic.clone()], options.clone())
         .await?;
-    let seq = consume(&consumer, 4).await;
+    let seq = consume(&mut consumer, 4).await;
     // this should resume from 6
     assert_eq!(seq, [6, 7, 8, 9]);
+
+    // now, seek to point in time
+    consumer.seek(point_in_time).await?;
+    let seq = consume(&mut consumer, 3).await;
+    // this should continue from 7
+    assert_eq!(seq, [7, 8, 9]);
 
     Ok(())
 }
 
-async fn consume(consumer: &KafkaConsumer, num: usize) -> Vec<usize> {
+async fn consume(consumer: &mut KafkaConsumer, num: usize) -> Vec<usize> {
     consumer
         .stream()
         .take(num)
