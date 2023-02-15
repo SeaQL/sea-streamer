@@ -1,9 +1,9 @@
 use anyhow::Result;
-use sea_streamer::{
-    export::futures::StreamExt, Consumer, ConsumerMode, ConsumerOptions, Message, Producer,
-    Sendable, ShardId, StreamKey, Streamer, StreamerUri, Timestamp,
-};
 use sea_streamer_kafka::{AutoOffsetReset, KafkaConsumer, KafkaConsumerOptions, KafkaStreamer};
+use sea_streamer_types::{
+    export::futures::StreamExt, Consumer, ConsumerMode, ConsumerOptions, Message, Producer,
+    Sendable, SequencePos, ShardId, StreamKey, Streamer, StreamerUri, Timestamp,
+};
 
 #[tokio::test]
 async fn main() -> Result<()> {
@@ -50,11 +50,11 @@ async fn main() -> Result<()> {
     assert_eq!(seq, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
     consumer.assign(zero)?;
-    consumer.rewind(sea_streamer::SequencePos::Beginning)?;
+    consumer.rewind(SequencePos::Beginning)?;
     let seq = consume(&mut consumer, 10).await;
     assert_eq!(seq, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
-    consumer.rewind(sea_streamer::SequencePos::At(5))?;
+    consumer.rewind(SequencePos::At(5))?;
     let seq = consume(&mut consumer, 5).await;
     assert_eq!(seq, [5, 6, 7, 8, 9]);
 

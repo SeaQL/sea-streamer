@@ -4,7 +4,7 @@ use nom::{
     sequence::delimited,
     IResult,
 };
-use sea_streamer::{
+use sea_streamer_types::{
     is_valid_stream_key_char, SequenceNo, ShardId, StreamKey, Timestamp, MAX_STREAM_KEY_LEN,
 };
 use thiserror::Error;

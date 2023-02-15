@@ -11,7 +11,7 @@ use std::{
     },
 };
 
-use sea_streamer::{
+use sea_streamer_types::{
     export::futures::{future::MapErr, stream::Map as StreamMap, StreamExt, TryFutureExt},
     Consumer as ConsumerTrait, ConsumerGroup, Message, MessageHeader, SequenceNo, SequencePos,
     ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,

@@ -23,7 +23,7 @@ fastrand = { version = "^1.8" }
 lazy_static = { version = "^1.4" }
 mac_address = { version = "1" }
 rdkafka = { version = "^0.29", default-features = false, features = ["libz"] }
-sea-streamer = { version = "^0.1.0", path = ".." }
+sea-streamer-types = { version = "^0.1.0", path = "../sea-streamer-types" }
 sea-streamer-runtime = { version = "^0.1.0", path = "../sea-streamer-runtime" }
 structopt = { version = "^0.3", optional = true }
 time = { version = "^0.3", default-features = false, features = ["std"] }
@@ -34,7 +34,7 @@ sea-streamer-kafka = { path = ".", features = ["executables"] }
 
 [features]
 default = ["executables"] # NOTE remove before publish
-executables = ["anyhow", "env_logger", "structopt", "sea-streamer/json", "runtime-tokio"]
+executables = ["anyhow", "env_logger", "structopt", "runtime-tokio"]
 runtime-async-std = ["sea-streamer-runtime/runtime-async-std"]
 runtime-tokio = ["tokio/full", "rdkafka/tokio", "sea-streamer-runtime/runtime-tokio"]
 

@@ -11,7 +11,7 @@ use rdkafka::{
 use sea_streamer_runtime::spawn_blocking;
 use std::time::Duration;
 
-use sea_streamer::{
+use sea_streamer_types::{
     export::futures::{
         future::Map,
         stream::{Map as StreamMap, StreamFuture},

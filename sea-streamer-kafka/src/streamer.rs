@@ -5,11 +5,11 @@ use std::{
     time::Duration,
 };
 
-use sea_streamer::{
+use sea_streamer_runtime::spawn_blocking;
+use sea_streamer_types::{
     runtime_error, ConnectOptions, ConsumerGroup, ConsumerMode, StreamErr, StreamKey, Streamer,
     StreamerUri,
 };
-use sea_streamer_runtime::spawn_blocking;
 
 use crate::{
     create_consumer, create_producer, host_id, impl_into_string, KafkaConsumer,

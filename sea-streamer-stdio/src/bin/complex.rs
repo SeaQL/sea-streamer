@@ -1,10 +1,11 @@
 //! This is just to demonstrate the more complex behaviour of the streamer.
 //! Should later put this under a test framework that can manage subprocesses.
 use anyhow::Result;
-use sea_streamer::{
-    Consumer, ConsumerGroup, ConsumerOptions, Message, Producer, StreamKey, Streamer, StreamerUri,
-};
 use sea_streamer_stdio::{StdioConsumerOptions, StdioStreamer};
+use sea_streamer_types::{
+    Consumer, ConsumerGroup, ConsumerMode, ConsumerOptions, Message, Producer, StreamKey, Streamer,
+    StreamerUri,
+};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -22,7 +23,7 @@ async fn main() -> Result<()> {
     let Args { input, output } = Args::from_args();
 
     let streamer = StdioStreamer::connect(StreamerUri::zero(), Default::default()).await?;
-    let mut consumer_opt = StdioConsumerOptions::new(sea_streamer::ConsumerMode::LoadBalanced);
+    let mut consumer_opt = StdioConsumerOptions::new(ConsumerMode::LoadBalanced);
     consumer_opt.set_consumer_group(ConsumerGroup::new("abc".to_owned()))?;
     let producer = streamer
         .create_producer(output.clone(), Default::default())

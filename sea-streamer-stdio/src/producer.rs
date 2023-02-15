@@ -1,7 +1,7 @@
 use flume::{bounded, r#async::RecvFut, unbounded, Sender};
 use std::{collections::HashMap, fmt::Debug, future::Future, sync::Mutex};
 
-use sea_streamer::{
+use sea_streamer_types::{
     export::futures::FutureExt, Message, MessageHeader, Producer as ProducerTrait, Receipt,
     Sendable, SequenceNo, ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
 };

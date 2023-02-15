@@ -4,7 +4,7 @@ use std::time::Duration;
 use crate::{
     consumers, create_consumer, producer, StdioConsumer, StdioErr, StdioProducer, StdioResult,
 };
-use sea_streamer::{
+use sea_streamer_types::{
     ConnectOptions as ConnectOptionsTrait, ConsumerGroup, ConsumerMode,
     ConsumerOptions as ConsumerOptionsTrait, ProducerOptions as ProducerOptionsTrait, StreamErr,
     StreamKey, Streamer as StreamerTrait, StreamerUri,

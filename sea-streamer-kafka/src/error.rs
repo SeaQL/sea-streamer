@@ -1,5 +1,5 @@
 pub use rdkafka::error::KafkaError as KafkaErr;
-use sea_streamer::{StreamErr, StreamResult};
+use sea_streamer_types::{StreamErr, StreamResult};
 
 pub type KafkaResult<T> = StreamResult<T, KafkaErr>;
 

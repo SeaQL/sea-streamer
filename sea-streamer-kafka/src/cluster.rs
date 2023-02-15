@@ -1,4 +1,4 @@
-use sea_streamer::StreamerUri;
+use sea_streamer_types::StreamerUri;
 use std::fmt::Write;
 
 pub(crate) fn cluster_uri(streamer: &StreamerUri) -> String {

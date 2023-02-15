@@ -8,11 +8,11 @@ use rdkafka::{
         Producer as ProducerTrait,
     },
 };
-use sea_streamer::{
+use sea_streamer_runtime::spawn_blocking;
+use sea_streamer_types::{
     export::futures::FutureExt, runtime_error, MessageHeader, Producer, ProducerOptions, Sendable,
     ShardId, StreamErr, StreamKey, StreamerUri, Timestamp,
 };
-use sea_streamer_runtime::spawn_blocking;
 
 #[derive(Clone)]
 pub struct KafkaProducer {

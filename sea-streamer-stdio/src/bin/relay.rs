@@ -1,6 +1,6 @@
 use anyhow::Result;
-use sea_streamer::{Consumer, Message, Producer, StreamKey, Streamer, StreamerUri};
 use sea_streamer_stdio::StdioStreamer;
+use sea_streamer_types::{Consumer, Message, Producer, StreamKey, Streamer, StreamerUri};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]

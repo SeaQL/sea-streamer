@@ -1,4 +1,4 @@
-use sea_streamer::StreamResult;
+use sea_streamer_types::StreamResult;
 use thiserror::Error;
 
 #[derive(Error, Debug)]

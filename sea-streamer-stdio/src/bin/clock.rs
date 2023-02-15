@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
-use sea_streamer::{Producer, StreamKey, Streamer, StreamerUri};
 use sea_streamer_stdio::StdioStreamer;
+use sea_streamer_types::{Producer, StreamKey, Streamer, StreamerUri};
 use std::time::Duration;
 use structopt::StructOpt;
 
