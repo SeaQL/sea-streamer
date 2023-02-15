@@ -11,7 +11,11 @@ use sea_streamer_runtime::spawn_blocking;
 use std::time::Duration;
 
 use sea_streamer::{
-    export::futures::{stream::Map as StreamMap, StreamExt},
+    export::futures::{
+        future::Map,
+        stream::{Map as StreamMap, StreamFuture},
+        FutureExt, StreamExt,
+    },
     runtime_error, Consumer as ConsumerTrait, ConsumerGroup, ConsumerMode, ConsumerOptions,
     Message, Payload, SequenceNo, SequencePos, ShardId, StreamErr, StreamKey, StreamerUri,
     Timestamp,
@@ -162,13 +166,19 @@ impl std::fmt::Debug for KafkaConsumer {
 impl ConsumerTrait for KafkaConsumer {
     type Error = KafkaErr;
     type Message<'a> = KafkaMessage<'a>;
-    /// See, we don't actually have to Box this! Looking forward to `type_alias_impl_trait`
+    /// See, we don't actually have to Box these! Looking forward to `type_alias_impl_trait`
+    type NextFuture<'a> = Map<
+        StreamFuture<<KafkaConsumer as ConsumerTrait>::Stream<'a>>,
+        fn(
+            (Option<KafkaResult<KafkaMessage<'a>>>, Self::Stream<'a>),
+        ) -> KafkaResult<KafkaMessage<'a>>,
+    >;
     type Stream<'a> = StreamMap<
         RawMessageStream<'a>,
         fn(Result<RawMessage<'a>, KafkaErr>) -> KafkaResult<KafkaMessage<'a>>,
     >;
 
-    fn seek(&self, _: Timestamp) -> KafkaResult<()> {
+    async fn seek(&self, _: Timestamp) -> KafkaResult<()> {
         if self.shard.is_none() {
             Err(StreamErr::NotAssigned)
         } else {
@@ -213,8 +223,12 @@ impl ConsumerTrait for KafkaConsumer {
         }
     }
 
-    async fn next<'a>(&'a self) -> KafkaResult<Self::Message<'a>> {
-        Self::process(self.get().recv().await)
+    fn next(&self) -> Self::NextFuture<'_> {
+        self.stream().into_future().map(|(res, _)| match res {
+            Some(Ok(res)) => Ok(res),
+            Some(Err(err)) => Err(err),
+            None => panic!("Kafka stream never ends"),
+        })
     }
 
     fn stream<'a, 'b: 'a>(&'b self) -> Self::Stream<'a> {
@@ -226,7 +240,7 @@ impl KafkaConsumer {
     fn get(&self) -> &RawConsumer {
         self.inner
             .as_ref()
-            .expect("Client is still inside a transaction, please await the future")
+            .expect("Client is still inside an async operation, please await the future")
     }
 
     fn process(res: Result<RawMessage, KafkaErr>) -> KafkaResult<KafkaMessage> {
@@ -265,7 +279,7 @@ impl KafkaConsumer {
             return Err(StreamErr::CommitNotAllowed);
         }
         if self.inner.is_none() {
-            panic!("You can't commit again while the previous commit is in progress");
+            panic!("You can't commit while an async operation is in progress");
         }
         let mut tpl = TopicPartitionList::new();
         tpl.add_partition_offset(

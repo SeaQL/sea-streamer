@@ -1,5 +1,8 @@
 use async_trait::async_trait;
-use flume::{r#async::RecvStream, unbounded, Receiver, Sender};
+use flume::{
+    r#async::{RecvFut, RecvStream},
+    unbounded, Receiver, RecvError, Sender,
+};
 use std::{
     collections::{BTreeMap, HashMap},
     sync::{
@@ -9,7 +12,7 @@ use std::{
 };
 
 use sea_streamer::{
-    export::futures::{stream::Map as StreamMap, StreamExt},
+    export::futures::{future::MapErr, stream::Map as StreamMap, StreamExt, TryFutureExt},
     Consumer as ConsumerTrait, ConsumerGroup, Message, MessageHeader, SequenceNo, SequencePos,
     ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
 };
@@ -206,24 +209,16 @@ impl Drop for StdioConsumer {
     }
 }
 
-impl StdioConsumer {
-    pub(crate) async fn next(&self) -> StdioResult<SharedMessage> {
-        self.receiver
-            .recv_async()
-            .await
-            .map_err(|e| StreamErr::Backend(StdioErr::RecvError(e)))
-    }
-}
-
 #[async_trait]
 impl ConsumerTrait for StdioConsumer {
     type Error = StdioErr;
     type Message<'a> = SharedMessage;
-    /// See, we don't actually have to Box this! Looking forward to `type_alias_impl_trait`
+    /// See, we don't actually have to Box these! Looking forward to `type_alias_impl_trait`
+    type NextFuture<'a> = MapErr<RecvFut<'a, SharedMessage>, fn(RecvError) -> StreamErr<StdioErr>>;
     type Stream<'a> =
         StreamMap<RecvStream<'a, SharedMessage>, fn(SharedMessage) -> StdioResult<SharedMessage>>;
 
-    fn seek(&self, _: Timestamp) -> StdioResult<()> {
+    async fn seek(&self, _: Timestamp) -> StdioResult<()> {
         Err(StreamErr::Unsupported("StdioConsumer::seek".to_owned()))
     }
 
@@ -237,8 +232,10 @@ impl ConsumerTrait for StdioConsumer {
     }
 
     /// Backend error can be casted to [`StdioErr`] using [`GetStreamErr`]
-    async fn next<'a>(&'a self) -> StdioResult<Self::Message<'a>> {
-        self.next().await
+    fn next(&self) -> Self::NextFuture<'_> {
+        self.receiver
+            .recv_async()
+            .map_err(|e| StreamErr::Backend(StdioErr::RecvError(e)))
     }
 
     fn stream<'a, 'b: 'a>(&'b self) -> Self::Stream<'a> {

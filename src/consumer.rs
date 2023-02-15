@@ -1,6 +1,6 @@
 use crate::{Message, SequencePos, ShardId, StreamResult, Timestamp};
 use async_trait::async_trait;
-use futures::Stream;
+use futures::{Future, Stream};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ConsumerMode {
@@ -39,6 +39,9 @@ pub trait Consumer: Sized + Send + Sync {
     type Message<'a>: Message
     where
         Self: 'a;
+    type NextFuture<'a>: Future<Output = StreamResult<Self::Message<'a>, Self::Error>>
+    where
+        Self: 'a;
     type Stream<'a>: Stream<Item = StreamResult<Self::Message<'a>, Self::Error>>
     where
         Self: 'a;
@@ -46,7 +49,7 @@ pub trait Consumer: Sized + Send + Sync {
     /// Seek to an arbitrary point in time. If will start consuming from the earliest message
     /// with a timestamp later than `to`.
     /// If the consumer is not already assigned, this will return [`StreamErr::NotAssigned`] error.
-    fn seek(&self, to: Timestamp) -> StreamResult<(), Self::Error>;
+    async fn seek(&self, to: Timestamp) -> StreamResult<(), Self::Error>;
 
     /// Rewind the stream to a particular sequence number.
     /// If the consumer is not already assigned, this will return [`StreamErr::NotAssigned`] error.
@@ -58,7 +61,7 @@ pub trait Consumer: Sized + Send + Sync {
     fn assign(&mut self, shard: ShardId) -> StreamResult<(), Self::Error>;
 
     /// Poll and receive one message: it awaits until there are new messages
-    async fn next<'a>(&'a self) -> StreamResult<Self::Message<'a>, Self::Error>;
+    fn next(&self) -> Self::NextFuture<'_>;
 
     /// Returns an async stream. You should not create multiple streams from the same consumer
     fn stream<'a, 'b: 'a>(&'b self) -> Self::Stream<'a>;
