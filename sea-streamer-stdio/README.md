@@ -1,27 +1,37 @@
-# 🌊 SeaStreamer standard I/O Backend
+## `sea-streamer-stdio` SeaStreamer Standard I/O Backend
 
 This is the `stdio` backend implementation for SeaStreamer. It is designed to be connected together with unix pipes,
-enabling great flexibility developing stream processors or processing data locally.
+enabling great flexibility when developing stream processors or processing data locally.
 
-You can write any valid UTF-8 string to stdin and each line will be considered a message.
+You can connect processes together with pipes: `program_a | program_b`.
 
-In addition, you can write some message meta with a simple format:
+However you can also connect them asynchronously:
+
+```sh
+program_a > stream
+tail -f stream | program_b
+```
+
+You can also use `cat` to replay a file, but it runs from start to end as fast as possible then stops,
+which may or may not be the desired behavior.
+
+You can write any valid UTF-8 string to stdin and each line will be considered a message. In addition, you can write some message meta in a simple format:
 
 ```log
 [timestamp | stream key | sequence | shard_id] payload
 ```
 
-Note: the square brackets are literal `[]`.
+Note: the square brackets are literal `[` `]`.
 
 The following are all valid:
 
 ```log
 a plain, raw message
 [2022-01-01T00:00:00] { "payload": "anything" }
-[2022-01-01T00:00:00.123 | my_topic] "A string payload"
+[2022-01-01T00:00:00.123 | my_topic] "a string payload"
 [2022-01-01T00:00:00 | my-topic-2 | 123] ["array", "of", "values"]
 [2022-01-01T00:00:00 | my-topic-2 | 123 | 4] { "payload": "anything" }
-[my_topic] "A string payload"
+[my_topic] a string payload
 [my_topic | 123] { "payload": "anything" }
 [my_topic | 123 | 4] { "payload": "anything" }
 ```
@@ -36,4 +46,5 @@ The following are all invalid:
 If no stream key is given, it will be assigned the name `broadcast` and sent to all consumers.
 
 You can create consumers that subscribe to only a subset of the topics.
+
 Consumers in the same `ConsumerGroup` will be load balanced, meaning you can spawn multiple async tasks to process messages in parallel.

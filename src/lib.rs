@@ -14,15 +14,18 @@
 //!
 //! </div>
 //!
-//! ## Introduction
-//!
 //! SeaStreamer is a stream processing toolkit to help you build stream processors in Rust.
 //!
-//! We provide integration for Kafka / Redpanda behind a generic trait interface, so your program can be backend-agnostic.
+//! We provide integration for Kafka / Redpanda behind a generic trait interface, so your program can be backend-agnostic. Support for Redis Stream is being planned.
 //!
 //! SeaStreamer also provides a set of tools to work with streams via unix pipe, so it is testable without setting up a cluster,
 //! and extremely handy when working with a local data set.
 //!
 //! The API is async, and it works on `tokio` (and `actix`) and `async-std`.
+//!
+//! This is the facade crate re-exporting implementation from a number of sub-crates.
 
 pub use sea_streamer_types::*;
+
+#[cfg(feature = "sea-streamer-socket")]
+pub use sea_streamer_socket::*;

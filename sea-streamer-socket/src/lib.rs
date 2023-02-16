@@ -1,4 +1,4 @@
-//! 🌊 SeaStreamer backend-agnostic Socket API
+//! ## `sea-streamer-socket` SeaStreamer backend-agnostic Socket API
 //!
 //! Akin to how SeaORM allows you to build applications for different databases, SeaStreamer allows you to build
 //! stream processors for any streaming server.
@@ -11,20 +11,24 @@
 //!
 //! If you only ever work with Kafka, feel free to depend on `sea-streamer-kafka` directly.
 //!
+//! A small number of cli programs are provided for demonstration. Let's set them up first:
+//!
 //! ```sh
-//! alias relay='cargo run --package sea-streamer-socket --bin relay --features=executables'
+//! # The `clock` program generate messages in the form of `{ "tick": N }`
 //! alias clock='cargo run --package sea-streamer-stdio  --bin clock --features=executables'
+//! # The `relay` program redirect messages from `input` to `output`
+//! alias relay='cargo run --package sea-streamer-socket --bin relay --features=executables'
 //! ```
 //!
 //! Here is how to stream from Stdio -> Kafka. We generate messages using `clock` and then pipe it to `relay`,
-//! which then streams to Kafka.
+//! which then streams to Kafka:
 //!
 //! ```sh
 //! clock -- --interval 1s --stream clock | \
 //! relay -- --input stdio:// --output kafka://localhost:9092 --stream clock
 //! ```
 //!
-//! Here is how to stream from Kafka -> Stdio
+//! Here is how to stream from Kafka -> Stdio:
 //!
 //! ```sh
 //! relay -- --input kafka://localhost:9092 --output stdio:// --stream clock

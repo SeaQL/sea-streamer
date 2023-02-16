@@ -164,10 +164,8 @@ mod test {
     #[test]
     fn test_parse_meta_3() {
         assert_eq!(
-            parse_meta(
-                r#"[2022-01-02T03:04:05 | my-fancy_topic.1 | 123] { "payload": "anything" }"#
-            )
-            .unwrap(),
+            parse_meta(r#"[2022-01-02T03:04:05 | my-fancy_topic.1 | 123] a string payload"#)
+                .unwrap(),
             (
                 PartialMeta {
                     timestamp: Some(datetime!(2022-01-02 03:04:05).assume_utc()),
@@ -175,7 +173,7 @@ mod test {
                     sequence: Some(123),
                     shard_id: None,
                 },
-                r#"{ "payload": "anything" }"#
+                r#"a string payload"#
             )
         );
     }

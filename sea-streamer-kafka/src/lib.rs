@@ -1,4 +1,4 @@
-//! # 🌊 SeaStreamer Kafka / Redpanda Backend
+//! ## `sea-streamer-kafka` SeaStreamer Kafka / Redpanda Backend
 //!
 //! This is the Kafka / Redpanda backend implementation for SeaStreamer. Although the crate's name is `kafka`,
 //! Redpanda integration is first-class as well. This crate depends on [`rdkafka`](https://docs.rs/rdkafka),

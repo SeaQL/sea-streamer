@@ -27,6 +27,8 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 sea-streamer-types = { version = "^0.1.0", path = "sea-streamer-types" }
+sea-streamer-socket = { version = "^0.1.0", path = "sea-streamer-socket", optional = true }
 
 [features]
 json = ["sea-streamer-types/json"]
+socket = ["sea-streamer-socket"]

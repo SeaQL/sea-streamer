@@ -1,4 +1,4 @@
-//! # 🌊 SeaStreamer Types
+//! ## `sea-streamer-types` SeaStreamer Types
 //!
 //! This crate defines all the traits and types for the SeaStreamer API, but does not provide any implementation.
 
