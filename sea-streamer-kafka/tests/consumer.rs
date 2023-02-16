@@ -2,18 +2,16 @@ use anyhow::Result;
 use sea_streamer_kafka::{AutoOffsetReset, KafkaConsumer, KafkaConsumerOptions, KafkaStreamer};
 use sea_streamer_types::{
     export::futures::StreamExt, Consumer, ConsumerMode, ConsumerOptions, Message, Producer,
-    Sendable, SequencePos, ShardId, StreamKey, Streamer, StreamerUri, Timestamp,
+    Sendable, SequencePos, ShardId, StreamKey, Streamer, Timestamp,
 };
 
 #[tokio::test]
 async fn main() -> Result<()> {
     let streamer = KafkaStreamer::connect(
-        StreamerUri::one(
-            std::env::var("BROKERS_URL")
-                .unwrap_or_else(|_| "localhost:9092".to_owned())
-                .parse()
-                .unwrap(),
-        ),
+        std::env::var("BROKERS_URL")
+            .unwrap_or_else(|_| "localhost:9092".to_owned())
+            .parse()
+            .unwrap(),
         Default::default(),
     )
     .await?;

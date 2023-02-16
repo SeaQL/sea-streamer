@@ -1,11 +1,10 @@
-use async_trait::async_trait;
 use std::time::Duration;
 
 use crate::{
     consumers, create_consumer, producer, StdioConsumer, StdioErr, StdioProducer, StdioResult,
 };
 use sea_streamer_types::{
-    ConnectOptions as ConnectOptionsTrait, ConsumerGroup, ConsumerMode,
+    export::async_trait, ConnectOptions as ConnectOptionsTrait, ConsumerGroup, ConsumerMode,
     ConsumerOptions as ConsumerOptionsTrait, ProducerOptions as ProducerOptionsTrait, StreamErr,
     StreamKey, Streamer as StreamerTrait, StreamerUri,
 };
@@ -65,9 +64,6 @@ impl StreamerTrait for StdioStreamer {
         streams: &[StreamKey],
         options: Self::ConsumerOptions,
     ) -> StdioResult<Self::Consumer> {
-        if streams.is_empty() {
-            return Err(StreamErr::StreamKeyEmpty);
-        }
         match options.mode {
             ConsumerMode::RealTime => {
                 if options.group.is_some() {
@@ -93,10 +89,10 @@ impl ConnectOptionsTrait for StdioConnectOptions {
     type Error = StdioErr;
 
     fn timeout(&self) -> StdioResult<Duration> {
-        Ok(Duration::from_secs(0))
+        Err(StreamErr::TimeoutNotSet)
     }
 
-    /// This parameter is ignored because this should never fail
+    /// This parameter is ignored because connection can never fail
     fn set_timeout(&mut self, _: Duration) -> StdioResult<&mut Self> {
         Ok(self)
     }
@@ -107,6 +103,10 @@ impl ConsumerOptionsTrait for StdioConsumerOptions {
 
     fn new(mode: ConsumerMode) -> Self {
         Self { mode, group: None }
+    }
+
+    fn mode(&self) -> StdioResult<&ConsumerMode> {
+        Ok(&self.mode)
     }
 
     fn consumer_group(&self) -> StdioResult<&ConsumerGroup> {

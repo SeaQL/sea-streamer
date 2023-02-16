@@ -1,6 +1,7 @@
 # 🌊 SeaStreamer standard I/O Backend
 
-This is the stdio backend implementing SeaStreamer traits. It is designed to be connected together with unix pipes, enabling great flexibility developing stream processors or processing data locally.
+This is the `stdio` backend implementation for SeaStreamer. It is designed to be connected together with unix pipes,
+enabling great flexibility developing stream processors or processing data locally.
 
 You can write any valid UTF-8 string to stdin and each line will be considered a message.
 

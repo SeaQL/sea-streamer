@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use rdkafka::ClientConfig;
 use std::{
     sync::{Arc, Mutex},
@@ -7,8 +6,8 @@ use std::{
 
 use sea_streamer_runtime::spawn_blocking;
 use sea_streamer_types::{
-    runtime_error, ConnectOptions, ConsumerGroup, ConsumerMode, StreamErr, StreamKey, Streamer,
-    StreamerUri,
+    export::async_trait, runtime_error, ConnectOptions, ConsumerGroup, ConsumerMode, StreamErr,
+    StreamKey, Streamer, StreamerUri,
 };
 
 use crate::{
@@ -29,7 +28,7 @@ pub struct KafkaConnectOptions {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum OptionKey {
+enum OptionKey {
     SocketTimeout,
 }
 
@@ -40,7 +39,7 @@ impl ConnectOptions for KafkaConnectOptions {
         self.timeout.ok_or(StreamErr::TimeoutNotSet)
     }
 
-    /// Timeout for network requests. Default is 1 min (as of librdkafka 3.2.1)
+    /// Timeout for network requests. Default is 1 min
     fn set_timeout(&mut self, v: Duration) -> KafkaResult<&mut Self> {
         self.timeout = Some(v);
         Ok(self)
@@ -99,9 +98,10 @@ impl Streamer for KafkaStreamer {
 
     async fn create_generic_producer(
         &self,
-        _: Self::ProducerOptions,
+        options: Self::ProducerOptions,
     ) -> KafkaResult<Self::Producer> {
-        let producer = create_producer(&self.uri).map_err(StreamErr::Backend)?;
+        let producer =
+            create_producer(&self.uri, &self.options, &options).map_err(StreamErr::Backend)?;
         {
             let mut producers = self.producers.lock().expect("Failed to lock KafkaStreamer");
             producers.push(producer.clone());

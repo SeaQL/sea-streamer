@@ -1,6 +1,6 @@
 use anyhow::Result;
 use sea_streamer_kafka::KafkaStreamer;
-use sea_streamer_types::{Producer, StreamKey, Streamer, StreamerUri};
+use sea_streamer_types::{Producer, StreamKey, Streamer};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -16,12 +16,10 @@ async fn main() -> Result<()> {
     let Args { output } = Args::from_args();
 
     let streamer = KafkaStreamer::connect(
-        StreamerUri::one(
-            std::env::var("BROKERS_URL")
-                .unwrap_or_else(|_| "localhost:9092".to_owned())
-                .parse()
-                .unwrap(),
-        ),
+        std::env::var("BROKERS_URL")
+            .unwrap_or_else(|_| "localhost:9092".to_owned())
+            .parse()
+            .unwrap(),
         Default::default(),
     )
     .await?;

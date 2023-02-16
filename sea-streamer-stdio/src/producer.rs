@@ -3,10 +3,10 @@ use std::{collections::HashMap, fmt::Debug, future::Future, sync::Mutex};
 
 use sea_streamer_types::{
     export::futures::FutureExt, Message, MessageHeader, Producer as ProducerTrait, Receipt,
-    Sendable, SequenceNo, ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
+    Sendable, SequenceNo, ShardId, SharedMessage, StreamErr, StreamKey, StreamResult, Timestamp,
 };
 
-use crate::{parser::TIME_FORMAT, util::PanicGuard, StdioErr, StdioResult};
+use crate::{parser::TIME_FORMAT, StdioErr, StdioResult};
 
 lazy_static::lazy_static! {
     static ref PRODUCERS: Mutex<Producers> = Default::default();
@@ -44,7 +44,6 @@ pub(crate) fn init() {
         let (sender, receiver) = unbounded();
         std::thread::spawn(move || {
             log::info!("[{pid}] stdout thread spawned", pid = std::process::id());
-            let _guard = PanicGuard;
             // this thread locks the mutex forever
             let mut producers = PRODUCERS
                 .try_lock()
@@ -128,7 +127,7 @@ impl Producers {
 }
 
 impl Future for SendFuture {
-    type Output = Result<MessageHeader, StdioErr>;
+    type Output = StreamResult<MessageHeader, StdioErr>;
 
     fn poll(
         mut self: std::pin::Pin<&mut Self>,
@@ -137,7 +136,7 @@ impl Future for SendFuture {
         match self.fut.poll_unpin(cx) {
             std::task::Poll::Ready(res) => std::task::Poll::Ready(match res {
                 Ok(res) => Ok(res),
-                Err(err) => Err(StdioErr::RecvError(err)),
+                Err(err) => Err(StreamErr::Backend(StdioErr::RecvError(err))),
             }),
             std::task::Poll::Pending => std::task::Poll::Pending,
         }

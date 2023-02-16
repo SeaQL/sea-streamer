@@ -5,6 +5,8 @@ pub type StreamResult<T, E> = std::result::Result<T, StreamErr<E>>;
 
 #[derive(Error, Debug)]
 pub enum StreamErr<E: std::error::Error> {
+    #[error("Connection Error: {0}")]
+    Connect(String),
     #[error("Timeout has not yet been set")]
     TimeoutNotSet,
     #[error("Producer has already been anchored")]
@@ -34,9 +36,9 @@ pub enum StreamErr<E: std::error::Error> {
 #[cfg(feature = "json")]
 #[derive(Error, Debug)]
 pub enum JsonErr {
-    #[error("Cannot reach streamer")]
+    #[error("Utf8Error {0}")]
     Utf8Error(#[from] std::str::Utf8Error),
-    #[error("Producer has already been anchored")]
+    #[error("serde_json::Error {0}")]
     SerdeJson(#[from] serde_json::Error),
 }
 

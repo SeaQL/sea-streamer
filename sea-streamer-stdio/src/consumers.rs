@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use flume::{
     r#async::{RecvFut, RecvStream},
     unbounded, Receiver, RecvError, Sender,
@@ -12,7 +11,10 @@ use std::{
 };
 
 use sea_streamer_types::{
-    export::futures::{future::MapErr, stream::Map as StreamMap, StreamExt, TryFutureExt},
+    export::{
+        async_trait,
+        futures::{future::MapErr, stream::Map as StreamMap, StreamExt, TryFutureExt},
+    },
     Consumer as ConsumerTrait, ConsumerGroup, Message, MessageHeader, SequenceNo, SequencePos,
     ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
 };
@@ -51,6 +53,13 @@ pub struct StdioConsumer {
     id: Cid,
     receiver: Receiver<SharedMessage>,
 }
+
+pub type NextFuture<'a> = MapErr<RecvFut<'a, SharedMessage>, fn(RecvError) -> StreamErr<StdioErr>>;
+
+pub type StdioMessageStream<'a> =
+    StreamMap<RecvStream<'a, SharedMessage>, fn(SharedMessage) -> StdioResult<SharedMessage>>;
+
+pub type StdioMessage = SharedMessage;
 
 impl Consumers {
     fn add(&mut self, group: Option<ConsumerGroup>, streams: Vec<StreamKey>) -> StdioConsumer {
@@ -163,6 +172,9 @@ pub(crate) fn init() {
                         panic!("{e:?}");
                     }
                 }
+                if line.ends_with('\n') {
+                    line.truncate(line.len() - 1);
+                }
                 let (meta, remaining) =
                     parse_meta(&line).unwrap_or_else(|_| panic!("Failed to parse line: {line}"));
                 let offset = remaining.as_ptr() as usize - line.as_ptr() as usize;
@@ -214,9 +226,8 @@ impl ConsumerTrait for StdioConsumer {
     type Error = StdioErr;
     type Message<'a> = SharedMessage;
     /// See, we don't actually have to Box these! Looking forward to `type_alias_impl_trait`
-    type NextFuture<'a> = MapErr<RecvFut<'a, SharedMessage>, fn(RecvError) -> StreamErr<StdioErr>>;
-    type Stream<'a> =
-        StreamMap<RecvStream<'a, SharedMessage>, fn(SharedMessage) -> StdioResult<SharedMessage>>;
+    type NextFuture<'a> = NextFuture<'a>;
+    type Stream<'a> = StdioMessageStream<'a>;
 
     async fn seek(&mut self, _: Timestamp) -> StdioResult<()> {
         Err(StreamErr::Unsupported("StdioConsumer::seek".to_owned()))

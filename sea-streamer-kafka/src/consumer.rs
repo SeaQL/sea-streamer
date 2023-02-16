@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use rdkafka::{
     config::ClientConfig,
     consumer::{
@@ -9,13 +8,16 @@ use rdkafka::{
     Message as KafkaMessageTrait, Offset, TopicPartitionList,
 };
 use sea_streamer_runtime::spawn_blocking;
-use std::time::Duration;
+use std::{fmt::Debug, time::Duration};
 
 use sea_streamer_types::{
-    export::futures::{
-        future::Map,
-        stream::{Map as StreamMap, StreamFuture},
-        FutureExt, StreamExt,
+    export::{
+        async_trait,
+        futures::{
+            future::Map,
+            stream::{Map as StreamMap, StreamFuture},
+            FutureExt, StreamExt,
+        },
     },
     runtime_error, Consumer as ConsumerTrait, ConsumerGroup, ConsumerMode, ConsumerOptions,
     Message, Payload, SequenceNo, SequencePos, ShardId, StreamErr, StreamKey, StreamerUri,
@@ -33,9 +35,8 @@ pub struct KafkaConsumer {
     streams: Vec<StreamKey>,
 }
 
-pub struct KafkaMessage<'a> {
-    mess: RawMessage<'a>,
-}
+#[repr(transparent)]
+pub struct KafkaMessage<'a>(RawMessage<'a>);
 
 #[derive(Debug, Default, Clone)]
 pub struct KafkaConsumerOptions {
@@ -55,7 +56,7 @@ pub struct KafkaConsumerOptions {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum OptionKey {
+pub enum KafkaConsumerOptionKey {
     BootstrapServers,
     GroupId,
     SessionTimeout,
@@ -64,6 +65,8 @@ pub enum OptionKey {
     AutoCommitInterval,
     EnableAutoOffsetStore,
 }
+
+type OptionKey = KafkaConsumerOptionKey;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum AutoOffsetReset {
@@ -74,6 +77,21 @@ pub enum AutoOffsetReset {
     /// throw exception to the consumer if no previous offset is found for the consumer's group
     NoReset,
 }
+
+pub type NextFuture<'a> = Map<
+    StreamFuture<RawMessageStream<'a>>,
+    fn(
+        (
+            Option<Result<RawMessage<'a>, KafkaErr>>,
+            RawMessageStream<'a>,
+        ),
+    ) -> KafkaResult<KafkaMessage<'a>>,
+>;
+
+pub type KafkaMessageStream<'a> = StreamMap<
+    RawMessageStream<'a>,
+    fn(Result<RawMessage<'a>, KafkaErr>) -> KafkaResult<KafkaMessage<'a>>,
+>;
 
 impl KafkaConsumerOptions {
     /// A unique string that identifies the consumer group this consumer belongs to.
@@ -210,19 +228,8 @@ impl ConsumerTrait for KafkaConsumer {
     type Error = KafkaErr;
     type Message<'a> = KafkaMessage<'a>;
     /// See, we don't actually have to Box these! Looking forward to `type_alias_impl_trait`
-    type NextFuture<'a> = Map<
-        StreamFuture<RawMessageStream<'a>>,
-        fn(
-            (
-                Option<Result<RawMessage<'a>, KafkaErr>>,
-                RawMessageStream<'a>,
-            ),
-        ) -> KafkaResult<KafkaMessage<'a>>,
-    >;
-    type Stream<'a> = StreamMap<
-        RawMessageStream<'a>,
-        fn(Result<RawMessage<'a>, KafkaErr>) -> KafkaResult<KafkaMessage<'a>>,
-    >;
+    type NextFuture<'a> = NextFuture<'a>;
+    type Stream<'a> = KafkaMessageStream<'a>;
 
     /// Seek all streams to the given point in time.
     ///
@@ -326,7 +333,7 @@ impl KafkaConsumer {
 
     fn process(res: Result<RawMessage, KafkaErr>) -> KafkaResult<KafkaMessage> {
         match res {
-            Ok(mess) => Ok(KafkaMessage { mess }),
+            Ok(mess) => Ok(KafkaMessage(mess)),
             Err(err) => Err(StreamErr::Backend(err)),
         }
     }
@@ -419,22 +426,34 @@ impl KafkaConsumer {
     }
 }
 
+impl<'a> KafkaMessage<'a> {
+    fn mess(&self) -> &RawMessage {
+        &self.0
+    }
+}
+
+impl<'a> Debug for KafkaMessage<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.mess().fmt(f)
+    }
+}
+
 impl<'a> Message for KafkaMessage<'a> {
     fn stream_key(&self) -> StreamKey {
-        StreamKey::new(self.mess.topic().to_owned())
+        StreamKey::new(self.mess().topic().to_owned())
     }
 
     fn shard_id(&self) -> ShardId {
-        ShardId::new(self.mess.partition() as u64)
+        ShardId::new(self.mess().partition() as u64)
     }
 
     fn sequence(&self) -> SequenceNo {
-        self.mess.offset() as SequenceNo
+        self.mess().offset() as SequenceNo
     }
 
     fn timestamp(&self) -> Timestamp {
         Timestamp::from_unix_timestamp_nanos(
-            self.mess
+            self.mess()
                 .timestamp()
                 .to_millis()
                 .expect("message.timestamp() is None") as i128
@@ -444,7 +463,7 @@ impl<'a> Message for KafkaMessage<'a> {
     }
 
     fn message(&self) -> Payload {
-        Payload::new(self.mess.payload().unwrap_or_default())
+        Payload::new(self.mess().payload().unwrap_or_default())
     }
 }
 
@@ -456,6 +475,10 @@ impl ConsumerOptions for KafkaConsumerOptions {
             mode,
             ..Default::default()
         }
+    }
+
+    fn mode(&self) -> KafkaResult<&ConsumerMode> {
+        Ok(&self.mode)
     }
 
     fn consumer_group(&self) -> KafkaResult<&ConsumerGroup> {
@@ -489,9 +512,10 @@ pub(crate) fn create_consumer(
     streams: Vec<StreamKey>,
 ) -> Result<KafkaConsumer, KafkaErr> {
     let mut client_config = ClientConfig::new();
-    client_config.set(OptionKey::BootstrapServers, cluster_uri(streamer));
+    client_config.set(OptionKey::BootstrapServers, cluster_uri(streamer)?);
     base_options.make_client_config(&mut client_config);
     options.make_client_config(&mut client_config);
+
     let consumer: RawConsumer = client_config.create()?;
 
     if !streams.is_empty() {

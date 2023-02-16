@@ -3,6 +3,7 @@ members = [
     ".",
     "sea-streamer-kafka",
     "sea-streamer-runtime",
+    "sea-streamer-socket",
     "sea-streamer-stdio",
     "sea-streamer-types",
 ]
@@ -25,7 +26,7 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-sea-streamer-types = { path = "sea-streamer-types" }
+sea-streamer-types = { version = "^0.1.0", path = "sea-streamer-types" }
 
 [features]
 json = ["sea-streamer-types/json"]

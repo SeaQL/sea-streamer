@@ -7,7 +7,7 @@ use structopt::StructOpt;
 #[derive(Debug, StructOpt)]
 struct Args {
     #[structopt(long, help = "Stream key")]
-    stream_key: StreamKey,
+    stream: StreamKey,
     #[structopt(long, parse(try_from_str = parse_duration), help = "Period of the clock. e.g. 1s, 100ms")]
     interval: Duration,
 }
@@ -32,15 +32,10 @@ fn parse_duration(src: &str) -> Result<Duration> {
 async fn main() -> Result<()> {
     env_logger::init();
 
-    let Args {
-        stream_key,
-        interval,
-    } = Args::from_args();
+    let Args { stream, interval } = Args::from_args();
 
     let streamer = StdioStreamer::connect(StreamerUri::zero(), Default::default()).await?;
-    let producer = streamer
-        .create_producer(stream_key, Default::default())
-        .await?;
+    let producer = streamer.create_producer(stream, Default::default()).await?;
     let mut tick: u64 = 0;
 
     loop {

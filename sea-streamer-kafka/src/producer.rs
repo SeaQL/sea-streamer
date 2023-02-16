@@ -1,6 +1,8 @@
 use std::{fmt::Debug, future::Future, time::Duration};
 
-use crate::{cluster::cluster_uri, KafkaErr, KafkaResult};
+use crate::{
+    cluster::cluster_uri, impl_into_string, stream_err, KafkaConnectOptions, KafkaErr, KafkaResult,
+};
 use rdkafka::{
     config::ClientConfig,
     producer::{
@@ -11,7 +13,7 @@ use rdkafka::{
 use sea_streamer_runtime::spawn_blocking;
 use sea_streamer_types::{
     export::futures::FutureExt, runtime_error, MessageHeader, Producer, ProducerOptions, Sendable,
-    ShardId, StreamErr, StreamKey, StreamerUri, Timestamp,
+    ShardId, StreamErr, StreamKey, StreamResult, StreamerUri, Timestamp,
 };
 
 #[derive(Clone)]
@@ -29,11 +31,44 @@ impl Debug for KafkaProducer {
 }
 
 #[derive(Debug, Default, Clone)]
-pub struct KafkaProducerOptions {}
+pub struct KafkaProducerOptions {
+    compression_type: Option<CompressionType>,
+}
 
 pub struct SendFuture {
     stream_key: StreamKey,
     fut: DeliveryFuture,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum KafkaProducerOptionKey {
+    BootstrapServers,
+    CompressionType,
+}
+
+type OptionKey = KafkaProducerOptionKey;
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum CompressionType {
+    None,
+    Gzip,
+    Snappy,
+    Lz4,
+    Zstd,
+}
+
+impl Default for CompressionType {
+    fn default() -> Self {
+        Self::None
+    }
+}
+
+impl Debug for SendFuture {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SendFuture")
+            .field("stream_key", &self.stream_key)
+            .finish()
+    }
 }
 
 impl Producer for KafkaProducer {
@@ -87,8 +122,49 @@ impl KafkaProducer {
 
 impl ProducerOptions for KafkaProducerOptions {}
 
+impl KafkaProducerOptions {
+    /// Set the compression method for this producer
+    pub fn set_compression_type(&mut self, v: CompressionType) -> &mut Self {
+        self.compression_type = Some(v);
+        self
+    }
+    pub fn compression_type(&self) -> Option<&CompressionType> {
+        self.compression_type.as_ref()
+    }
+
+    fn make_client_config(&self, client_config: &mut ClientConfig) {
+        if let Some(v) = self.compression_type {
+            client_config.set(OptionKey::CompressionType, v);
+        }
+    }
+}
+
+impl OptionKey {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::BootstrapServers => "bootstrap.servers",
+            Self::CompressionType => "compression.type",
+        }
+    }
+}
+
+impl CompressionType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Gzip => "gzip",
+            Self::Snappy => "snappy",
+            Self::Lz4 => "lz4",
+            Self::Zstd => "zstd",
+        }
+    }
+}
+
+impl_into_string!(OptionKey);
+impl_into_string!(CompressionType);
+
 impl Future for SendFuture {
-    type Output = Result<MessageHeader, KafkaErr>;
+    type Output = StreamResult<MessageHeader, KafkaErr>;
 
     fn poll(
         mut self: std::pin::Pin<&mut Self>,
@@ -104,24 +180,29 @@ impl Future for SendFuture {
                         offset as u64,
                         Timestamp::now_utc(),
                     )),
-                    Err((err, _)) => Err(err),
+                    Err((err, _)) => Err(stream_err(err)),
                 },
-                Err(_) => Err(KafkaErr::Canceled),
+                Err(_) => Err(stream_err(KafkaErr::Canceled)),
             }),
             std::task::Poll::Pending => std::task::Poll::Pending,
         }
     }
 }
 
-pub(crate) fn create_producer(streamer: &StreamerUri) -> Result<KafkaProducer, KafkaErr> {
+pub(crate) fn create_producer(
+    streamer: &StreamerUri,
+    base_options: &KafkaConnectOptions,
+    options: &KafkaProducerOptions,
+) -> Result<KafkaProducer, KafkaErr> {
     let mut client_config = ClientConfig::new();
-    client_config.set("bootstrap.servers", cluster_uri(streamer));
-    client_config.set("message.max.bytes", "1000000000"); // ~1Gb - this is the max that rdkafka allows
+    client_config.set(OptionKey::BootstrapServers, cluster_uri(streamer)?);
+    base_options.make_client_config(&mut client_config);
+    options.make_client_config(&mut client_config);
 
-    let inner = client_config.create()?;
+    let producer = client_config.create()?;
 
     Ok(KafkaProducer {
         stream: None,
-        inner,
+        inner: producer,
     })
 }

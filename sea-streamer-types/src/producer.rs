@@ -8,7 +8,7 @@ pub type Receipt = MessageHeader;
 
 pub trait Producer: Clone + Send + Sync {
     type Error: std::error::Error;
-    type SendFuture: Future<Output = Result<Receipt, Self::Error>>;
+    type SendFuture: Future<Output = StreamResult<Receipt, Self::Error>>;
 
     /// Send a message to a particular stream. This function is non-blocking.
     /// You don't have to await the future if you are not interested in the Receipt.

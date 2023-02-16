@@ -2,7 +2,7 @@
 
 > These are not very interesting, unless used in combination with file and Kafka.
 
-You can connect process together with pipes: `program_a | program_b`.
+You can connect processes together with pipes: `program_a | program_b`.
 
 However you can also connect them asynchronously:
 
@@ -22,7 +22,7 @@ which may or may not be the desired behavior.
 Usage: 
 
 ```sh
-cargo run --bin clock -- --interval 1s --stream-key clock
+cargo run --bin clock -- --interval 1s --stream clock
 
 [2022-12-06T18:31:23.285852 | clock | 0] { "tick": 0 }
 [2022-12-06T18:31:24.287452 | clock | 1] { "tick": 1 }
@@ -37,7 +37,7 @@ cargo run --bin clock -- --interval 1s --stream-key clock
 Usage (using unix pipe):
 
 ```sh
-cargo run --bin clock -- --interval 1s --stream-key clock | cargo run --bin relay -- --input clock --output relay
+cargo run --bin clock -- --interval 1s --stream clock | cargo run --bin relay -- --input clock --output relay
 
 [2022-12-06T18:34:19.348575 | relay | 0] {"relay":true,"tick":0}
 [2022-12-06T18:34:20.351214 | relay | 1] {"relay":true,"tick":1}
@@ -48,7 +48,7 @@ cargo run --bin clock -- --interval 1s --stream-key clock | cargo run --bin rela
 ## complex
 
 ```sh
-cargo run --bin clock -- --interval 1s --stream-key clock | cargo run --bin complex -- --input clock --output relay
+cargo run --bin clock -- --interval 1s --stream clock | cargo run --bin complex -- --input clock --output relay
 
 [2023-02-10T15:47:08Z INFO  sea_streamer_stdio::consumers] [17469] stdin thread spawned
 [2023-02-10T15:47:08Z INFO  sea_streamer_stdio::producer] [17469] stdout thread spawned

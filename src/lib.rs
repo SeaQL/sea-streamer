@@ -23,6 +23,6 @@
 //! SeaStreamer also provides a set of tools to work with streams via unix pipe, so it is testable without setting up a cluster,
 //! and extremely handy when working with a local data set.
 //!
-//! The API is async, and it works across `tokio`, `async-std` and `actix`.
+//! The API is async, and it works on `tokio` (and `actix`) and `async-std`.
 
 pub use sea_streamer_types::*;

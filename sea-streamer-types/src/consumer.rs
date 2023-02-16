@@ -12,6 +12,12 @@ pub enum ConsumerMode {
     LoadBalanced,
 }
 
+impl Default for ConsumerMode {
+    fn default() -> Self {
+        Self::RealTime
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ConsumerGroup {
     name: String,
@@ -21,6 +27,9 @@ pub trait ConsumerOptions: Default + Clone + Send {
     type Error: std::error::Error;
 
     fn new(mode: ConsumerMode) -> Self;
+
+    /// Get currently set ConsumerMode
+    fn mode(&self) -> StreamResult<&ConsumerMode, Self::Error>;
 
     /// Get currently set consumer group; may return [`StreamErr::ConsumerGroupNotSet`].
     fn consumer_group(&self) -> StreamResult<&ConsumerGroup, Self::Error>;
@@ -77,11 +86,5 @@ impl ConsumerGroup {
 
     pub fn name(&self) -> &str {
         &self.name
-    }
-}
-
-impl Default for ConsumerMode {
-    fn default() -> Self {
-        Self::RealTime
     }
 }

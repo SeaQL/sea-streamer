@@ -1,0 +1,41 @@
+[package]
+name = "sea-streamer-socket"
+version = "0.1.0"
+authors = ["Chris Tsang <chris.2y3@outlook.com>"]
+edition = "2021"
+description = "🌊 SeaStreamer backend-agnostic Socket API"
+license = "MIT OR Apache-2.0"
+documentation = "https://docs.rs/sea-streamer"
+repository = "https://github.com/SeaQL/sea-streamer"
+categories = ["database"]
+# keywords = []
+rust-version = "1.60"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+anyhow = { version = "1", optional = true }
+env_logger = { version = "0.9.0", optional = true }
+sea-streamer-kafka = { version = "^0.1.0", path = "../sea-streamer-kafka", optional = true }
+sea-streamer-stdio = { version = "^0.1.0", path = "../sea-streamer-stdio", optional = true }
+sea-streamer-types = { version = "^0.1.0", path = "../sea-streamer-types" }
+sea-streamer-runtime = { version = "^0.1.0", path = "../sea-streamer-runtime" }
+structopt = { version = "^0.3", optional = true }
+thiserror = { version = "^1", default-features = false }
+tokio = { version = "1.10.0", optional = true }
+
+[features]
+default = ["backend-kafka", "backend-stdio", "executables"] # FIXME if we remove them, it can't compile
+executables = ["anyhow", "env_logger", "structopt", "tokio"]
+json = ["sea-streamer-types/json"]
+runtime-async-std = ["sea-streamer-kafka?/runtime-async-std", "sea-streamer-runtime/runtime-async-std"]
+runtime-tokio = ["sea-streamer-kafka?/runtime-tokio", "sea-streamer-runtime/runtime-tokio"]
+backend-kafka = ["sea-streamer-kafka"]
+backend-stdio = ["sea-streamer-stdio"]
+
+[[bin]]
+name = "relay"
+path = "src/bin/relay.rs"
+required-features = ["executables"]
