@@ -105,10 +105,11 @@
 //!
 //! `sea-streamer` is the facade crate re-exporting implementation from a number of sub-crates:
 //!
-//! + [sea-streamer-types](https://github.com/SeaQL/sea-streamer/tree/main/sea-streamer-types)
-//! + [sea-streamer-socket](https://github.com/SeaQL/sea-streamer/tree/main/sea-streamer-socket)
-//! + [sea-streamer-kafka](https://github.com/SeaQL/sea-streamer/tree/main/sea-streamer-kafka)
-//! + [sea-streamer-stdio](https://github.com/SeaQL/sea-streamer/tree/main/sea-streamer-stdio)
+//! [`sea-streamer` API Docs](https://docs.rs/sea-streamer)
+//! + `sea-streamer-types`
+//! + `sea-streamer-socket`
+//!     + `sea-streamer-kafka`
+//!     + `sea-streamer-stdio`
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 

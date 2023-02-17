@@ -105,10 +105,11 @@ async fn main() -> Result<()> {
 
 `sea-streamer` is the facade crate re-exporting implementation from a number of sub-crates:
 
-+ [sea-streamer-types](https://github.com/SeaQL/sea-streamer/tree/main/sea-streamer-types)
-+ [sea-streamer-socket](https://github.com/SeaQL/sea-streamer/tree/main/sea-streamer-socket)
-+ [sea-streamer-kafka](https://github.com/SeaQL/sea-streamer/tree/main/sea-streamer-kafka)
-+ [sea-streamer-stdio](https://github.com/SeaQL/sea-streamer/tree/main/sea-streamer-stdio)
+[`sea-streamer` API Docs](https://docs.rs/sea-streamer)
++ `sea-streamer-types`
++ `sea-streamer-socket`
+    + `sea-streamer-kafka`
+    + `sea-streamer-stdio`
 
 ## SeaStreamer Types
 
@@ -156,14 +157,22 @@ relay -- --stream clock --input kafka://localhost:9092 --output stdio:// --offse
 
 ## SeaStreamer Kafka / Redpanda Backend
 
-This is the Kafka / Redpanda backend implementation for SeaStreamer. Although the crate's name is `kafka`,
-Redpanda integration is first-class as well. This crate depends on [`rdkafka`](https://docs.rs/rdkafka),
-which in turn depends on [librdkafka-sys](https://docs.rs/librdkafka-sys), which itself is a wrapper of
-[librdkafka](https://docs.confluent.io/platform/current/clients/librdkafka/html/index.html).
-
+This is the Kafka / Redpanda backend implementation for SeaStreamer.
 This crate provides a comprehensive type system that makes working with Kafka easier and safer.
 
 [`sea-streamer-kafka` API Docs](https://docs.rs/sea-streamer-kafka)
+
+`KafkaConsumerOptions` has typed parameters.
+
+`KafkaConsumer` allows you to `seek` to point in time, `rewind` to particular offset, and `commit` message read.
+
+`KafkaProducer` allows you to `await` a send `Receipt` or discard it if you are uninterested.
+
+`KafkaStreamer` allows you to flush all producers on `disconnect`.
+
+This crate depends on [`rdkafka`](https://docs.rs/rdkafka),
+which in turn depends on [librdkafka-sys](https://docs.rs/librdkafka-sys), which itself is a wrapper of
+[librdkafka](https://docs.confluent.io/platform/current/clients/librdkafka/html/index.html).
 
 ## SeaStreamer Standard I/O Backend
 
@@ -230,10 +239,12 @@ Licensed under either of
 
 at your option.
 
-## Contribution
-
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
 dual licensed as above, without any additional terms or conditions.
 
-SeaStreamer is a community driven project. We welcome you to participate, contribute and together help build Rust's future.
+## Sponsor
+
+Our [GitHub Sponsor](https://github.com/sponsors/SeaQL) profile is up! SeaQL.org is an independent open-source organization run by passionate developers. If you enjoy using SeaORM, please star and share our repositories. If you feel generous, a small donation will be greatly appreciated, and goes a long way towards sustaining the project.
+
+We invite you to participate, contribute and together help build Rust's future.
