@@ -37,15 +37,6 @@ and extremely handy when working locally.
 
 Let's build real-time (multi-threaded, no GC), self-contained (aka easy to deploy), low-resource-usage, long-running (no memory leak) stream processors in Rust!
 
-## Architecture
-
-`sea-streamer` is the facade crate re-exporting implementation from a number of sub-crates:
-
-+ [sea-streamer-types](https://github.com/SeaQL/sea-streamer/tree/main/sea-streamer-types)
-+ [sea-streamer-socket](https://github.com/SeaQL/sea-streamer/tree/main/sea-streamer-socket)
-+ [sea-streamer-kafka](https://github.com/SeaQL/sea-streamer/tree/main/sea-streamer-kafka)
-+ [sea-streamer-stdio](https://github.com/SeaQL/sea-streamer/tree/main/sea-streamer-stdio)
-
 ## Quick Start
 
 Here is a basic stream consumer, [full example](https://github.com/SeaQL/sea-streamer/tree/main/examples/src/bin/consumer.rs):
@@ -109,6 +100,15 @@ async fn main() -> Result<()> {
     Ok(())
 }
 ```
+
+## Architecture
+
+`sea-streamer` is the facade crate re-exporting implementation from a number of sub-crates:
+
++ [sea-streamer-types](https://github.com/SeaQL/sea-streamer/tree/main/sea-streamer-types)
++ [sea-streamer-socket](https://github.com/SeaQL/sea-streamer/tree/main/sea-streamer-socket)
++ [sea-streamer-kafka](https://github.com/SeaQL/sea-streamer/tree/main/sea-streamer-kafka)
++ [sea-streamer-stdio](https://github.com/SeaQL/sea-streamer/tree/main/sea-streamer-stdio)
 
 ## SeaStreamer Types
 
