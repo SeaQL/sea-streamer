@@ -16,26 +16,51 @@
 
 SeaStreamer is a stream processing toolkit to help you build stream processors in Rust.
 
-We provide integration for Kafka / Redpanda behind a generic trait interface, so your program can be backend-agnostic. Support for Redis Stream is being planned.
+## Features
 
-SeaStreamer also provides a set of tools to work with streams via unix pipe, so it is testable without setting up a cluster,
-and extremely handy when working with a local data set.
+1. Async
 
-The API is async, and it works on `tokio` (and `actix`) and `async-std`.
+SeaStreamer provides an async API, and it supports both `tokio` and `async-std`. In tandem with other async Rust libraries,
+you can build highly concurrent stream processors.
 
-This is the facade crate re-exporting implementation from a number of sub-crates.
+2. Generic
 
-## `sea-streamer-types` SeaStreamer Types
+We provide integration for Kafka / Redpanda behind a generic trait interface, so your program can be backend-agnostic.
+Support for Redis Stream is being planned.
+
+3. Testable
+
+SeaStreamer also provides a set of tools to work with streams via unix pipes, so it is testable without setting up a cluster,
+and extremely handy when working locally.
+
+4. Micro-service Oriented
+
+Let's build real-time (multi-threaded, no GC), self-contained (aka easy to deploy), low-resource-usage, long-running (no memory leak) stream processors in Rust!
+
+## Architecture
+
+`sea-streamer` is the facade crate re-exporting implementation from a number of sub-crates:
+
++ [sea-streamer-types](https://github.com/SeaQL/sea-streamer/tree/main/sea-streamer-types)
++ [sea-streamer-socket](https://github.com/SeaQL/sea-streamer/tree/main/sea-streamer-socket)
++ [sea-streamer-kafka](https://github.com/SeaQL/sea-streamer/tree/main/sea-streamer-kafka)
++ [sea-streamer-stdio](https://github.com/SeaQL/sea-streamer/tree/main/sea-streamer-stdio)
+
+## SeaStreamer Types
 
 This crate defines all the traits and types for the SeaStreamer API, but does not provide any implementation.
 
-## `sea-streamer-socket` SeaStreamer backend-agnostic Socket API
+[`sea-streamer-types` API Docs](https://docs.rs/sea-streamer-types)
+
+## SeaStreamer backend-agnostic Socket API
 
 Akin to how SeaORM allows you to build applications for different databases, SeaStreamer allows you to build
-stream processors for any streaming server.
+stream processors for different streaming servers.
 
-While the `sea-streamer-types` provides a nice trait-based abstraction, this crates provides a concrete API,
-so that your program can stream to any SeaStreamer backend selected by the user *on runtime*.
+[`sea-streamer-socket` API Docs](https://docs.rs/sea-streamer-socket)
+
+While the `sea-streamer-types` crate provides a nice trait-based abstraction, this crates provides a concrete-type API,
+so that your program can stream from/to any SeaStreamer backend selected by the user *on runtime*.
 
 This allows you to do neat things, like generating data locally and then stream them to Kafka. Or in the other
 way, sink data from Kafka to work on them locally. All _without recompiling_ the stream processor.
@@ -46,26 +71,26 @@ A small number of cli programs are provided for demonstration. Let's set them up
 
 ```sh
 # The `clock` program generate messages in the form of `{ "tick": N }`
-alias clock='cargo run --package sea-streamer-stdio  --bin clock --features=executables'
+alias clock='cargo run --package sea-streamer-stdio  --features=executables --bin clock'
 # The `relay` program redirect messages from `input` to `output`
-alias relay='cargo run --package sea-streamer-socket --bin relay --features=executables'
+alias relay='cargo run --package sea-streamer-socket --features=executables --bin relay'
 ```
 
-Here is how to stream from Stdio -> Kafka. We generate messages using `clock` and then pipe it to `relay`,
+Here is how to stream from Stdio ➡️ Kafka. We generate messages using `clock` and then pipe it to `relay`,
 which then streams to Kafka:
 
 ```sh
-clock -- --interval 1s --stream clock | \
-relay --  --stream clock --input stdio:// --output kafka://localhost:9092
+clock -- --stream clock --interval 1s | \
+relay -- --stream clock --input stdio:// --output kafka://localhost:9092
 ```
 
-Here is how to replay the stream from Kafka -> Stdio:
+Here is how to *replay* the stream from Kafka ➡️ Stdio:
 
 ```sh
-relay --  --stream clock --input kafka://localhost:9092 --output stdio:// --offset start
+relay -- --stream clock --input kafka://localhost:9092 --output stdio:// --offset start
 ```
 
-## `sea-streamer-kafka` SeaStreamer Kafka / Redpanda Backend
+## SeaStreamer Kafka / Redpanda Backend
 
 This is the Kafka / Redpanda backend implementation for SeaStreamer. Although the crate's name is `kafka`,
 Redpanda integration is first-class as well. This crate depends on [`rdkafka`](https://docs.rs/rdkafka),
@@ -74,10 +99,14 @@ which in turn depends on [librdkafka-sys](https://docs.rs/librdkafka-sys), which
 
 This crate provides a comprehensive type system that makes working with Kafka easier and safer.
 
-## `sea-streamer-stdio` SeaStreamer Standard I/O Backend
+[`sea-streamer-kafka` API Docs](https://docs.rs/sea-streamer-kafka)
+
+## SeaStreamer Standard I/O Backend
 
 This is the `stdio` backend implementation for SeaStreamer. It is designed to be connected together with unix pipes,
 enabling great flexibility when developing stream processors or processing data locally.
+
+[`sea-streamer-stdio` API Docs](https://docs.rs/sea-streamer-stdio)
 
 You can connect processes together with pipes: `program_a | program_b`.
 
@@ -95,7 +124,7 @@ which may or may not be the desired behavior.
 You can write any valid UTF-8 string to stdin and each line will be considered a message. In addition, you can write some message meta in a simple format:
 
 ```log
-[timestamp | stream key | sequence | shard_id] payload
+[timestamp | stream_key | sequence | shard_id] payload
 ```
 
 Note: the square brackets are literal `[` `]`.
@@ -124,4 +153,23 @@ If no stream key is given, it will be assigned the name `broadcast` and sent to 
 
 You can create consumers that subscribe to only a subset of the topics.
 
-Consumers in the same `ConsumerGroup` will be load balanced, meaning you can spawn multiple async tasks to process messages in parallel.
+Consumers in the same `ConsumerGroup` will be load balanced (in a round-robin fashion), meaning you can spawn multiple async tasks to process messages in parallel.
+
+## License
+
+Licensed under either of
+
+-   Apache License, Version 2.0
+    ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
+-   MIT license
+    ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+
+at your option.
+
+## Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
+dual licensed as above, without any additional terms or conditions.
+
+SeaStreamer is a community driven project. We welcome you to participate, contribute and together help build Rust's future.

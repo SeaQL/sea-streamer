@@ -161,7 +161,7 @@ pub(crate) fn init() {
         let flag = Arc::new(AtomicBool::new(true));
         let local_flag = flag.clone();
         std::thread::spawn(move || {
-            log::info!("[{pid}] stdin thread spawned", pid = std::process::id());
+            log::debug!("[{pid}] stdin thread spawned", pid = std::process::id());
             let _guard = PanicGuard;
             while local_flag.load(Ordering::Relaxed) {
                 let mut line = String::new();
@@ -180,7 +180,7 @@ pub(crate) fn init() {
                 let offset = remaining.as_ptr() as usize - line.as_ptr() as usize;
                 dispatch(meta, line.into_bytes(), offset);
             }
-            log::info!("[{pid}] stdin thread exit", pid = std::process::id());
+            log::debug!("[{pid}] stdin thread exit", pid = std::process::id());
             {
                 let mut thread = THREAD.lock().expect("Failed to lock stdin thread");
                 thread.take(); // set to none

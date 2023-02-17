@@ -40,19 +40,14 @@ pub struct KafkaMessage<'a>(RawMessage<'a>);
 
 #[derive(Debug, Default, Clone)]
 pub struct KafkaConsumerOptions {
-    pub(crate) mode: ConsumerMode,
-    /// https://kafka.apache.org/documentation/#connectconfigs_group.id
+    mode: ConsumerMode,
     group_id: Option<ConsumerGroup>,
-    /// https://kafka.apache.org/documentation/#connectconfigs_session.timeout.ms
     session_timeout: Option<Duration>,
-    /// https://kafka.apache.org/documentation/#consumerconfigs_auto.offset.reset
     auto_offset_reset: Option<AutoOffsetReset>,
-    /// https://kafka.apache.org/documentation/#consumerconfigs_enable.auto.commit
     enable_auto_commit: Option<bool>,
-    /// https://kafka.apache.org/documentation/#consumerconfigs_auto.commit.interval.ms
     auto_commit_interval: Option<Duration>,
-    /// https://kafka.apache.org/documentation/#consumerconfigs_enable.auto.commit
     enable_auto_offset_store: Option<bool>,
+    custom_options: Vec<(String, String)>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -97,6 +92,8 @@ impl KafkaConsumerOptions {
     /// A unique string that identifies the consumer group this consumer belongs to.
     /// This property is required if the consumer uses either the group management functionality
     /// by using subscribe(topic) or the Kafka-based offset management strategy.
+    ///
+    /// https://kafka.apache.org/documentation/#connectconfigs_group.id
     pub fn set_group_id(&mut self, id: ConsumerGroup) -> &mut Self {
         self.group_id = Some(id);
         self
@@ -109,6 +106,8 @@ impl KafkaConsumerOptions {
     /// to indicate its liveness to the broker. If no heartbeats are received by the broker
     /// before the expiration of this session timeout, then the broker will remove the worker
     /// from the group and initiate a rebalance.
+    ///
+    /// https://kafka.apache.org/documentation/#connectconfigs_session.timeout.ms
     pub fn set_session_timeout(&mut self, v: Duration) -> &mut Self {
         self.session_timeout = Some(v);
         self
@@ -121,6 +120,8 @@ impl KafkaConsumerOptions {
     /// not exist any more on the server.
     ///
     /// If unset, defaults to Latest
+    ///
+    /// https://kafka.apache.org/documentation/#consumerconfigs_auto.offset.reset
     pub fn set_auto_offset_reset(&mut self, v: AutoOffsetReset) -> &mut Self {
         self.auto_offset_reset = Some(v);
         self
@@ -132,6 +133,8 @@ impl KafkaConsumerOptions {
     /// If enabled, the consumer's offset will be periodically committed in the background.
     ///
     /// If unset, defaults to true.
+    ///
+    /// https://kafka.apache.org/documentation/#consumerconfigs_enable.auto.commit
     pub fn set_enable_auto_commit(&mut self, v: bool) -> &mut Self {
         self.enable_auto_commit = Some(v);
         self
@@ -142,6 +145,8 @@ impl KafkaConsumerOptions {
 
     /// The interval for offsets to be auto-committed. If `enable_auto_commit` is set to false,
     /// this will have no effect.
+    ///
+    /// https://kafka.apache.org/documentation/#consumerconfigs_auto.commit.interval.ms
     pub fn set_auto_commit_interval(&mut self, v: Duration) -> &mut Self {
         self.auto_commit_interval = Some(v);
         self
@@ -161,6 +166,22 @@ impl KafkaConsumerOptions {
     }
     pub fn enable_auto_offset_store(&self) -> Option<&bool> {
         self.enable_auto_offset_store.as_ref()
+    }
+
+    /// Add a custom option. If you have an option you frequently use,
+    /// please consider open a PR and add it to above.
+    pub fn add_custom_option<K, V>(&mut self, key: K, value: V) -> &mut Self
+    where
+        K: Into<String>,
+        V: Into<String>,
+    {
+        self.custom_options.push((key.into(), value.into()));
+        self
+    }
+    pub fn custom_options(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.custom_options
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
     }
 
     fn make_client_config(&self, client_config: &mut ClientConfig) {
@@ -186,6 +207,9 @@ impl KafkaConsumerOptions {
         }
         if let Some(v) = self.enable_auto_offset_store {
             client_config.set(OptionKey::EnableAutoOffsetStore, v.to_string());
+        }
+        for (key, value) in self.custom_options() {
+            client_config.set(key, value);
         }
     }
 }

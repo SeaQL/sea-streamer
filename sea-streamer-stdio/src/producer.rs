@@ -43,7 +43,7 @@ pub(crate) fn init() {
     if thread.is_none() {
         let (sender, receiver) = unbounded();
         std::thread::spawn(move || {
-            log::info!("[{pid}] stdout thread spawned", pid = std::process::id());
+            log::debug!("[{pid}] stdout thread spawned", pid = std::process::id());
             // this thread locks the mutex forever
             let mut producers = PRODUCERS
                 .try_lock()
@@ -88,7 +88,7 @@ pub(crate) fn init() {
                     Signal::Shutdown => break,
                 }
             }
-            log::info!("[{pid}] stdout thread exit", pid = std::process::id());
+            log::debug!("[{pid}] stdout thread exit", pid = std::process::id());
             {
                 let mut thread = THREAD.lock().expect("Failed to lock stdout thread");
                 thread.take(); // set to none

@@ -1,7 +1,9 @@
-//! ## `sea-streamer-stdio` SeaStreamer Standard I/O Backend
+//! ## SeaStreamer Standard I/O Backend
 //!
 //! This is the `stdio` backend implementation for SeaStreamer. It is designed to be connected together with unix pipes,
 //! enabling great flexibility when developing stream processors or processing data locally.
+//! 
+//! [`sea-streamer-stdio` API Docs](https://docs.rs/sea-streamer-stdio)
 //!
 //! You can connect processes together with pipes: `program_a | program_b`.
 //!
@@ -19,7 +21,7 @@
 //! You can write any valid UTF-8 string to stdin and each line will be considered a message. In addition, you can write some message meta in a simple format:
 //!
 //! ```log
-//! [timestamp | stream key | sequence | shard_id] payload
+//! [timestamp | stream_key | sequence | shard_id] payload
 //! ```
 //!
 //! Note: the square brackets are literal `[` `]`.
@@ -48,7 +50,7 @@
 //!
 //! You can create consumers that subscribe to only a subset of the topics.
 //!
-//! Consumers in the same `ConsumerGroup` will be load balanced, meaning you can spawn multiple async tasks to process messages in parallel.
+//! Consumers in the same `ConsumerGroup` will be load balanced (in a round-robin fashion), meaning you can spawn multiple async tasks to process messages in parallel.
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![deny(missing_debug_implementations)]

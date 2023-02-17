@@ -6,8 +6,8 @@ use std::{
 
 use sea_streamer_runtime::spawn_blocking;
 use sea_streamer_types::{
-    export::async_trait, runtime_error, ConnectOptions, ConsumerGroup, ConsumerMode, StreamErr,
-    StreamKey, Streamer, StreamerUri,
+    export::async_trait, runtime_error, ConnectOptions, ConsumerGroup, ConsumerMode,
+    ConsumerOptions, StreamErr, StreamKey, Streamer, StreamerUri,
 };
 
 use crate::{
@@ -125,7 +125,7 @@ impl Streamer for KafkaStreamer {
         if streams.is_empty() {
             return Err(StreamErr::StreamKeyEmpty);
         }
-        match options.mode {
+        match options.mode()? {
             ConsumerMode::RealTime => {
                 if options.group_id().is_some() {
                     return Err(StreamErr::ConsumerGroupIsSet);

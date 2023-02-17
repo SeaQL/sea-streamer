@@ -1,10 +1,12 @@
-//! ## `sea-streamer-socket` SeaStreamer backend-agnostic Socket API
+//! ## SeaStreamer backend-agnostic Socket API
 //!
 //! Akin to how SeaORM allows you to build applications for different databases, SeaStreamer allows you to build
-//! stream processors for any streaming server.
+//! stream processors for different streaming servers.
 //!
-//! While the `sea-streamer-types` provides a nice trait-based abstraction, this crates provides a concrete API,
-//! so that your program can stream to any SeaStreamer backend selected by the user *on runtime*.
+//! [`sea-streamer-socket` API Docs](https://docs.rs/sea-streamer-socket)
+//!
+//! While the `sea-streamer-types` crate provides a nice trait-based abstraction, this crates provides a concrete-type API,
+//! so that your program can stream from/to any SeaStreamer backend selected by the user *on runtime*.
 //!
 //! This allows you to do neat things, like generating data locally and then stream them to Kafka. Or in the other
 //! way, sink data from Kafka to work on them locally. All _without recompiling_ the stream processor.
@@ -15,23 +17,23 @@
 //!
 //! ```sh
 //! # The `clock` program generate messages in the form of `{ "tick": N }`
-//! alias clock='cargo run --package sea-streamer-stdio  --bin clock --features=executables'
+//! alias clock='cargo run --package sea-streamer-stdio  --features=executables --bin clock'
 //! # The `relay` program redirect messages from `input` to `output`
-//! alias relay='cargo run --package sea-streamer-socket --bin relay --features=executables'
+//! alias relay='cargo run --package sea-streamer-socket --features=executables --bin relay'
 //! ```
 //!
-//! Here is how to stream from Stdio -> Kafka. We generate messages using `clock` and then pipe it to `relay`,
+//! Here is how to stream from Stdio ➡️ Kafka. We generate messages using `clock` and then pipe it to `relay`,
 //! which then streams to Kafka:
 //!
 //! ```sh
-//! clock -- --interval 1s --stream clock | \
-//! relay --  --stream clock --input stdio:// --output kafka://localhost:9092
+//! clock -- --stream clock --interval 1s | \
+//! relay -- --stream clock --input stdio:// --output kafka://localhost:9092
 //! ```
 //!
-//! Here is how to replay the stream from Kafka -> Stdio:
+//! Here is how to *replay* the stream from Kafka ➡️ Stdio:
 //!
 //! ```sh
-//! relay --  --stream clock --input kafka://localhost:9092 --output stdio:// --offset start
+//! relay -- --stream clock --input kafka://localhost:9092 --output stdio:// --offset start
 //! ```
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
