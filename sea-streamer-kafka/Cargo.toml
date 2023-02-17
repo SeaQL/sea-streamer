@@ -32,7 +32,7 @@ tokio = { version = "1.10.0", optional = true }
 sea-streamer-kafka = { path = ".", features = ["executables"] }
 
 [features]
-default = ["executables"] # NOTE remove before publish
+# default = ["executables"] # NOTE remove before publish
 executables = ["anyhow", "env_logger", "structopt", "runtime-tokio"]
 runtime-async-std = ["sea-streamer-runtime/runtime-async-std"]
 runtime-tokio = ["tokio/full", "rdkafka/tokio", "sea-streamer-runtime/runtime-tokio"]

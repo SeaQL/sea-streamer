@@ -27,7 +27,7 @@ thiserror = { version = "^1", default-features = false }
 tokio = { version = "1.10.0", optional = true }
 
 [features]
-default = ["backend-kafka", "backend-stdio", "executables"] # FIXME if we remove them, it can't compile
+default = ["backend-kafka", "backend-stdio"] # FIXME if we remove them, it can't compile
 executables = ["anyhow", "env_logger", "structopt", "tokio"]
 json = ["sea-streamer-types/json"]
 runtime-async-std = ["sea-streamer-kafka?/runtime-async-std", "sea-streamer-runtime/runtime-async-std"]
