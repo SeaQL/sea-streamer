@@ -1,12 +1,15 @@
-use anyhow::Result;
-use sea_streamer_kafka::{AutoOffsetReset, KafkaConsumer, KafkaConsumerOptions, KafkaStreamer};
-use sea_streamer_types::{
-    export::futures::StreamExt, Consumer, ConsumerMode, ConsumerOptions, Message, Producer,
-    Sendable, SequencePos, ShardId, StreamKey, Streamer, Timestamp,
-};
+// cargo test --test consumer --no-default-features --features=test,runtime-tokio -- --nocapture
+// cargo test --test consumer --no-default-features --features=test,runtime-async-std -- --nocapture
+#[cfg(feature = "test")]
+#[cfg_attr(feature = "runtime-tokio", tokio::test)]
+#[cfg_attr(feature = "runtime-async-std", async_std::test)]
+async fn main() -> anyhow::Result<()> {
+    use sea_streamer_kafka::{AutoOffsetReset, KafkaConsumer, KafkaConsumerOptions, KafkaStreamer};
+    use sea_streamer_types::{
+        export::futures::StreamExt, Consumer, ConsumerMode, ConsumerOptions, Message, Producer,
+        Sendable, SequencePos, ShardId, StreamKey, Streamer, Timestamp,
+    };
 
-#[tokio::test]
-async fn main() -> Result<()> {
     let streamer = KafkaStreamer::connect(
         std::env::var("BROKERS_URL")
             .unwrap_or_else(|_| "localhost:9092".to_owned())
@@ -46,15 +49,18 @@ async fn main() -> Result<()> {
 
     let seq = consume(&mut consumer, 10).await;
     assert_eq!(seq, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    println!("Basic stream ... ok");
 
     consumer.assign(zero)?;
     consumer.rewind(SequencePos::Beginning)?;
     let seq = consume(&mut consumer, 10).await;
     assert_eq!(seq, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    println!("Rewind stream ... ok");
 
     consumer.rewind(SequencePos::At(5))?;
     let seq = consume(&mut consumer, 5).await;
     assert_eq!(seq, [5, 6, 7, 8, 9]);
+    println!("Rewind to mid stream ... ok");
 
     // create a new consumer
     let mut options = KafkaConsumerOptions::new(ConsumerMode::Resumable);
@@ -71,6 +77,7 @@ async fn main() -> Result<()> {
 
     // commit up to 6
     consumer.commit(&topic, &zero, &6).await?;
+    println!("Commit ... ok");
 
     // create a new consumer
     std::mem::drop(consumer);
@@ -80,28 +87,30 @@ async fn main() -> Result<()> {
     let seq = consume(&mut consumer, 4).await;
     // this should resume from 6
     assert_eq!(seq, [6, 7, 8, 9]);
+    println!("Resume ... ok");
 
     // now, seek to point in time
     consumer.seek(point_in_time).await?;
     let seq = consume(&mut consumer, 3).await;
     // this should continue from 7
     assert_eq!(seq, [7, 8, 9]);
+    println!("Seek stream ... ok");
+
+    async fn consume(consumer: &mut KafkaConsumer, num: usize) -> Vec<usize> {
+        consumer
+            .stream()
+            .take(num)
+            .map(|mess| {
+                mess.unwrap()
+                    .message()
+                    .as_str()
+                    .unwrap()
+                    .parse::<usize>()
+                    .unwrap()
+            })
+            .collect::<Vec<usize>>()
+            .await
+    }
 
     Ok(())
-}
-
-async fn consume(consumer: &mut KafkaConsumer, num: usize) -> Vec<usize> {
-    consumer
-        .stream()
-        .take(num)
-        .map(|mess| {
-            mess.unwrap()
-                .message()
-                .as_str()
-                .unwrap()
-                .parse::<usize>()
-                .unwrap()
-        })
-        .collect::<Vec<usize>>()
-        .await
 }

@@ -17,6 +17,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 anyhow = { version = "1", optional = true }
+async-std = { version = "1", optional = true }
 env_logger = { version = "0.9.0", optional = true }
 fastrand = { version = "^1.8" }
 lazy_static = { version = "^1.4" }
@@ -29,13 +30,12 @@ time = { version = "^0.3", default-features = false, features = ["std"] }
 tokio = { version = "1.10.0", optional = true }
 
 [dev-dependencies]
-sea-streamer-kafka = { path = ".", features = ["executables"] }
 
 [features]
-# default = ["executables"] # NOTE remove before publish
-executables = ["anyhow", "env_logger", "structopt", "runtime-tokio"]
-runtime-async-std = ["sea-streamer-runtime/runtime-async-std"]
-runtime-tokio = ["tokio/full", "rdkafka/tokio", "sea-streamer-runtime/runtime-tokio"]
+test = ["anyhow", "async-std?/attributes", "tokio?/full"]
+executables = ["anyhow", "env_logger", "structopt", "runtime-tokio", "tokio/full"]
+runtime-async-std = ["async-std", "sea-streamer-runtime/runtime-async-std"]
+runtime-tokio = ["tokio", "rdkafka/tokio", "sea-streamer-runtime/runtime-tokio"]
 
 [[bin]]
 name = "consumer"

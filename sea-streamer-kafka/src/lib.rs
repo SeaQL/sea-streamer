@@ -6,7 +6,7 @@
 //! [librdkafka](https://docs.confluent.io/platform/current/clients/librdkafka/html/index.html).
 //!
 //! This crate provides a comprehensive type system that makes working with Kafka easier and safer.
-//! 
+//!
 //! [`sea-streamer-kafka` API Docs](https://docs.rs/sea-streamer-kafka)
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
@@ -15,11 +15,15 @@
 /// The default Kafka port number
 pub const KAFKA_PORT: u16 = 9092;
 
+#[cfg(all(feature = "runtime-async-std", feature = "runtime-tokio"))]
+compile_error!("'runtime-async-std' and 'runtime-tokio' cannot be enabled at the same time");
+
 mod cluster;
 mod consumer;
 mod error;
 mod host;
 mod producer;
+mod runtime;
 mod streamer;
 
 use cluster::*;
@@ -27,6 +31,7 @@ pub use consumer::*;
 pub use error::*;
 pub use host::*;
 pub use producer::*;
+pub use runtime::*;
 pub use streamer::*;
 
 macro_rules! impl_into_string {

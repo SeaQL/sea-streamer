@@ -1,8 +1,6 @@
 use rdkafka::{
     config::ClientConfig,
-    consumer::{
-        CommitMode, Consumer, MessageStream as RawMessageStream, StreamConsumer as RawConsumer,
-    },
+    consumer::{CommitMode, Consumer, MessageStream as RawMessageStream},
     message::BorrowedMessage as RawMessage,
     util::Timeout,
     Message as KafkaMessageTrait, Offset, TopicPartitionList,
@@ -34,6 +32,11 @@ pub struct KafkaConsumer {
     shard: Option<ShardId>,
     streams: Vec<StreamKey>,
 }
+
+type RawConsumer = rdkafka::consumer::StreamConsumer<
+    rdkafka::consumer::DefaultConsumerContext,
+    crate::KafkaAsyncRuntime,
+>;
 
 #[repr(transparent)]
 pub struct KafkaMessage<'a>(RawMessage<'a>);

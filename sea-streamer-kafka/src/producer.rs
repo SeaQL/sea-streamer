@@ -5,10 +5,7 @@ use crate::{
 };
 use rdkafka::{
     config::ClientConfig,
-    producer::{
-        DeliveryFuture, FutureProducer as RawProducer, FutureRecord as RawPayload,
-        Producer as ProducerTrait,
-    },
+    producer::{DeliveryFuture, FutureRecord as RawPayload, Producer as ProducerTrait},
 };
 use sea_streamer_runtime::spawn_blocking;
 use sea_streamer_types::{
@@ -29,6 +26,11 @@ impl Debug for KafkaProducer {
             .finish()
     }
 }
+
+type RawProducer = rdkafka::producer::FutureProducer<
+    rdkafka::client::DefaultClientContext,
+    crate::KafkaAsyncRuntime,
+>;
 
 #[derive(Debug, Default, Clone)]
 pub struct KafkaProducerOptions {
