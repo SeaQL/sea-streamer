@@ -22,7 +22,7 @@ use sea_streamer_types::{
 use crate::{
     parser::{parse_meta, PartialMeta},
     util::PanicGuard,
-    StdioErr, StdioResult,
+    StdioErr, StdioResult, BROADCAST,
 };
 
 lazy_static::lazy_static! {
@@ -31,8 +31,6 @@ lazy_static::lazy_static! {
 }
 
 type Cid = u64;
-
-const BROADCAST: &str = "broadcast";
 
 #[derive(Debug, Default)]
 struct Consumers {

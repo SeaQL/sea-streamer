@@ -6,7 +6,7 @@ use sea_streamer_types::{
     Sendable, SequenceNo, ShardId, SharedMessage, StreamErr, StreamKey, StreamResult, Timestamp,
 };
 
-use crate::{parser::TIME_FORMAT, StdioErr, StdioResult};
+use crate::{parser::TIME_FORMAT, StdioErr, StdioResult, BROADCAST};
 
 lazy_static::lazy_static! {
     static ref PRODUCERS: Mutex<Producers> = Default::default();
@@ -67,20 +67,24 @@ pub(crate) fn init() {
                         //         }
                         //     });
                         // }
-                        let stream_key = message.stream_key();
-                        println!(
-                            "[{timestamp} | {stream} | {seq}] {payload}",
-                            timestamp = message
-                                .timestamp()
-                                .format(TIME_FORMAT)
-                                .expect("Timestamp format error"),
-                            stream = stream_key,
-                            seq = producers.append(&stream_key),
-                            payload = message
-                                .message()
-                                .as_str()
-                                .expect("Should have already checked is valid string"),
-                        );
+
+                        // don't print empty lines
+                        if message.message().size() != 0 {
+                            let stream_key = message.stream_key();
+                            println!(
+                                "[{timestamp} | {stream} | {seq}] {payload}",
+                                timestamp = message
+                                    .timestamp()
+                                    .format(TIME_FORMAT)
+                                    .expect("Timestamp format error"),
+                                stream = stream_key,
+                                seq = producers.append(&stream_key),
+                                payload = message
+                                    .message()
+                                    .as_str()
+                                    .expect("Should have already checked is valid string"),
+                            );
+                        }
                         let meta = message.take_meta();
                         // we don't care if the receipt can be delivered
                         receipt.send(meta).ok();
@@ -213,5 +217,14 @@ impl StdioProducer {
             stream: None,
             request,
         }
+    }
+
+    pub async fn flush(&self) -> StdioResult<()> {
+        // the trick here is to send an empty message (that will be dropped) to the stdout thread
+        // and wait for the receipt. By the time it returns a receipt, everything before should
+        // have already been sent
+        self.send_to(&StreamKey::new(BROADCAST.to_owned()), "")?
+            .await?;
+        Ok(())
     }
 }

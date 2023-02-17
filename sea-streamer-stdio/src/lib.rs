@@ -55,6 +55,8 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![deny(missing_debug_implementations)]
 
+pub const BROADCAST: &str = "broadcast";
+
 mod consumers;
 mod error;
 pub(crate) mod parser;

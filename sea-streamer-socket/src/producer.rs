@@ -1,4 +1,4 @@
-use std::{future::Future, pin::Pin, task::Poll};
+use std::{future::Future, pin::Pin, task::Poll, time::Duration};
 
 use sea_streamer_kafka::KafkaProducer;
 use sea_streamer_stdio::StdioProducer;
@@ -6,7 +6,7 @@ use sea_streamer_types::{
     export::futures::FutureExt, Producer, Receipt, Sendable, StreamKey, StreamResult,
 };
 
-use crate::{map_err, Backend, BackendErr, SeaStreamerBackend};
+use crate::{map_err, Backend, BackendErr, SeaResult, SeaStreamerBackend};
 
 #[derive(Debug, Clone)]
 pub struct SeaProducer {
@@ -39,11 +39,7 @@ impl Producer for SeaProducer {
 
     type SendFuture = SendFuture;
 
-    fn send_to<S: Sendable>(
-        &self,
-        stream: &StreamKey,
-        payload: S,
-    ) -> StreamResult<Self::SendFuture, Self::Error> {
+    fn send_to<S: Sendable>(&self, stream: &StreamKey, payload: S) -> SeaResult<Self::SendFuture> {
         Ok(match &self.backend {
             SeaProducerBackend::Kafka(i) => {
                 SendFuture::Kafka(i.send_to(stream, payload).map_err(map_err)?)
@@ -54,17 +50,27 @@ impl Producer for SeaProducer {
         })
     }
 
-    fn anchor(&mut self, stream: StreamKey) -> StreamResult<(), Self::Error> {
+    fn anchor(&mut self, stream: StreamKey) -> SeaResult<()> {
         match &mut self.backend {
             SeaProducerBackend::Kafka(i) => i.anchor(stream).map_err(map_err),
             SeaProducerBackend::Stdio(i) => i.anchor(stream).map_err(map_err),
         }
     }
 
-    fn anchored(&self) -> StreamResult<&StreamKey, Self::Error> {
+    fn anchored(&self) -> SeaResult<&StreamKey> {
         match &self.backend {
             SeaProducerBackend::Kafka(i) => i.anchored().map_err(map_err),
             SeaProducerBackend::Stdio(i) => i.anchored().map_err(map_err),
+        }
+    }
+}
+
+impl SeaProducer {
+    // TODO may be we should add `flush` to the Producer trait
+    pub async fn flush(self, timeout: Duration) -> SeaResult<()> {
+        match self.backend {
+            SeaProducerBackend::Kafka(i) => i.flush(timeout).await.map_err(map_err),
+            SeaProducerBackend::Stdio(i) => i.flush().await.map_err(map_err),
         }
     }
 }

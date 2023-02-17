@@ -34,6 +34,7 @@ pub enum StreamErr<E: std::error::Error> {
 }
 
 #[cfg(feature = "json")]
+#[cfg_attr(docsrs, doc(cfg(feature = "json")))]
 #[derive(Error, Debug)]
 pub enum JsonErr {
     #[error("Utf8Error {0}")]

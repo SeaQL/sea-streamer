@@ -12,7 +12,7 @@ categories = ["database"]
 rust-version = "1.60"
 
 [package.metadata.docs.rs]
-all-features = true
+features = ["default"]
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
@@ -29,7 +29,6 @@ tokio = { version = "1.10.0", optional = true }
 [features]
 default = ["backend-kafka", "backend-stdio"] # FIXME if we remove them, it can't compile
 executables = ["anyhow", "env_logger", "structopt", "tokio"]
-json = ["sea-streamer-types/json"]
 runtime-async-std = ["sea-streamer-kafka?/runtime-async-std", "sea-streamer-runtime/runtime-async-std"]
 runtime-tokio = ["sea-streamer-kafka?/runtime-tokio", "sea-streamer-runtime/runtime-tokio"]
 backend-kafka = ["sea-streamer-kafka"]

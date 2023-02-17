@@ -1,0 +1,19 @@
+[package]
+name = "sea-streamer-example"
+version = "0.1.0"
+authors = ["Chris Tsang <chris.2y3@outlook.com>"]
+edition = "2021"
+description = "🌊 The stream processing toolkit for Rust"
+license = "MIT OR Apache-2.0"
+documentation = "https://docs.rs/sea-streamer"
+repository = "https://github.com/SeaQL/sea-streamer"
+categories = ["database"]
+publish = false
+rust-version = "1.60"
+
+[dependencies]
+anyhow = { version = "1" }
+env_logger = { version = "0.9.0" }
+structopt = { version = "0.3" }
+tokio = { version = "1.10", features = ["full"] }
+sea-streamer = { version = "^0.1.0", path = "..", features = ["socket", "kafka", "runtime-tokio"] }

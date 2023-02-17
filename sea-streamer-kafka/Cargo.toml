@@ -12,7 +12,7 @@ categories = ["database"]
 rust-version = "1.60"
 
 [package.metadata.docs.rs]
-all-features = true
+features = []
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]

@@ -46,6 +46,70 @@ Let's build real-time (multi-threaded, no GC), self-contained (aka easy to deplo
 + [sea-streamer-kafka](https://github.com/SeaQL/sea-streamer/tree/main/sea-streamer-kafka)
 + [sea-streamer-stdio](https://github.com/SeaQL/sea-streamer/tree/main/sea-streamer-stdio)
 
+## Quick Start
+
+Here is a basic stream consumer, [full example](https://github.com/SeaQL/sea-streamer/tree/main/examples/src/bin/consumer.rs):
+
+```rust
+#[tokio::main]
+async fn main() -> Result<()> {
+    env_logger::init();
+
+    let Args { stream } = Args::from_args();
+
+    let streamer = SeaStreamer::connect(
+        std::env::var("STREAMER_URL")
+            .unwrap_or_else(|_| "kafka://localhost:9092".to_owned())
+            .parse()?,
+        Default::default(),
+    )
+    .await?;
+
+    let mut options = SeaConsumerOptions::new(ConsumerMode::RealTime);
+    options.set_kafka_consumer_options(|options| {
+        options.set_auto_offset_reset(AutoOffsetReset::Earliest);
+    });
+    let consumer: SeaConsumer = streamer.create_consumer(&[stream], options).await?;
+
+    loop {
+        let mess: SeaMessage = consumer.next().await?;
+        println!("[{}] {}", mess.timestamp(), mess.message().as_str()?);
+    }
+}
+```
+
+Here is a basic stream producer, [full example](https://github.com/SeaQL/sea-streamer/tree/main/examples/src/bin/producer.rs):
+
+```rust
+#[tokio::main]
+async fn main() -> Result<()> {
+    env_logger::init();
+
+    let Args { stream } = Args::from_args();
+
+    let streamer = SeaStreamer::connect(
+        std::env::var("STREAMER_URL")
+            .unwrap_or_else(|_| "kafka://localhost:9092".to_owned())
+            .parse()?,
+        Default::default(),
+    )
+    .await?;
+
+    let producer: SeaProducer = streamer.create_producer(stream, Default::default()).await?;
+
+    for tick in 0..10 {
+        let message = format!(r#""tick {tick}""#);
+        println!("{message}");
+        producer.send(message)?;
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+
+    producer.flush(Duration::from_secs(10)).await?;
+
+    Ok(())
+}
+```
+
 ## SeaStreamer Types
 
 This crate defines all the traits and types for the SeaStreamer API, but does not provide any implementation.

@@ -226,6 +226,7 @@ impl<'a> Payload<'a> {
     }
 
     #[cfg(feature = "json")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "json")))]
     pub fn deserialize_json<D: serde::de::DeserializeOwned>(&self) -> Result<D, crate::JsonErr> {
         Ok(serde_json::from_str(self.as_str()?)?)
     }
