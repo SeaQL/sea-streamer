@@ -2,7 +2,7 @@
 //!
 //! This is the `stdio` backend implementation for SeaStreamer. It is designed to be connected together with unix pipes,
 //! enabling great flexibility when developing stream processors or processing data locally.
-//! 
+//!
 //! [`sea-streamer-stdio` API Docs](https://docs.rs/sea-streamer-stdio)
 //!
 //! You can connect processes together with pipes: `program_a | program_b`.
