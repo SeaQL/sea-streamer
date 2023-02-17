@@ -5,11 +5,12 @@
 //!
 //! You can connect processes together with pipes: `program_a | program_b`.
 //!
-//! However you can also connect them asynchronously:
+//! You can also connect them asynchronously:
 //!
 //! ```sh
-//! program_a > stream
-//! tail -f stream | program_b
+//! touch stream # set up an empty file
+//! tail -f stream | program_b # program b can be spawned anytime
+//! program_a >> stream # append to the file
 //! ```
 //!
 //! You can also use `cat` to replay a file, but it runs from start to end as fast as possible then stops,

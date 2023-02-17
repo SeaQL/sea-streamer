@@ -6,7 +6,6 @@ use crate::{map_err, BackendErr, SeaResult};
 
 #[derive(Debug, Default, Clone)]
 pub struct SeaConsumerOptions {
-    mode: ConsumerMode,
     stdio: StdioConsumerOptions,
     kafka: KafkaConsumerOptions,
 }
@@ -20,6 +19,7 @@ impl SeaConsumerOptions {
         self.kafka
     }
 
+    /// Set options that only applies to Kafka
     pub fn set_kafka_consumer_options<F: FnOnce(&mut KafkaConsumerOptions)>(&mut self, func: F) {
         func(&mut self.kafka)
     }
@@ -30,7 +30,6 @@ impl ConsumerOptions for SeaConsumerOptions {
 
     fn new(mode: ConsumerMode) -> Self {
         Self {
-            mode,
             stdio: StdioConsumerOptions::new(mode),
             kafka: KafkaConsumerOptions::new(mode),
         }
@@ -38,7 +37,7 @@ impl ConsumerOptions for SeaConsumerOptions {
 
     /// Get currently set ConsumerMode
     fn mode(&self) -> SeaResult<&ConsumerMode> {
-        Ok(&self.mode)
+        self.stdio.mode().map_err(map_err)
     }
 
     /// Get currently set consumer group; may return [`StreamErr::ConsumerGroupNotSet`].

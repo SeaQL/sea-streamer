@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use anyhow::{bail, Result};
 use sea_streamer_kafka::AutoOffsetReset;
 use sea_streamer_socket::{SeaConsumerOptions, SeaStreamer};
@@ -14,6 +16,26 @@ struct Args {
     output: StreamerUri,
     #[structopt(long, help = "Stream key (aka topic) to relay")]
     stream: StreamKey,
+    #[structopt(long, help = "Stream from `start` or `end`", default_value = "end")]
+    offset: Offset,
+}
+
+#[derive(Debug)]
+enum Offset {
+    Start,
+    End,
+}
+
+impl FromStr for Offset {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s {
+            "start" => Ok(Self::Start),
+            "end" => Ok(Self::End),
+            _ => Err("unknown Offset"),
+        }
+    }
 }
 
 #[tokio::main]
@@ -24,6 +46,7 @@ async fn main() -> Result<()> {
         input,
         output,
         stream,
+        offset,
     } = Args::from_args();
 
     if input == output && input.protocol() != Some("stdio") {
@@ -33,7 +56,10 @@ async fn main() -> Result<()> {
     let source = SeaStreamer::connect(input, Default::default()).await?;
     let mut options = SeaConsumerOptions::new(ConsumerMode::RealTime);
     options.set_kafka_consumer_options(|options| {
-        options.set_auto_offset_reset(AutoOffsetReset::Earliest);
+        options.set_auto_offset_reset(match offset {
+            Offset::Start => AutoOffsetReset::Earliest,
+            Offset::End => AutoOffsetReset::Latest,
+        });
     });
     let consumer = source.create_consumer(&[stream.clone()], options).await?;
 

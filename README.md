@@ -56,13 +56,13 @@ which then streams to Kafka:
 
 ```sh
 clock -- --interval 1s --stream clock | \
-relay -- --input stdio:// --output kafka://localhost:9092 --stream clock
+relay --  --stream clock --input stdio:// --output kafka://localhost:9092
 ```
 
-Here is how to stream from Kafka -> Stdio:
+Here is how to replay the stream from Kafka -> Stdio:
 
 ```sh
-relay -- --input kafka://localhost:9092 --output stdio:// --stream clock
+relay --  --stream clock --input kafka://localhost:9092 --output stdio:// --offset start
 ```
 
 ## `sea-streamer-kafka` SeaStreamer Kafka / Redpanda Backend
@@ -81,11 +81,12 @@ enabling great flexibility when developing stream processors or processing data 
 
 You can connect processes together with pipes: `program_a | program_b`.
 
-However you can also connect them asynchronously:
+You can also connect them asynchronously:
 
 ```sh
-program_a > stream
-tail -f stream | program_b
+touch stream # set up an empty file
+tail -f stream | program_b # program b can be spawned anytime
+program_a >> stream # append to the file
 ```
 
 You can also use `cat` to replay a file, but it runs from start to end as fast as possible then stops,
