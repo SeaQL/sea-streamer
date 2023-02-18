@@ -93,7 +93,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        redpanda_version: [latest, 22.3.13]
+        redpanda_version: [latest, v22.3.13]
         runtime: [async-std, tokio]
     steps:
       - uses: actions/checkout@v3
