@@ -59,8 +59,11 @@ jobs:
   kafka:
     name: Kafka
     runs-on: ubuntu-latest
+
+    if: false
+
     env:
-      HOST_ID: "DUMMY_HOST_ID"
+      HOST_ID: DUMMY_HOST_ID
     strategy:
       fail-fast: false
       matrix:
@@ -83,6 +86,44 @@ jobs:
           KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:9092
           KAFKA_CFG_ZOOKEEPER_CONNECT: zookeeper:2181
           ALLOW_PLAINTEXT_LISTENER: yes
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --manifest-path sea-streamer-kafka/Cargo.toml --features test,runtime-${{ matrix.runtime }}
+
+  redpanda:
+    name: Redpanda
+    runs-on: ubuntu-latest
+    env:
+      HOST_ID: DUMMY_HOST_ID
+    strategy:
+      fail-fast: false
+      matrix:
+        redpanda_version: [latest, 22.3, 21.11]
+        runtime: [async-std, tokio]
+    services:
+      redpanda:
+        image: docker.redpanda.com/redpandadata/redpanda:${{ matrix.redpanda_version }}
+        ports:
+          - 9092:9092
+        options: >-
+          redpanda
+          start
+          --smp
+          '1'
+          --reserve-memory
+          0M
+          --overprovisioned
+          --node-id
+          '0'
+          --kafka-addr
+          PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
+          --advertise-kafka-addr
+          PLAINTEXT://redpanda:29092,OUTSIDE://localhost:9092
+          --pandaproxy-addr
+          PLAINTEXT://0.0.0.0:28082,OUTSIDE://0.0.0.0:8082
+          --advertise-pandaproxy-addr
+          PLAINTEXT://redpanda:28082,OUTSIDE://localhost:8082
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
