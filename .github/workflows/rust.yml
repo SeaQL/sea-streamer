@@ -1,0 +1,54 @@
+name: tests
+
+on:
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - '.github/ISSUE_TEMPLATE/**'
+  push:
+    paths-ignore:
+      - '**.md'
+      - '.github/ISSUE_TEMPLATE/**'
+    branches:
+      - master
+      - 0.*.x
+      - pr/**/ci
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+
+  test:
+    name: Unit Test, Clippy & Fmt
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        runtime: [
+          Cargo.toml,
+          examples/Cargo.toml,
+          sea-streamer-kafka/Cargo.toml,
+          sea-streamer-runtime/Cargo.toml,
+          sea-streamer-socket/Cargo.toml,
+          sea-streamer-stdio/Cargo.toml,
+          sea-streamer-types/Cargo.toml,
+        ]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          components: clippy
+      - run: cargo build --manifest-path ${{ matrix.path }} --all
+      - run: cargo test --manifest-path ${{ matrix.path }} --all
+      - run: cargo clippy --manifest-path ${{ matrix.path }} --all -- -D warnings
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+          components: rustfmt
+      - run: cargo fmt --manifest-path ${{ matrix.path }} --all -- --check
