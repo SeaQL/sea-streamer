@@ -11,6 +11,9 @@ lazy_static::lazy_static! {
 const LEN: usize = 12;
 
 fn init() -> String {
+    if let Some(host_id) = std::env::var("HOST_ID").ok() {
+        return host_id;
+    }
     let file = File::open("/proc/self/cgroup").expect("Failed to open /proc/self/cgroup");
     let last = BufReader::new(file)
         .lines()
