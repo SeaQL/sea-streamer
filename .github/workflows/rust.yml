@@ -62,5 +62,7 @@ jobs:
     env:
       HOST_ID: "DUMMY_HOST_ID"
     steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
       - run: docker-compose -f build-tools/docker-kafka.yml up -d
       - run: cargo test --manifest-path sea-streamer-kafka/Cargo.toml --features test,runtime-tokio
