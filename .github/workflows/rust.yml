@@ -44,11 +44,11 @@ jobs:
         with:
           toolchain: stable
           components: clippy
-      - run: cargo build --manifest-path ${{ matrix.path }} --all
-      - run: cargo test --manifest-path ${{ matrix.path }} --all
-      - run: cargo clippy --manifest-path ${{ matrix.path }} --all -- -D warnings
+      - run: cargo build --manifest-path ${{ matrix.path }}
+      - run: cargo test --manifest-path ${{ matrix.path }}
+      - run: cargo clippy --manifest-path ${{ matrix.path }} -- -D warnings
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly
           components: rustfmt
-      - run: cargo fmt --manifest-path ${{ matrix.path }} --all -- --check
+      - run: cargo fmt --manifest-path ${{ matrix.path }} -- --check
