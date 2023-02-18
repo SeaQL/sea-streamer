@@ -61,27 +61,29 @@ jobs:
     runs-on: ubuntu-latest
     env:
       HOST_ID: "DUMMY_HOST_ID"
+    strategy:
+      fail-fast: false
+      matrix:
+        kafka_version: [latest, 3.4, 2.8]
+        runtime: [async-std, tokio]
     services:
       zookeeper:
-        image: confluentinc/cp-zookeeper:latest
-        env:
-          ZOOKEEPER_CLIENT_PORT: 2181
-          ZOOKEEPER_TICK_TIME: 2000
+        image: bitnami/zookeeper:latest
         ports:
-          - 22181:2181
-      
+          - 2181:2181
+        env:
+          ALLOW_ANONYMOUS_LOGIN: yes
       kafka:
-        image: confluentinc/cp-kafka:latest
+        image: bitnami/kafka:${{ matrix.kafka_version }}
         ports:
           - 9092:9092
         env:
           KAFKA_BROKER_ID: 1
-          KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
-          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-          KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_CFG_LISTENERS: PLAINTEXT://:9092
+          KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:9092
+          KAFKA_CFG_ZOOKEEPER_CONNECT: zookeeper:2181
+          ALLOW_PLAINTEXT_LISTENER: yes
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --manifest-path sea-streamer-kafka/Cargo.toml --features test,runtime-tokio
+      - run: cargo test --manifest-path sea-streamer-kafka/Cargo.toml --features test,runtime-${{ matrix.runtime }}
