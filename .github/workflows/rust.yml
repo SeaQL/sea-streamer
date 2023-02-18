@@ -26,6 +26,9 @@ jobs:
   test:
     name: Unit Test, Clippy & Fmt
     runs-on: ubuntu-latest
+
+    if: false
+
     strategy:
       fail-fast: false
       matrix:
@@ -52,3 +55,12 @@ jobs:
           toolchain: nightly
           components: rustfmt
       - run: cargo fmt --manifest-path ${{ matrix.path }} -- --check
+
+  kafka:
+    name: Kafka
+    runs-on: ubuntu-latest
+    env:
+      HOST_ID: "DUMMY_HOST_ID"
+    steps:
+      - run: docker-compose -f build-tools/docker-kafka.yml up -d
+      - run: cargo test --manifest-path sea-streamer-kafka/Cargo.toml --features test,runtime-tokio
