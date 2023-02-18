@@ -73,7 +73,7 @@ async fn main() -> anyhow::Result<()> {
         .await?;
     let seq = consume(&mut consumer, 10).await;
     // this should start again from beginning
-    assert_eq!(seq, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    assert_eq!(seq, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
     // commit up to 6
     consumer.commit(&topic, &zero, &6).await?;
