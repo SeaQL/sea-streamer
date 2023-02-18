@@ -26,9 +26,6 @@ jobs:
   test:
     name: Unit Test, Clippy & Fmt
     runs-on: ubuntu-latest
-
-    if: false
-
     strategy:
       fail-fast: false
       matrix:
@@ -59,9 +56,6 @@ jobs:
   kafka:
     name: Kafka
     runs-on: ubuntu-latest
-
-    if: false
-
     env:
       HOST_ID: DUMMY_HOST_ID
     strategy:
@@ -99,10 +93,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        redpanda_version: [latest, 22.3.13, 21.11.22]
+        redpanda_version: [latest, 22.3.13]
         runtime: [async-std, tokio]
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
-      - run: docker run -d -p 9092:9092 -p 9644:9644 docker.redpanda.com/redpandadata/redpanda:${{ matrix.redpanda_version }} redpanda start --overprovisioned --smp 1 --memory 1G --reserve-memory 0M --node-id 0 --check=false
+      - run: docker run -d -p 9092:9092 -p 9644:9644 redpandadata/redpanda:${{ matrix.redpanda_version }} redpanda start --overprovisioned --smp 1 --memory 1G --reserve-memory 0M --node-id 0 --check=false
       - run: cargo test --manifest-path sea-streamer-kafka/Cargo.toml --features test,runtime-${{ matrix.runtime }}
