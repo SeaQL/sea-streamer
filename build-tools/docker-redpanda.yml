@@ -2,7 +2,7 @@ version: "3"
 
 services:
   redpanda:
-    image: docker.redpanda.com/redpandadata/redpanda:latest
+    image: redpandadata/redpanda:latest
     command:
       - redpanda
       - start
