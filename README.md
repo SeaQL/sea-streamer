@@ -105,11 +105,12 @@ async fn main() -> Result<()> {
 
 `sea-streamer` is the facade crate re-exporting implementation from a number of sub-crates:
 
-[`sea-streamer` API Docs](https://docs.rs/sea-streamer)
 + `sea-streamer-types`
 + `sea-streamer-socket`
     + `sea-streamer-kafka`
     + `sea-streamer-stdio`
+
+[`sea-streamer` API Docs](https://docs.rs/sea-streamer)
 
 ## SeaStreamer Types
 
