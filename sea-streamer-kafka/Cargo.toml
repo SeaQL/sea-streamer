@@ -32,7 +32,7 @@ tokio = { version = "1.10.0", optional = true }
 [dev-dependencies]
 
 [features]
-test = ["anyhow", "async-std?/attributes", "tokio?/full"]
+test = ["anyhow", "async-std?/attributes", "tokio?/full", "env_logger"]
 executables = ["anyhow", "env_logger", "structopt", "runtime-tokio", "tokio/full"]
 runtime-async-std = ["async-std", "sea-streamer-runtime/runtime-async-std"]
 runtime-tokio = ["tokio", "rdkafka/tokio", "sea-streamer-runtime/runtime-tokio"]

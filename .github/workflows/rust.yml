@@ -28,30 +28,20 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        path: [
-          Cargo.toml,
-          examples/Cargo.toml,
-          sea-streamer-kafka/Cargo.toml,
-          sea-streamer-runtime/Cargo.toml,
-          sea-streamer-socket/Cargo.toml,
-          sea-streamer-stdio/Cargo.toml,
-          sea-streamer-types/Cargo.toml,
-        ]
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
           components: clippy
-      - run: cargo build --manifest-path ${{ matrix.path }}
-      - run: cargo test --manifest-path ${{ matrix.path }}
-      - run: cargo clippy --manifest-path ${{ matrix.path }} -- -D warnings
+      - run: cargo build --all
+      - run: cargo test --all
+      - run: cargo clippy --features=json,kafka,stdio,socket -- -D warnings
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly
           components: rustfmt
-      - run: cargo fmt --manifest-path ${{ matrix.path }} -- --check
+      - run: cargo fmt --all -- --check
 
   kafka:
     name: Kafka
@@ -62,7 +52,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        kafka_version: [latest, 3.4, 2.8]
+        kafka_version: [latest, 3.3, 2.8]
         runtime: [async-std, tokio]
     services:
       zookeeper:
@@ -95,7 +85,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        redpanda_version: [latest, v22.3.13]
+        redpanda_version: [latest]
         runtime: [async-std, tokio]
     steps:
       - uses: actions/checkout@v3

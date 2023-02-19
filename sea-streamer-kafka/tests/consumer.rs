@@ -4,6 +4,8 @@
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
 async fn main() -> anyhow::Result<()> {
+    env_logger::init();
+
     use sea_streamer_kafka::{AutoOffsetReset, KafkaConsumer, KafkaConsumerOptions, KafkaStreamer};
     use sea_streamer_types::{
         export::futures::StreamExt, Consumer, ConsumerMode, ConsumerOptions, Message, Producer,
