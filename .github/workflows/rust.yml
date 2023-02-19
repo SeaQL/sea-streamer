@@ -58,6 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       HOST_ID: DUMMY_HOST_ID
+      RUST_LOG: trace
     strategy:
       fail-fast: false
       matrix:
@@ -83,13 +84,14 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --manifest-path sea-streamer-kafka/Cargo.toml --features test,runtime-${{ matrix.runtime }}
+      - run: cargo test --manifest-path sea-streamer-kafka/Cargo.toml --features test,runtime-${{ matrix.runtime }} -- --nocapture
 
   redpanda:
     name: Redpanda
     runs-on: ubuntu-latest
     env:
       HOST_ID: DUMMY_HOST_ID
+      RUST_LOG: trace
     strategy:
       fail-fast: false
       matrix:
@@ -99,4 +101,4 @@ jobs:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
       - run: docker run -d -p 9092:9092 -p 9644:9644 redpandadata/redpanda:${{ matrix.redpanda_version }} redpanda start --overprovisioned --smp 1 --memory 1G --reserve-memory 0M --node-id 0 --check=false
-      - run: cargo test --manifest-path sea-streamer-kafka/Cargo.toml --features test,runtime-${{ matrix.runtime }}
+      - run: cargo test --manifest-path sea-streamer-kafka/Cargo.toml --features test,runtime-${{ matrix.runtime }} -- --nocapture
