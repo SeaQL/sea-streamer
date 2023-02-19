@@ -39,6 +39,12 @@
 //!
 //! ## Quick Start
 //!
+//! Add the following to your `Cargo.toml`
+//!
+//! ```toml
+//! sea-streamer = { version = "0", features = ["socket", "kafka", "runtime-tokio"] }
+//! ```
+//!
 //! Here is a basic stream consumer, [full example](https://github.com/SeaQL/sea-streamer/tree/main/examples/src/bin/consumer.rs):
 //!
 //! ```ignore
