@@ -48,11 +48,11 @@ jobs:
     runs-on: ubuntu-latest
     env:
       HOST_ID: DUMMY_HOST_ID
-      RUST_LOG: trace
+      RUST_LOG: rdkafka=trace
     strategy:
       fail-fast: false
       matrix:
-        kafka_version: [latest, 3.3, 2.8]
+        kafka_version: [latest, 2.8]
         runtime: [async-std, tokio]
     services:
       zookeeper:
@@ -81,7 +81,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       HOST_ID: DUMMY_HOST_ID
-      RUST_LOG: trace
+      RUST_LOG: rdkafka=trace
     strategy:
       fail-fast: false
       matrix:

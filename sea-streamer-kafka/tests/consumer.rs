@@ -1,5 +1,5 @@
-// cargo test --test consumer --no-default-features --features=test,runtime-tokio -- --nocapture
-// cargo test --test consumer --no-default-features --features=test,runtime-async-std -- --nocapture
+// cargo test --test consumer --features=test,runtime-tokio -- --nocapture
+// cargo test --test consumer --features=test,runtime-async-std -- --nocapture
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
