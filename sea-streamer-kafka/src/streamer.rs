@@ -117,6 +117,8 @@ impl Streamer for KafkaStreamer {
     ///
     /// If ConsumerMode is LoadBalanced, shards will be divided-and-assigned by the broker to consumers sharing the same `group_id`.
     /// `group_id` must already be set.
+    /// 
+    /// If you need to override the HOST ID, you can set the ENV var `HOST_ID`.
     async fn create_consumer(
         &self,
         streams: &[StreamKey],
