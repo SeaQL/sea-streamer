@@ -1,6 +1,6 @@
 //! <div align="center">
 //!
-//!   <img src="https://raw.githubusercontent.com/SeaQL/sea-orm/master/docs/SeaQL logo dual.png" width="280"/>
+//!   <img src="./docs/SeaStreamer Banner.png"/>
 //!
 //!   <h1>SeaStreamer</h1>
 //!
