@@ -10,7 +10,7 @@ on:
       - '**.md'
       - '.github/ISSUE_TEMPLATE/**'
     branches:
-      - master
+      - main
       - 0.*.x
       - pr/**/ci
 
