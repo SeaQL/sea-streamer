@@ -55,6 +55,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![deny(missing_debug_implementations)]
 
+/// Default stream key
 pub const BROADCAST: &str = "broadcast";
 
 mod consumers;

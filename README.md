@@ -177,6 +177,8 @@ This crate provides a comprehensive type system that makes working with Kafka ea
 
 `KafkaStreamer` allows you to flush all producers on `disconnect`.
 
+See [tests](https://github.com/SeaQL/sea-streamer/blob/main/sea-streamer-kafka/tests/consumer.rs) for an illustration of the stream semantics.
+
 This crate depends on [`rdkafka`](https://docs.rs/rdkafka),
 which in turn depends on [librdkafka-sys](https://docs.rs/librdkafka-sys), which itself is a wrapper of
 [librdkafka](https://docs.confluent.io/platform/current/clients/librdkafka/html/index.html).
