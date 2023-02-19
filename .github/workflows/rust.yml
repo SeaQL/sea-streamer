@@ -1,0 +1,102 @@
+name: tests
+
+on:
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - '.github/ISSUE_TEMPLATE/**'
+  push:
+    paths-ignore:
+      - '**.md'
+      - '.github/ISSUE_TEMPLATE/**'
+    branches:
+      - master
+      - 0.*.x
+      - pr/**/ci
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+
+  test:
+    name: Unit Test, Clippy & Fmt
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        path: [
+          Cargo.toml,
+          examples/Cargo.toml,
+          sea-streamer-kafka/Cargo.toml,
+          sea-streamer-runtime/Cargo.toml,
+          sea-streamer-socket/Cargo.toml,
+          sea-streamer-stdio/Cargo.toml,
+          sea-streamer-types/Cargo.toml,
+        ]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          components: clippy
+      - run: cargo build --manifest-path ${{ matrix.path }}
+      - run: cargo test --manifest-path ${{ matrix.path }}
+      - run: cargo clippy --manifest-path ${{ matrix.path }} -- -D warnings
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+          components: rustfmt
+      - run: cargo fmt --manifest-path ${{ matrix.path }} -- --check
+
+  kafka:
+    name: Kafka
+    runs-on: ubuntu-latest
+    env:
+      HOST_ID: DUMMY_HOST_ID
+    strategy:
+      fail-fast: false
+      matrix:
+        kafka_version: [latest, 3.4, 2.8]
+        runtime: [async-std, tokio]
+    services:
+      zookeeper:
+        image: bitnami/zookeeper:latest
+        ports:
+          - 2181:2181
+        env:
+          ALLOW_ANONYMOUS_LOGIN: yes
+      kafka:
+        image: bitnami/kafka:${{ matrix.kafka_version }}
+        ports:
+          - 9092:9092
+        env:
+          KAFKA_BROKER_ID: 1
+          KAFKA_CFG_LISTENERS: PLAINTEXT://:9092
+          KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:9092
+          KAFKA_CFG_ZOOKEEPER_CONNECT: zookeeper:2181
+          ALLOW_PLAINTEXT_LISTENER: yes
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --manifest-path sea-streamer-kafka/Cargo.toml --features test,runtime-${{ matrix.runtime }}
+
+  redpanda:
+    name: Redpanda
+    runs-on: ubuntu-latest
+    env:
+      HOST_ID: DUMMY_HOST_ID
+    strategy:
+      fail-fast: false
+      matrix:
+        redpanda_version: [latest, v22.3.13]
+        runtime: [async-std, tokio]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+      - run: docker run -d -p 9092:9092 -p 9644:9644 redpandadata/redpanda:${{ matrix.redpanda_version }} redpanda start --overprovisioned --smp 1 --memory 1G --reserve-memory 0M --node-id 0 --check=false
+      - run: cargo test --manifest-path sea-streamer-kafka/Cargo.toml --features test,runtime-${{ matrix.runtime }}

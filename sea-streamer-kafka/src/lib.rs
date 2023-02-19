@@ -10,7 +10,7 @@
 //! `KafkaConsumer` allows you to `seek` to point in time, `rewind` to particular offset, and `commit` message read.
 //!
 //! `KafkaProducer` allows you to `await` a send `Receipt` or discard it if you are uninterested.
-//! 
+//!
 //! `KafkaStreamer` allows you to flush all producers on `disconnect`.
 //!
 //! This crate depends on [`rdkafka`](https://docs.rs/rdkafka),
