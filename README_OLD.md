@@ -179,7 +179,7 @@ trait StreamConsumer {
     /// seek to an arbitrary point in time; start consuming the closest message
     fn seek(to: DateTime);
     /// rewind the stream to a particular sequence number
-    fn rewind(seq: SequenceNo);
+    fn rewind(seq: SeqNo);
     /// assign this consumer to a particular shard
     fn assign(shard: ShardId);
     /// poll and receive one message: it waits until there are new messages

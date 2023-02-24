@@ -8,8 +8,8 @@ async fn main() -> anyhow::Result<()> {
 
     use sea_streamer_kafka::{AutoOffsetReset, KafkaConsumer, KafkaConsumerOptions, KafkaStreamer};
     use sea_streamer_types::{
-        export::futures::StreamExt, Consumer, ConsumerMode, ConsumerOptions, Message, Producer,
-        Sendable, SequencePos, ShardId, StreamKey, Streamer, Timestamp,
+        export::futures::StreamExt, Buffer, Consumer, ConsumerMode, ConsumerOptions, Message,
+        Producer, SeqPos, ShardId, StreamKey, Streamer, Timestamp,
     };
 
     let streamer = KafkaStreamer::connect(
@@ -54,12 +54,12 @@ async fn main() -> anyhow::Result<()> {
     println!("Basic stream ... ok");
 
     consumer.assign(zero)?;
-    consumer.rewind(SequencePos::Beginning)?;
+    consumer.rewind(SeqPos::Beginning)?;
     let seq = consume(&mut consumer, 10).await;
     assert_eq!(seq, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
     println!("Rewind stream ... ok");
 
-    consumer.rewind(SequencePos::At(5))?;
+    consumer.rewind(SeqPos::At(5))?;
     let seq = consume(&mut consumer, 5).await;
     assert_eq!(seq, [5, 6, 7, 8, 9]);
     println!("Rewind to mid stream ... ok");

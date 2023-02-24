@@ -18,8 +18,7 @@ use sea_streamer_types::{
         },
     },
     runtime_error, Consumer as ConsumerTrait, ConsumerGroup, ConsumerMode, ConsumerOptions,
-    Message, Payload, SequenceNo, SequencePos, ShardId, StreamErr, StreamKey, StreamerUri,
-    Timestamp,
+    Message, Payload, SeqNo, SeqPos, ShardId, StreamErr, StreamKey, StreamerUri, Timestamp,
 };
 
 use crate::{
@@ -309,7 +308,7 @@ impl ConsumerTrait for KafkaConsumer {
     }
 
     /// Note: this rewind all streams
-    fn rewind(&mut self, offset: SequencePos) -> KafkaResult<()> {
+    fn rewind(&mut self, offset: SeqPos) -> KafkaResult<()> {
         let shard = self.shard.unwrap_or_default();
         let mut tpl = TopicPartitionList::new();
 
@@ -318,11 +317,9 @@ impl ConsumerTrait for KafkaConsumer {
                 stream.name(),
                 shard.id() as i32,
                 match offset {
-                    SequencePos::Beginning => Offset::Beginning,
-                    SequencePos::End => Offset::End,
-                    SequencePos::At(seq) => {
-                        Offset::Offset(seq.try_into().expect("u64 out of range"))
-                    }
+                    SeqPos::Beginning => Offset::Beginning,
+                    SeqPos::End => Offset::End,
+                    SeqPos::At(seq) => Offset::Offset(seq.try_into().expect("u64 out of range")),
                 },
             )
             .map_err(stream_err)?;
@@ -386,7 +383,7 @@ impl KafkaConsumer {
         &mut self,
         stream: &StreamKey,
         shard: &ShardId,
-        seq: &SequenceNo,
+        seq: &SeqNo,
     ) -> KafkaResult<()> {
         if self.mode == ConsumerMode::RealTime {
             return Err(StreamErr::CommitNotAllowed);
@@ -435,7 +432,7 @@ impl KafkaConsumer {
         &mut self,
         stream: &StreamKey,
         shard: &ShardId,
-        seq: &SequenceNo,
+        seq: &SeqNo,
     ) -> KafkaResult<()> {
         self.get()
             .store_offset(
@@ -474,8 +471,8 @@ impl<'a> Message for KafkaMessage<'a> {
         ShardId::new(self.mess().partition() as u64)
     }
 
-    fn sequence(&self) -> SequenceNo {
-        self.mess().offset() as SequenceNo
+    fn sequence(&self) -> SeqNo {
+        self.mess().offset() as SeqNo
     }
 
     fn timestamp(&self) -> Timestamp {

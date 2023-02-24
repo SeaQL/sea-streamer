@@ -3,7 +3,7 @@ use std::{future::Future, pin::Pin, task::Poll, time::Duration};
 use sea_streamer_kafka::KafkaProducer;
 use sea_streamer_stdio::StdioProducer;
 use sea_streamer_types::{
-    export::futures::FutureExt, Producer, Receipt, Sendable, StreamKey, StreamResult,
+    export::futures::FutureExt, Buffer, Producer, Receipt, StreamKey, StreamResult,
 };
 
 use crate::{map_err, Backend, BackendErr, SeaResult, SeaStreamerBackend};
@@ -41,7 +41,7 @@ impl Producer for SeaProducer {
 
     type SendFuture = SendFuture;
 
-    fn send_to<S: Sendable>(&self, stream: &StreamKey, payload: S) -> SeaResult<Self::SendFuture> {
+    fn send_to<S: Buffer>(&self, stream: &StreamKey, payload: S) -> SeaResult<Self::SendFuture> {
         Ok(match &self.backend {
             SeaProducerBackend::Kafka(i) => {
                 SendFuture::Kafka(i.send_to(stream, payload).map_err(map_err)?)

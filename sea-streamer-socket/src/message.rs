@@ -1,6 +1,6 @@
 use sea_streamer_kafka::KafkaMessage;
 use sea_streamer_stdio::StdioMessage;
-use sea_streamer_types::{Message, Payload, SequenceNo, ShardId, StreamKey, Timestamp};
+use sea_streamer_types::{Message, Payload, SeqNo, ShardId, StreamKey, Timestamp};
 
 use crate::{Backend, SeaStreamerBackend};
 
@@ -35,7 +35,7 @@ impl<'a> Message for SeaMessage<'a> {
         }
     }
 
-    fn sequence(&self) -> SequenceNo {
+    fn sequence(&self) -> SeqNo {
         match self {
             Self::Kafka(i) => i.sequence(),
             Self::Stdio(i) => i.sequence(),

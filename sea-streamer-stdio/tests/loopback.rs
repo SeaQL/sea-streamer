@@ -4,7 +4,7 @@
 async fn main() -> anyhow::Result<()> {
     use sea_streamer_stdio::{StdioConnectOptions, StdioConsumer, StdioStreamer};
     use sea_streamer_types::{
-        export::futures::StreamExt, Consumer, Message, Producer, Sendable, StreamKey, Streamer,
+        export::futures::StreamExt, Buffer, Consumer, Message, Producer, StreamKey, Streamer,
         StreamerUri,
     };
 

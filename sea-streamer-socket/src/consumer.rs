@@ -7,7 +7,7 @@ use sea_streamer_types::{
         async_trait,
         futures::{FutureExt, Stream},
     },
-    Consumer, SequencePos, ShardId, StreamResult, Timestamp,
+    Consumer, SeqPos, ShardId, StreamResult, Timestamp,
 };
 
 use crate::{map_err, Backend, BackendErr, SeaMessage, SeaResult, SeaStreamerBackend};
@@ -77,7 +77,7 @@ impl Consumer for SeaConsumer {
         }
     }
 
-    fn rewind(&mut self, offset: SequencePos) -> SeaResult<()> {
+    fn rewind(&mut self, offset: SeqPos) -> SeaResult<()> {
         match &mut self.backend {
             SeaConsumerBackend::Kafka(i) => i.rewind(offset).map_err(map_err),
             SeaConsumerBackend::Stdio(i) => i.rewind(offset).map_err(map_err),

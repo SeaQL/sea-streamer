@@ -5,7 +5,7 @@ use nom::{
     IResult,
 };
 use sea_streamer_types::{
-    is_valid_stream_key_char, SequenceNo, ShardId, StreamKey, Timestamp, MAX_STREAM_KEY_LEN,
+    is_valid_stream_key_char, SeqNo, ShardId, StreamKey, Timestamp, MAX_STREAM_KEY_LEN,
 };
 use thiserror::Error;
 use time::{format_description::FormatItem, macros::format_description, PrimitiveDateTime};
@@ -20,7 +20,7 @@ pub const TIME_FORMAT_SUBSEC: &[FormatItem<'static>] =
 pub struct PartialMeta {
     pub timestamp: Option<Timestamp>,
     pub stream_key: Option<StreamKey>,
-    pub sequence: Option<SequenceNo>,
+    pub sequence: Option<SeqNo>,
     pub shard_id: Option<ShardId>,
 }
 

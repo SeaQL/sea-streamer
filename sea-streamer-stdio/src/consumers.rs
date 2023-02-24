@@ -12,8 +12,8 @@ use sea_streamer_types::{
         async_trait,
         futures::{future::MapErr, stream::Map as StreamMap, StreamExt, TryFutureExt},
     },
-    Consumer as ConsumerTrait, ConsumerGroup, Message, MessageHeader, SequenceNo, SequencePos,
-    ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
+    Consumer as ConsumerTrait, ConsumerGroup, Message, MessageHeader, SeqNo, SeqPos, ShardId,
+    SharedMessage, StreamErr, StreamKey, Timestamp,
 };
 
 use crate::{
@@ -33,7 +33,7 @@ type Cid = u64;
 struct Consumers {
     max_id: Cid,
     consumers: BTreeMap<Cid, ConsumerRelay>,
-    sequences: HashMap<(StreamKey, ShardId), SequenceNo>,
+    sequences: HashMap<(StreamKey, ShardId), SeqNo>,
 }
 
 /// We use flume because it works on any async runtime. But actually we only wanted a SPSC queue.
@@ -223,7 +223,7 @@ impl ConsumerTrait for StdioConsumer {
         Err(StreamErr::Unsupported("StdioConsumer::seek".to_owned()))
     }
 
-    fn rewind(&mut self, _: SequencePos) -> StdioResult<()> {
+    fn rewind(&mut self, _: SeqPos) -> StdioResult<()> {
         Err(StreamErr::Unsupported("StdioConsumer::rewind".to_owned()))
     }
 

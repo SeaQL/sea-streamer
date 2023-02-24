@@ -1,7 +1,7 @@
 use anyhow::Result;
 use sea_streamer_kafka::{AutoOffsetReset, KafkaConsumerOptions, KafkaStreamer};
 use sea_streamer_types::{
-    Consumer, ConsumerMode, ConsumerOptions, Message, Sendable, StreamKey, Streamer,
+    Buffer, Consumer, ConsumerMode, ConsumerOptions, Message, StreamKey, Streamer,
 };
 use structopt::StructOpt;
 

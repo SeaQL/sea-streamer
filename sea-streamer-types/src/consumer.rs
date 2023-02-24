@@ -1,4 +1,4 @@
-use crate::{Message, SequencePos, ShardId, StreamResult, Timestamp};
+use crate::{Message, SeqPos, ShardId, StreamResult, Timestamp};
 use async_trait::async_trait;
 use futures::{Future, Stream};
 
@@ -68,7 +68,7 @@ pub trait Consumer: Sized + Send + Sync {
     /// Rewind the stream to a particular sequence number.
     ///
     /// If the consumer is not already assigned, shard ZERO will be used.
-    fn rewind(&mut self, offset: SequencePos) -> StreamResult<(), Self::Error>;
+    fn rewind(&mut self, offset: SeqPos) -> StreamResult<(), Self::Error>;
 
     /// Assign this consumer to a particular shard.
     ///

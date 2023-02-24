@@ -1,6 +1,6 @@
 use futures::Future;
 
-use crate::{MessageHeader, Sendable, StreamKey, StreamResult};
+use crate::{Buffer, MessageHeader, StreamKey, StreamResult};
 
 /// Common options of a Producer.
 pub trait ProducerOptions: Default + Clone + Send {}
@@ -15,7 +15,7 @@ pub trait Producer: Clone + Send + Sync {
 
     /// Send a message to a particular stream. This function is non-blocking.
     /// You don't have to await the future if you are not interested in the Receipt.
-    fn send_to<S: Sendable>(
+    fn send_to<S: Buffer>(
         &self,
         stream: &StreamKey,
         payload: S,
@@ -23,7 +23,7 @@ pub trait Producer: Clone + Send + Sync {
 
     /// Send a message to the already anchored stream.
     /// If the producer is not anchored, this will return [`StreamErr::NotAnchored`] error.
-    fn send<S: Sendable>(&self, payload: S) -> StreamResult<Self::SendFuture, Self::Error> {
+    fn send<S: Buffer>(&self, payload: S) -> StreamResult<Self::SendFuture, Self::Error> {
         self.send_to(self.anchored()?, payload)
     }
 

@@ -1,6 +1,6 @@
 use std::{str::Utf8Error, sync::Arc};
 
-use crate::{SequenceNo, ShardId, StreamKey, Timestamp};
+use crate::{SeqNo, ShardId, StreamKey, Timestamp};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// It uses an `Arc` to hold the bytes, so is cheap to clone.
@@ -37,12 +37,12 @@ where
 pub struct MessageHeader {
     stream_key: StreamKey,
     shard_id: ShardId,
-    sequence: SequenceNo,
+    sequence: SeqNo,
     timestamp: Timestamp,
 }
 
 /// Common interface of byte containers.
-pub trait Sendable {
+pub trait Buffer {
     fn size(&self) -> usize;
 
     fn into_bytes(self) -> Vec<u8>;
@@ -58,7 +58,7 @@ pub trait Message {
 
     fn shard_id(&self) -> ShardId;
 
-    fn sequence(&self) -> SequenceNo;
+    fn sequence(&self) -> SeqNo;
 
     fn timestamp(&self) -> Timestamp;
 
@@ -95,7 +95,7 @@ impl Message for SharedMessage {
         *self.meta.shard_id()
     }
 
-    fn sequence(&self) -> SequenceNo {
+    fn sequence(&self) -> SeqNo {
         *self.meta.sequence()
     }
 
@@ -116,7 +116,7 @@ impl MessageHeader {
     pub fn new(
         stream_key: StreamKey,
         shard_id: ShardId,
-        sequence: SequenceNo,
+        sequence: SeqNo,
         timestamp: Timestamp,
     ) -> Self {
         Self {
@@ -135,7 +135,7 @@ impl MessageHeader {
         &self.shard_id
     }
 
-    pub fn sequence(&self) -> &SequenceNo {
+    pub fn sequence(&self) -> &SeqNo {
         &self.sequence
     }
 
@@ -144,7 +144,7 @@ impl MessageHeader {
     }
 }
 
-impl<'a> Sendable for Payload<'a> {
+impl<'a> Buffer for Payload<'a> {
     fn size(&self) -> usize {
         self.data.len()
     }
@@ -171,7 +171,7 @@ impl<'a> Sendable for Payload<'a> {
     }
 }
 
-impl<'a> Sendable for &'a [u8] {
+impl<'a> Buffer for &'a [u8] {
     fn size(&self) -> usize {
         self.len()
     }
@@ -189,7 +189,7 @@ impl<'a> Sendable for &'a [u8] {
     }
 }
 
-impl<'a> Sendable for &'a str {
+impl<'a> Buffer for &'a str {
     fn size(&self) -> usize {
         self.len()
     }
@@ -207,7 +207,7 @@ impl<'a> Sendable for &'a str {
     }
 }
 
-impl Sendable for String {
+impl Buffer for String {
     fn size(&self) -> usize {
         self.len()
     }

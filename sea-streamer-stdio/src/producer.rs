@@ -2,8 +2,8 @@ use flume::{bounded, r#async::RecvFut, unbounded, Sender};
 use std::{collections::HashMap, fmt::Debug, future::Future, sync::Mutex};
 
 use sea_streamer_types::{
-    export::futures::FutureExt, Message, MessageHeader, Producer as ProducerTrait, Receipt,
-    Sendable, SequenceNo, ShardId, SharedMessage, StreamErr, StreamKey, StreamResult, Timestamp,
+    export::futures::FutureExt, Buffer, Message, MessageHeader, Producer as ProducerTrait, Receipt,
+    SeqNo, ShardId, SharedMessage, StreamErr, StreamKey, StreamResult, Timestamp,
 };
 
 use crate::{
@@ -18,7 +18,7 @@ lazy_static::lazy_static! {
 
 #[derive(Debug, Default)]
 struct Producers {
-    sequences: HashMap<StreamKey, SequenceNo>,
+    sequences: HashMap<StreamKey, SeqNo>,
 }
 
 enum Signal {
@@ -138,7 +138,7 @@ pub(crate) fn shutdown_already() -> bool {
 
 impl Producers {
     // returns current Seq No
-    fn append(&mut self, stream: &StreamKey) -> SequenceNo {
+    fn append(&mut self, stream: &StreamKey) -> SeqNo {
         if let Some(val) = self.sequences.get_mut(stream) {
             let seq = *val;
             *val += 1;
@@ -177,11 +177,7 @@ impl ProducerTrait for StdioProducer {
     type Error = StdioErr;
     type SendFuture = SendFuture;
 
-    fn send_to<S: Sendable>(
-        &self,
-        stream: &StreamKey,
-        payload: S,
-    ) -> StdioResult<Self::SendFuture> {
+    fn send_to<S: Buffer>(&self, stream: &StreamKey, payload: S) -> StdioResult<Self::SendFuture> {
         let payload = payload.as_str().map_err(StreamErr::Utf8Error)?.to_owned();
         // basically using this as oneshot
         let (sender, receiver) = bounded(1);

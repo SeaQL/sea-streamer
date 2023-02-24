@@ -9,7 +9,7 @@ use rdkafka::{
 };
 use sea_streamer_runtime::spawn_blocking;
 use sea_streamer_types::{
-    export::futures::FutureExt, runtime_error, MessageHeader, Producer, ProducerOptions, Sendable,
+    export::futures::FutureExt, runtime_error, Buffer, MessageHeader, Producer, ProducerOptions,
     ShardId, StreamErr, StreamKey, StreamResult, StreamerUri, Timestamp,
 };
 
@@ -77,11 +77,7 @@ impl Producer for KafkaProducer {
     type Error = KafkaErr;
     type SendFuture = SendFuture;
 
-    fn send_to<S: Sendable>(
-        &self,
-        stream: &StreamKey,
-        payload: S,
-    ) -> KafkaResult<Self::SendFuture> {
+    fn send_to<S: Buffer>(&self, stream: &StreamKey, payload: S) -> KafkaResult<Self::SendFuture> {
         let fut = self
             .inner
             .send_result(RawPayload::<str, [u8]>::to(stream.name()).payload(payload.as_bytes()))
