@@ -6,7 +6,10 @@ use sea_streamer_types::{
     Sendable, SequenceNo, ShardId, SharedMessage, StreamErr, StreamKey, StreamResult, Timestamp,
 };
 
-use crate::{parser::TIME_FORMAT, StdioErr, StdioResult, BROADCAST};
+use crate::{
+    parser::{PartialMeta, TIME_FORMAT},
+    StdioErr, StdioResult, BROADCAST,
+};
 
 lazy_static::lazy_static! {
     static ref PRODUCERS: Mutex<Producers> = Default::default();
@@ -22,6 +25,7 @@ enum Signal {
     SendRequest {
         message: SharedMessage,
         receipt: Sender<Receipt>,
+        loopback: bool,
     },
     Shutdown,
 }
@@ -30,6 +34,7 @@ enum Signal {
 pub struct StdioProducer {
     stream: Option<StreamKey>,
     request: Sender<Signal>,
+    loopback: bool,
 }
 
 pub struct SendFuture {
@@ -53,6 +58,7 @@ pub(crate) fn init() {
                     Signal::SendRequest {
                         mut message,
                         receipt,
+                        loopback,
                     } => {
                         // we can time the difference from send() until now()
                         message.touch(); // set timestamp to now
@@ -71,6 +77,7 @@ pub(crate) fn init() {
                         // don't print empty lines
                         if message.message().size() != 0 {
                             let stream_key = message.stream_key();
+                            let seq = producers.append(&stream_key);
                             println!(
                                 "[{timestamp} | {stream} | {seq}] {payload}",
                                 timestamp = message
@@ -78,12 +85,25 @@ pub(crate) fn init() {
                                     .format(TIME_FORMAT)
                                     .expect("Timestamp format error"),
                                 stream = stream_key,
-                                seq = producers.append(&stream_key),
+                                seq = seq,
                                 payload = message
                                     .message()
                                     .as_str()
                                     .expect("Should have already checked is valid string"),
                             );
+                            if loopback {
+                                let payload = message.message();
+                                super::consumers::dispatch(
+                                    PartialMeta {
+                                        timestamp: Some(message.timestamp()),
+                                        stream_key: Some(stream_key),
+                                        sequence: Some(seq),
+                                        shard_id: Some(message.shard_id()),
+                                    },
+                                    payload.into_bytes(),
+                                    0,
+                                );
+                            }
                         }
                         let meta = message.take_meta();
                         // we don't care if the receipt can be delivered
@@ -180,6 +200,7 @@ impl ProducerTrait for StdioProducer {
                     size,
                 ),
                 receipt: sender,
+                loopback: self.loopback,
             })
             .map_err(|_| StreamErr::Backend(StdioErr::Disconnected))?;
         Ok(SendFuture {
@@ -208,6 +229,10 @@ impl ProducerTrait for StdioProducer {
 impl StdioProducer {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
+        Self::new_with(false)
+    }
+
+    pub(crate) fn new_with(loopback: bool) -> Self {
         init();
         let request = {
             let thread = THREAD.lock().expect("Failed to lock stdout thread");
@@ -216,6 +241,7 @@ impl StdioProducer {
         Self {
             stream: None,
             request,
+            loopback,
         }
     }
 

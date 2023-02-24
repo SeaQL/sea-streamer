@@ -4,10 +4,7 @@ use flume::{
 };
 use std::{
     collections::{BTreeMap, HashMap},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
-    },
+    sync::Mutex,
 };
 
 use sea_streamer_types::{
@@ -27,13 +24,14 @@ use crate::{
 
 lazy_static::lazy_static! {
     static ref CONSUMERS: Mutex<Consumers> = Mutex::new(Default::default());
-    static ref THREAD: Mutex<Option<Arc<AtomicBool>>> = Mutex::new(None);
+    static ref THREAD: Mutex<bool> = Mutex::new(false);
 }
 
 type Cid = u64;
 
 #[derive(Debug, Default)]
 struct Consumers {
+    max_id: Cid,
     consumers: BTreeMap<Cid, ConsumerRelay>,
     sequences: HashMap<(StreamKey, ShardId), SequenceNo>,
 }
@@ -61,7 +59,8 @@ pub type StdioMessage = SharedMessage;
 
 impl Consumers {
     fn add(&mut self, group: Option<ConsumerGroup>, streams: Vec<StreamKey>) -> StdioConsumer {
-        let id = self.consumers.len() as u64;
+        let id = self.max_id;
+        self.max_id += 1;
         let (con, sender) = StdioConsumer::new(id);
         self.consumers.insert(
             id,
@@ -74,14 +73,11 @@ impl Consumers {
         con
     }
 
-    fn remove(&mut self, id: u64) {
-        assert!(
-            self.consumers.remove(&id).is_some(),
-            "StdioConsumer with id {id} does not exist"
-        );
+    fn remove(&mut self, id: Cid) {
+        self.consumers.remove(&id);
     }
 
-    pub(crate) fn dispatch(&mut self, meta: PartialMeta, bytes: Vec<u8>, offset: usize) {
+    fn dispatch(&mut self, meta: PartialMeta, bytes: Vec<u8>, offset: usize) {
         let stream_key = meta
             .stream_key
             .to_owned()
@@ -142,6 +138,10 @@ impl Consumers {
             consumer.sender.send(message.clone()).ok();
         }
     }
+
+    fn disconnect(&mut self) {
+        self.consumers = Default::default();
+    }
 }
 
 pub(crate) fn create_consumer(
@@ -155,14 +155,13 @@ pub(crate) fn create_consumer(
 
 pub(crate) fn init() {
     let mut thread = THREAD.lock().expect("Failed to lock stdin thread");
-    if thread.is_none() {
-        let flag = Arc::new(AtomicBool::new(true));
-        let local_flag = flag.clone();
+    if !*thread {
         std::thread::spawn(move || {
             log::debug!("[{pid}] stdin thread spawned", pid = std::process::id());
             let _guard = PanicGuard;
-            while local_flag.load(Ordering::Relaxed) {
+            loop {
                 let mut line = String::new();
+                // this has the potential to block forever
                 match std::io::stdin().read_line(&mut line) {
                     Ok(0) => break, // this means stdin is closed
                     Ok(_) => {}
@@ -181,23 +180,16 @@ pub(crate) fn init() {
             log::debug!("[{pid}] stdin thread exit", pid = std::process::id());
             {
                 let mut thread = THREAD.lock().expect("Failed to lock stdin thread");
-                thread.take(); // set to none
+                *thread = false;
             }
         });
-        thread.replace(flag);
+        *thread = true;
     }
 }
 
-pub(crate) fn shutdown() {
-    let mut thread = THREAD.lock().expect("Failed to lock stdin thread");
-    if let Some(flag) = thread.as_mut() {
-        flag.swap(false, Ordering::Relaxed);
-    }
-}
-
-pub(crate) fn shutdown_already() -> bool {
-    let thread = THREAD.lock().expect("Failed to lock stdin thread");
-    thread.is_none()
+pub(crate) fn disconnect() {
+    let mut consumers = CONSUMERS.lock().expect("Failed to lock Consumers");
+    consumers.disconnect()
 }
 
 pub(crate) fn dispatch(meta: PartialMeta, bytes: Vec<u8>, offset: usize) {

@@ -10,10 +10,14 @@ use sea_streamer_types::{
 };
 
 #[derive(Debug, Default, Clone)]
-pub struct StdioStreamer {}
+pub struct StdioStreamer {
+    loopback: bool,
+}
 
 #[derive(Debug, Default, Clone)]
-pub struct StdioConnectOptions {}
+pub struct StdioConnectOptions {
+    loopback: bool,
+}
 
 #[derive(Debug, Clone)]
 pub struct StdioConsumerOptions {
@@ -34,17 +38,20 @@ impl StreamerTrait for StdioStreamer {
     type ProducerOptions = StdioProducerOptions;
 
     /// Nothing will happen until you create a producer/consumer
-    async fn connect(_: StreamerUri, _: Self::ConnectOptions) -> StdioResult<Self> {
-        Ok(StdioStreamer {})
+    async fn connect(_: StreamerUri, options: Self::ConnectOptions) -> StdioResult<Self> {
+        let StdioConnectOptions { loopback } = options;
+        Ok(StdioStreamer { loopback })
     }
 
-    /// Call this method if you want to exit gracefully. This waits asynchronously until the background thread(s) exit.
-    /// Meanwhile pending input and output messages will be flushed.
+    /// Call this method if you want to exit gracefully. This waits asynchronously until all pending messages
+    /// are sent.
+    ///
     /// The side effects is global: all existing consumers and producers will become unusable, until you connect again.
     async fn disconnect(self) -> StdioResult<()> {
-        consumers::shutdown();
+        // we can't reliably shutdown consumers
+        consumers::disconnect();
         producer::shutdown();
-        while !consumers::shutdown_already() || !producer::shutdown_already() {
+        while !producer::shutdown_already() {
             sea_streamer_runtime::sleep(Duration::from_millis(1)).await;
         }
         Ok(())
@@ -54,7 +61,7 @@ impl StreamerTrait for StdioStreamer {
         &self,
         _: Self::ProducerOptions,
     ) -> StdioResult<Self::Producer> {
-        Ok(StdioProducer::new())
+        Ok(StdioProducer::new_with(self.loopback))
     }
 
     /// A background thread will be spawned to read stdin dedicatedly.
@@ -82,6 +89,22 @@ impl StreamerTrait for StdioStreamer {
                 }
             }
         }
+    }
+}
+
+impl StdioConnectOptions {
+    pub fn loopback(&self) -> bool {
+        self.loopback
+    }
+
+    /// If set to true, messages produced will be feed back to consumers.
+    ///
+    /// Be careful, if your stream processor consume and produce the same stream key,
+    /// it will result in an infinite loop.
+    ///
+    /// This option is meant for testing only. Use in production is not recommended.
+    pub fn set_loopback(&mut self, b: bool) {
+        self.loopback = b;
     }
 }
 
