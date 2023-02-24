@@ -27,7 +27,8 @@ impl Debug for KafkaProducer {
     }
 }
 
-type RawProducer = rdkafka::producer::FutureProducer<
+/// rdkafka's FutureProducer type
+pub type RawProducer = rdkafka::producer::FutureProducer<
     rdkafka::client::DefaultClientContext,
     crate::KafkaAsyncRuntime,
 >;

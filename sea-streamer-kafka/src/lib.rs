@@ -44,6 +44,11 @@ pub use producer::*;
 pub use runtime::*;
 pub use streamer::*;
 
+/// Re-export types from `rdkafka`
+pub mod export {
+    pub use rdkafka;
+}
+
 macro_rules! impl_into_string {
     ($name:ident) => {
         impl From<$name> for String {

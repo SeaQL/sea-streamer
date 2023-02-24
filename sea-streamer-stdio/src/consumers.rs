@@ -124,6 +124,7 @@ impl Consumers {
                         }
                     }
                     None => {
+                        // we don't care if it cannot be delivered
                         consumer.sender.send(message.clone()).ok();
                     }
                 }

@@ -32,7 +32,8 @@ pub struct KafkaConsumer {
     streams: Vec<StreamKey>,
 }
 
-type RawConsumer = rdkafka::consumer::StreamConsumer<
+/// rdkafka's StreamConsumer type
+pub type RawConsumer = rdkafka::consumer::StreamConsumer<
     rdkafka::consumer::DefaultConsumerContext,
     crate::KafkaAsyncRuntime,
 >;
@@ -75,6 +76,7 @@ pub enum AutoOffsetReset {
     NoReset,
 }
 
+/// Concrete type of Future that will yield the next message.
 pub type NextFuture<'a> = Map<
     StreamFuture<RawMessageStream<'a>>,
     fn(
@@ -85,6 +87,7 @@ pub type NextFuture<'a> = Map<
     ) -> KafkaResult<KafkaMessage<'a>>,
 >;
 
+/// Concrete type of Stream that will yield the next messages.
 pub type KafkaMessageStream<'a> = StreamMap<
     RawMessageStream<'a>,
     fn(Result<RawMessage<'a>, KafkaErr>) -> KafkaResult<KafkaMessage<'a>>,
@@ -307,7 +310,7 @@ impl ConsumerTrait for KafkaConsumer {
         }
     }
 
-    /// Note: this rewind all streams
+    /// Note: this rewind all streams.
     fn rewind(&mut self, offset: SeqPos) -> KafkaResult<()> {
         let shard = self.shard.unwrap_or_default();
         let mut tpl = TopicPartitionList::new();
@@ -330,7 +333,7 @@ impl ConsumerTrait for KafkaConsumer {
         Ok(())
     }
 
-    /// Always succeed
+    /// Always succeed.
     fn assign(&mut self, shard: ShardId) -> KafkaResult<()> {
         self.shard = Some(shard);
         Ok(())
@@ -343,13 +346,15 @@ impl ConsumerTrait for KafkaConsumer {
         })
     }
 
+    /// Note: Kafka stream never ends.
     fn stream<'a, 'b: 'a>(&'b mut self) -> Self::Stream<'a> {
         self.get().stream().map(Self::process)
     }
 }
 
 impl KafkaConsumer {
-    fn get(&self) -> &RawConsumer {
+    /// Get the underlying StreamConsumer
+    pub fn get(&self) -> &RawConsumer {
         self.inner
             .as_ref()
             .expect("Client is still inside an async operation, please await the future")
@@ -519,6 +524,9 @@ impl ConsumerOptions for KafkaConsumerOptions {
     ///
     /// Say there are 2 consumers (in the group) and 2 partitions, then each consumer
     /// will receive messages from one partition, and they are thus load-balanced.
+    ///
+    /// If there are 2 consumers and 3 partitions, then one consumer will be assigned
+    /// 2 partitions, and the other will be assigned only 1.
     ///
     /// However if the stream has only 1 partition, even if there are many consumers,
     /// these messages will only be received by the assigned consumer, and other consumers
