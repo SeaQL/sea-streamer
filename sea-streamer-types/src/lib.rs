@@ -23,4 +23,5 @@ pub use producer::*;
 pub use stream::*;
 pub use streamer::*;
 
+/// Re-export types from related libraries
 pub mod export;

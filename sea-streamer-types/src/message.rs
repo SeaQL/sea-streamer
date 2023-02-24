@@ -3,6 +3,7 @@ use std::{str::Utf8Error, sync::Arc};
 use crate::{SequenceNo, ShardId, StreamKey, Timestamp};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// It uses an `Arc` to hold the bytes, so is cheap to clone.
 pub struct SharedMessage {
     meta: MessageHeader,
     bytes: Arc<Vec<u8>>,
@@ -11,16 +12,19 @@ pub struct SharedMessage {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// The payload of a message.
 pub struct Payload<'a> {
     data: BytesOrStr<'a>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Bytes or Str. Being an `str` means the data is UTF-8 valid.
 pub enum BytesOrStr<'a> {
     Bytes(&'a [u8]),
     Str(&'a str),
 }
 
+/// Types that be converted into [`BytesOrStr`].
 pub trait IntoBytesOrStr<'a>
 where
     Self: 'a,
@@ -29,6 +33,7 @@ where
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// Metadata associated with a message.
 pub struct MessageHeader {
     stream_key: StreamKey,
     shard_id: ShardId,
@@ -36,6 +41,7 @@ pub struct MessageHeader {
     timestamp: Timestamp,
 }
 
+/// Common interface of byte containers.
 pub trait Sendable {
     fn size(&self) -> usize;
 
@@ -46,6 +52,7 @@ pub trait Sendable {
     fn as_str(&self) -> Result<&str, Utf8Error>;
 }
 
+/// Common interface of messages, to be implemented by all backends.
 pub trait Message {
     fn stream_key(&self) -> StreamKey;
 

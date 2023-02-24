@@ -5,6 +5,7 @@ use sea_streamer_types::{Message, Payload, SequenceNo, ShardId, StreamKey, Times
 use crate::{Backend, SeaStreamerBackend};
 
 #[derive(Debug)]
+/// `sea-streamer-socket` concrete type of Message.
 pub enum SeaMessage<'a> {
     Kafka(KafkaMessage<'a>),
     Stdio(StdioMessage),

@@ -9,12 +9,13 @@ use sea_streamer_types::{
 use crate::{map_err, Backend, BackendErr, SeaResult, SeaStreamerBackend};
 
 #[derive(Debug, Clone)]
+/// `sea-streamer-socket` concrete type of Producer.
 pub struct SeaProducer {
     pub(crate) backend: SeaProducerBackend,
 }
 
 #[derive(Debug, Clone)]
-pub enum SeaProducerBackend {
+pub(crate) enum SeaProducerBackend {
     Kafka(KafkaProducer),
     Stdio(StdioProducer),
 }
@@ -29,6 +30,7 @@ impl SeaStreamerBackend for SeaProducer {
 }
 
 #[derive(Debug)]
+/// `sea-streamer-socket` concrete type of a Future that will yield a send receipt.
 pub enum SendFuture {
     Kafka(sea_streamer_kafka::SendFuture),
     Stdio(sea_streamer_stdio::SendFuture),

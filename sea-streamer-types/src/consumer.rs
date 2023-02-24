@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use futures::{Future, Stream};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+/// Mode of stream consumption.
 pub enum ConsumerMode {
     /// This is the 'vanilla' stream consumer. It does not auto-commit, and thus only consumes messages from now on.
     RealTime,
@@ -19,10 +20,12 @@ impl Default for ConsumerMode {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// Used to identify a group of consumers.
 pub struct ConsumerGroup {
     name: String,
 }
 
+/// Common options of a Consumer.
 pub trait ConsumerOptions: Default + Clone + Send {
     type Error: std::error::Error;
 
@@ -42,6 +45,7 @@ pub trait ConsumerOptions: Default + Clone + Send {
 }
 
 #[async_trait]
+/// Common interface of consumers, to be implemented by all backends.
 pub trait Consumer: Sized + Send + Sync {
     type Error: std::error::Error;
 

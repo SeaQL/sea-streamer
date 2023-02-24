@@ -13,21 +13,24 @@ use sea_streamer_types::{
 use crate::{map_err, Backend, BackendErr, SeaMessage, SeaResult, SeaStreamerBackend};
 
 #[derive(Debug)]
+/// `sea-streamer-socket` concrete type of Consumer.
 pub struct SeaConsumer {
     pub(crate) backend: SeaConsumerBackend,
 }
 
 #[derive(Debug)]
-pub enum SeaConsumerBackend {
+pub(crate) enum SeaConsumerBackend {
     Kafka(KafkaConsumer),
     Stdio(StdioConsumer),
 }
 
+/// `sea-streamer-socket` concrete type of Future that will yield the next message.
 pub enum NextFuture<'a> {
     Kafka(sea_streamer_kafka::NextFuture<'a>),
     Stdio(sea_streamer_stdio::NextFuture<'a>),
 }
 
+/// `sea-streamer-socket` concrete type of Stream that will yield the next messages.
 pub enum SeaMessageStream<'a> {
     Kafka(sea_streamer_kafka::KafkaMessageStream<'a>),
     Stdio(sea_streamer_stdio::StdioMessageStream<'a>),

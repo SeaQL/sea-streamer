@@ -1,6 +1,7 @@
 use crate::StreamResult;
 use std::time::Duration;
 
+/// Common options when connecting to a streamer.
 pub trait ConnectOptions: Default + Clone + Send {
     type Error: std::error::Error;
 

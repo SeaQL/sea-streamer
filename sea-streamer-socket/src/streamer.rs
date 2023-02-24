@@ -9,12 +9,13 @@ use crate::{
 };
 
 #[derive(Debug)]
+/// `sea-streamer-socket` concrete type of Streamer.
 pub struct SeaStreamer {
-    pub(crate) backend: SeaStreamerInner,
+    backend: SeaStreamerInner,
 }
 
 #[derive(Debug)]
-pub enum SeaStreamerInner {
+enum SeaStreamerInner {
     Kafka(KafkaStreamer),
     Stdio(StdioStreamer),
 }

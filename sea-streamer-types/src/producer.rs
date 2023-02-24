@@ -2,10 +2,13 @@ use futures::Future;
 
 use crate::{MessageHeader, Sendable, StreamKey, StreamResult};
 
+/// Common options of a Producer.
 pub trait ProducerOptions: Default + Clone + Send {}
 
+/// Delivery receipt.
 pub type Receipt = MessageHeader;
 
+/// Common interface of producers, to be implemented by all backends.
 pub trait Producer: Clone + Send + Sync {
     type Error: std::error::Error;
     type SendFuture: Future<Output = StreamResult<Receipt, Self::Error>>;

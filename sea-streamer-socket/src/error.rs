@@ -6,9 +6,11 @@ use sea_streamer_types::{StreamErr, StreamResult};
 
 use crate::{Backend, SeaStreamerBackend};
 
+/// `sea-streamer-socket` the concrete error type.
 pub type Error = StreamErr<BackendErr>;
 
 #[derive(Error, Debug)]
+/// `sea-streamer-socket` the concrete backend error.
 pub enum BackendErr {
     #[error("KafkaBackendErr: {0}")]
     Kafka(KafkaErr),

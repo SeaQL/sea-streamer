@@ -215,7 +215,7 @@ impl Drop for StdioConsumer {
 impl ConsumerTrait for StdioConsumer {
     type Error = StdioErr;
     type Message<'a> = SharedMessage;
-    /// See, we don't actually have to Box these! Looking forward to `type_alias_impl_trait`
+    // See we don't actually have to Box these! Looking forward to `type_alias_impl_trait`
     type NextFuture<'a> = NextFuture<'a>;
     type Stream<'a> = StdioMessageStream<'a>;
 

@@ -5,6 +5,7 @@ use sea_streamer_types::{ConsumerGroup, ConsumerMode, ConsumerOptions};
 use crate::{map_err, BackendErr, SeaResult};
 
 #[derive(Debug, Default, Clone)]
+/// `sea-streamer-socket` concrete type of ConsumerOptions.
 pub struct SeaConsumerOptions {
     stdio: StdioConsumerOptions,
     kafka: KafkaConsumerOptions,

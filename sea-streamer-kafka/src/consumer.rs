@@ -254,7 +254,7 @@ impl std::fmt::Debug for KafkaConsumer {
 impl ConsumerTrait for KafkaConsumer {
     type Error = KafkaErr;
     type Message<'a> = KafkaMessage<'a>;
-    /// See, we don't actually have to Box these! Looking forward to `type_alias_impl_trait`
+    // See we don't actually have to Box these! Looking forward to `type_alias_impl_trait`
     type NextFuture<'a> = NextFuture<'a>;
     type Stream<'a> = KafkaMessageStream<'a>;
 

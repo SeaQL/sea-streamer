@@ -7,12 +7,14 @@ use async_trait::async_trait;
 use url::Url;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// URI of Streaming Server. If this is a cluster, there can be multiple nodes.
 pub struct StreamerUri {
     protocol: Option<String>,
     nodes: Vec<Url>,
 }
 
 #[async_trait]
+/// Common interface of streamer clients.
 pub trait Streamer: Sized {
     type Error: std::error::Error;
     type Producer: Producer<Error = Self::Error>;
@@ -21,18 +23,22 @@ pub trait Streamer: Sized {
     type ConsumerOptions: ConsumerOptions;
     type ProducerOptions: ProducerOptions;
 
+    /// Establish a connection to the streaming server.
     async fn connect(
         streamer: StreamerUri,
         options: Self::ConnectOptions,
     ) -> StreamResult<Self, Self::Error>;
 
+    /// Flush and disconnect from the streaming server.
     async fn disconnect(self) -> StreamResult<(), Self::Error>;
 
+    /// Create a producer that can stream to any stream key.
     async fn create_generic_producer(
         &self,
         options: Self::ProducerOptions,
     ) -> StreamResult<Self::Producer, Self::Error>;
 
+    /// Create a producer that streams to the specified streams.
     async fn create_producer(
         &self,
         stream: StreamKey,
@@ -43,6 +49,7 @@ pub trait Streamer: Sized {
         Ok(producer)
     }
 
+    /// Create a consumer subscribing to the specified streams.
     async fn create_consumer(
         &self,
         streams: &[StreamKey],
