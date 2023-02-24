@@ -18,3 +18,5 @@ See [tests](https://github.com/SeaQL/sea-streamer/blob/main/sea-streamer-kafka/t
 This crate depends on [`rdkafka`](https://docs.rs/rdkafka),
 which in turn depends on [librdkafka-sys](https://docs.rs/librdkafka-sys), which itself is a wrapper of
 [librdkafka](https://docs.confluent.io/platform/current/clients/librdkafka/html/index.html).
+
+Reference: https://kafka.apache.org/documentation/#configuration

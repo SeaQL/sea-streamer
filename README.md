@@ -183,6 +183,8 @@ This crate depends on [`rdkafka`](https://docs.rs/rdkafka),
 which in turn depends on [librdkafka-sys](https://docs.rs/librdkafka-sys), which itself is a wrapper of
 [librdkafka](https://docs.confluent.io/platform/current/clients/librdkafka/html/index.html).
 
+Reference: https://kafka.apache.org/documentation/#configuration
+
 ## SeaStreamer Standard I/O Backend
 
 This is the `stdio` backend implementation for SeaStreamer. It is designed to be connected together with unix pipes,
