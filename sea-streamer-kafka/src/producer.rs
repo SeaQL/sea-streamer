@@ -36,6 +36,7 @@ pub type RawProducer = rdkafka::producer::FutureProducer<
 #[derive(Debug, Default, Clone)]
 pub struct KafkaProducerOptions {
     compression_type: Option<CompressionType>,
+    custom_options: Vec<(String, String)>,
 }
 
 pub struct SendFuture {
@@ -131,9 +132,28 @@ impl KafkaProducerOptions {
         self.compression_type.as_ref()
     }
 
+    /// Add a custom option. If you have an option you frequently use,
+    /// please consider open a PR and add it to above.
+    pub fn add_custom_option<K, V>(&mut self, key: K, value: V) -> &mut Self
+    where
+        K: Into<String>,
+        V: Into<String>,
+    {
+        self.custom_options.push((key.into(), value.into()));
+        self
+    }
+    pub fn custom_options(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.custom_options
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+    }
+
     fn make_client_config(&self, client_config: &mut ClientConfig) {
         if let Some(v) = self.compression_type {
             client_config.set(OptionKey::CompressionType, v);
+        }
+        for (key, value) in self.custom_options() {
+            client_config.set(key, value);
         }
     }
 }

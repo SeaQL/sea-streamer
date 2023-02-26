@@ -25,6 +25,7 @@ pub struct KafkaStreamer {
 #[derive(Debug, Default, Clone)]
 pub struct KafkaConnectOptions {
     timeout: Option<Duration>,
+    custom_options: Vec<(String, String)>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -47,9 +48,28 @@ impl ConnectOptions for KafkaConnectOptions {
 }
 
 impl KafkaConnectOptions {
+    /// Add a custom option. If you have an option you frequently use,
+    /// please consider open a PR and add it to above.
+    pub fn add_custom_option<K, V>(&mut self, key: K, value: V) -> &mut Self
+    where
+        K: Into<String>,
+        V: Into<String>,
+    {
+        self.custom_options.push((key.into(), value.into()));
+        self
+    }
+    pub fn custom_options(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.custom_options
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+    }
+
     pub(crate) fn make_client_config(&self, client_config: &mut ClientConfig) {
         if let Some(v) = self.timeout {
             client_config.set(OptionKey::SocketTimeout, format!("{}", v.as_millis()));
+        }
+        for (key, value) in self.custom_options() {
+            client_config.set(key, value);
         }
     }
 }
