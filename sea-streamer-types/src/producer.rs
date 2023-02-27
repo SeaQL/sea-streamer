@@ -21,7 +21,9 @@ pub trait Producer: Clone + Send + Sync {
         payload: S,
     ) -> StreamResult<Self::SendFuture, Self::Error>;
 
-    /// Send a message to the already anchored stream.
+    /// Send a message to the already anchored stream. This function is non-blocking.
+    /// You don't have to await the future if you are not interested in the Receipt.
+    ///
     /// If the producer is not anchored, this will return [`StreamErr::NotAnchored`] error.
     fn send<S: Buffer>(&self, payload: S) -> StreamResult<Self::SendFuture, Self::Error> {
         self.send_to(self.anchored()?, payload)

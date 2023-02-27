@@ -99,6 +99,35 @@ async fn main() -> Result<()> {
 }
 ```
 
+Here is a basic stream processor, [full example](https://github.com/SeaQL/sea-streamer/tree/main/examples/src/bin/processor.rs):
+
+```rust
+#[tokio::main]
+async fn main() -> Result<()> {
+    env_logger::init();
+
+    let Args { input, output } = Args::from_args();
+
+    let streamer = SeaStreamer::connect(input.streamer(), Default::default()).await?;
+    let options = SeaConsumerOptions::new(ConsumerMode::RealTime);
+    let consumer: SeaConsumer = streamer
+        .create_consumer(input.stream_keys(), options)
+        .await?;
+
+    let streamer = SeaStreamer::connect(output.streamer(), Default::default()).await?;
+    let producer: SeaProducer = streamer
+        .create_producer(output.stream_key()?, Default::default())
+        .await?;
+
+    loop {
+        let message: SeaMessage = consumer.next().await?;
+        let message = process(message).await?;
+        println!("{message}");
+        producer.send(message)?; // send is non-blocking
+    }
+}
+```
+
 ## Architecture
 
 `sea-streamer` is the facade crate re-exporting implementation from a number of sub-crates:
