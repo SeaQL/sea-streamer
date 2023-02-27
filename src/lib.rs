@@ -154,3 +154,10 @@ pub use sea_streamer_stdio as stdio;
 #[cfg(feature = "sea-streamer-socket")]
 #[cfg_attr(docsrs, doc(cfg(feature = "sea-streamer-socket")))]
 pub use sea_streamer_socket::*;
+
+#[cfg(any(
+    feature = "runtime",
+    feature = "runtime-tokio",
+    feature = "runtime-async-std"
+))]
+pub use sea_streamer_runtime as runtime;

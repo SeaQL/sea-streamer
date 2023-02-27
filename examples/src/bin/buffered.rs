@@ -4,10 +4,10 @@ use std::time::Duration;
 use structopt::StructOpt;
 
 use sea_streamer::{
+    runtime::{sleep, spawn_task, TaskHandle},
     Buffer, Consumer, ConsumerMode, ConsumerOptions, Message, Producer, SeaConsumer,
     SeaConsumerOptions, SeaMessage, SeaProducer, SeaStreamer, SharedMessage, StreamUrl, Streamer,
 };
-use sea_streamer_runtime::{sleep, spawn_task, TaskHandle};
 
 #[derive(Debug, StructOpt)]
 struct Args {

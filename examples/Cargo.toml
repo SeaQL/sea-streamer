@@ -19,10 +19,6 @@ flume = { version = "0.10", default-features = false, features = ["async"] }
 structopt = { version = "0.3" }
 tokio = { version = "1.10", features = ["full"], optional = true }
 
-[dependencies.sea-streamer-runtime]
-path = "../sea-streamer-runtime" # remove this line in your own project
-version = "0.1"
-
 [dependencies.sea-streamer]
 path = ".."                    # remove this line in your own project
 version = "0.1"
