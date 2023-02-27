@@ -10,18 +10,17 @@ struct Args {
     #[structopt(
         long,
         help = "Streamer URI with stream key(s), i.e. try `kafka://localhost:9092/my_topic`",
-        env = "STREAM_URL"
     )]
     input: StreamUrl,
     #[structopt(
         long,
         help = "Streamer URI with stream key, i.e. try `stdio:///my_stream`",
-        env = "STREAM_URL"
     )]
     output: StreamUrl,
 }
 
-#[tokio::main]
+#[cfg_attr(feature = "runtime-tokio", tokio::main)]
+#[cfg_attr(feature = "runtime-async-std", async_std::main)]
 async fn main() -> Result<()> {
     env_logger::init();
 

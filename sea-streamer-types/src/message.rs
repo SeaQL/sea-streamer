@@ -63,6 +63,20 @@ pub trait Message: Send {
     fn timestamp(&self) -> Timestamp;
 
     fn message(&self) -> Payload;
+
+    fn to_owned(&self) -> SharedMessage {
+        SharedMessage::new(
+            MessageHeader::new(
+                self.stream_key(),
+                self.shard_id(),
+                self.sequence(),
+                self.timestamp(),
+            ),
+            self.message().into_bytes(),
+            0,
+            self.message().size(),
+        )
+    }
 }
 
 impl SharedMessage {

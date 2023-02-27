@@ -1,5 +1,5 @@
 [package]
-name = "sea-streamer-example"
+name = "sea-streamer-examples"
 version = "0.1.0"
 authors = ["Chris Tsang <chris.2y3@outlook.com>"]
 edition = "2021"
@@ -8,12 +8,27 @@ license = "MIT OR Apache-2.0"
 documentation = "https://docs.rs/sea-streamer"
 repository = "https://github.com/SeaQL/sea-streamer"
 categories = ["database"]
-publish = false
 rust-version = "1.60"
+publish = false
 
 [dependencies]
 anyhow = { version = "1" }
-env_logger = { version = "0.9.0" }
+async-std = { version = "1", features = ["attributes"], optional = true }
+env_logger = { version = "0.9" }
+flume = { version = "0.10", default-features = false, features = ["async"] }
 structopt = { version = "0.3" }
-tokio = { version = "1.10", features = ["full"] }
-sea-streamer = { version = "^0.1.0", path = "..", features = ["socket", "kafka", "runtime-tokio"] }
+tokio = { version = "1.10", features = ["full"], optional = true }
+
+[dependencies.sea-streamer-runtime]
+path = "../sea-streamer-runtime" # remove this line in your own project
+version = "0.1"
+
+[dependencies.sea-streamer]
+path = ".."                    # remove this line in your own project
+version = "0.1"
+features = ["socket", "kafka"]
+
+[features]
+default = ["runtime-tokio"]
+runtime-tokio = ["tokio", "sea-streamer/runtime-tokio"]
+runtime-async-std = ["async-std", "sea-streamer/runtime-async-std"]

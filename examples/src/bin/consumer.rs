@@ -15,7 +15,8 @@ struct Args {
     stream: StreamUrl,
 }
 
-#[tokio::main]
+#[cfg_attr(feature = "runtime-tokio", tokio::main)]
+#[cfg_attr(feature = "runtime-async-std", async_std::main)]
 async fn main() -> Result<()> {
     env_logger::init();
 
