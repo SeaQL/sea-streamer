@@ -1,33 +1,32 @@
 use anyhow::Result;
 use sea_streamer_kafka::{AutoOffsetReset, KafkaConsumerOptions, KafkaStreamer};
 use sea_streamer_types::{
-    Buffer, Consumer, ConsumerMode, ConsumerOptions, Message, StreamKey, Streamer,
+    Buffer, Consumer, ConsumerMode, ConsumerOptions, Message, StreamUrl, Streamer,
 };
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 struct Args {
-    #[structopt(long, help = "Input stream")]
-    input: StreamKey,
+    #[structopt(
+        long,
+        help = "Streamer URI with stream key(s), i.e. try `kafka://localhost:9092/hello`",
+        env = "STREAM_URL"
+    )]
+    stream: StreamUrl,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
 
-    let Args { input } = Args::from_args();
+    let Args { stream } = Args::from_args();
 
-    let streamer = KafkaStreamer::connect(
-        std::env::var("BROKERS_URL")
-            .unwrap_or_else(|_| "localhost:9092".to_owned())
-            .parse()
-            .unwrap(),
-        Default::default(),
-    )
-    .await?;
+    let streamer = KafkaStreamer::connect(stream.streamer(), Default::default()).await?;
     let mut options = KafkaConsumerOptions::new(ConsumerMode::RealTime);
     options.set_auto_offset_reset(AutoOffsetReset::Earliest);
-    let consumer = streamer.create_consumer(&[input], options).await?;
+    let consumer = streamer
+        .create_consumer(stream.stream_keys(), options)
+        .await?;
 
     loop {
         let mess = consumer.next().await?;

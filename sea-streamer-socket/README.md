@@ -27,11 +27,11 @@ which then streams to Kafka:
 
 ```sh
 clock -- --stream clock --interval 1s | \
-relay -- --stream clock --input stdio:// --output kafka://localhost:9092
+relay -- --input stdio:///clock --output kafka://localhost:9092/clock
 ```
 
 Here is how to *replay* the stream from Kafka ➡️ Stdio:
 
 ```sh
-relay -- --stream clock --input kafka://localhost:9092 --output stdio:// --offset start
+relay -- --input kafka://localhost:9092/clock --output stdio:///clock --offset start
 ```

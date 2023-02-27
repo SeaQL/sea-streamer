@@ -53,7 +53,7 @@ pub trait Buffer {
 }
 
 /// Common interface of messages, to be implemented by all backends.
-pub trait Message {
+pub trait Message: Send {
     fn stream_key(&self) -> StreamKey;
 
     fn shard_id(&self) -> ShardId;

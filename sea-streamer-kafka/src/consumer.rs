@@ -469,7 +469,7 @@ impl<'a> Debug for KafkaMessage<'a> {
 
 impl<'a> Message for KafkaMessage<'a> {
     fn stream_key(&self) -> StreamKey {
-        StreamKey::new(self.mess().topic().to_owned())
+        StreamKey::new(self.mess().topic()).expect("A message should carry a valid stream key")
     }
 
     fn shard_id(&self) -> ShardId {

@@ -61,7 +61,8 @@ pub fn parse_meta(input: &str) -> Result<(PartialMeta, &str), ParseErr> {
         }
         if !parsed && meta.stream_key.is_none() {
             if let Ok(("", stream_key)) = parse_stream_key(part) {
-                meta.stream_key = Some(StreamKey::new(stream_key.to_owned()));
+                meta.stream_key =
+                    Some(StreamKey::new(stream_key).expect("Already guarded by parse_stream_key"));
                 parsed = true;
             }
         }
@@ -152,7 +153,7 @@ mod test {
             (
                 PartialMeta {
                     timestamp: Some(datetime!(2022-01-02 03:04:05.678).assume_utc()),
-                    stream_key: Some(StreamKey::new("my-fancy_topic.1".to_owned())),
+                    stream_key: Some(StreamKey::new("my-fancy_topic.1").unwrap()),
                     sequence: None,
                     shard_id: None,
                 },
@@ -169,7 +170,7 @@ mod test {
             (
                 PartialMeta {
                     timestamp: Some(datetime!(2022-01-02 03:04:05).assume_utc()),
-                    stream_key: Some(StreamKey::new("my-fancy_topic.1".to_owned())),
+                    stream_key: Some(StreamKey::new("my-fancy_topic.1").unwrap()),
                     sequence: Some(123),
                     shard_id: None,
                 },
@@ -188,7 +189,7 @@ mod test {
             (
                 PartialMeta {
                     timestamp: Some(datetime!(2022-01-02 03:04:05).assume_utc()),
-                    stream_key: Some(StreamKey::new("my-fancy_topic.1".to_owned())),
+                    stream_key: Some(StreamKey::new("my-fancy_topic.1").unwrap()),
                     sequence: Some(123),
                     shard_id: Some(ShardId::new(4)),
                 },
@@ -204,7 +205,7 @@ mod test {
             (
                 PartialMeta {
                     timestamp: None,
-                    stream_key: Some(StreamKey::new("my-fancy_topic.1".to_owned())),
+                    stream_key: Some(StreamKey::new("my-fancy_topic.1").unwrap()),
                     sequence: None,
                     shard_id: None,
                 },
@@ -220,7 +221,7 @@ mod test {
             (
                 PartialMeta {
                     timestamp: None,
-                    stream_key: Some(StreamKey::new("my-fancy_topic.1".to_owned())),
+                    stream_key: Some(StreamKey::new("my-fancy_topic.1").unwrap()),
                     sequence: Some(123),
                     shard_id: None,
                 },
@@ -236,7 +237,7 @@ mod test {
             (
                 PartialMeta {
                     timestamp: None,
-                    stream_key: Some(StreamKey::new("my-fancy_topic.1".to_owned())),
+                    stream_key: Some(StreamKey::new("my-fancy_topic.1").unwrap()),
                     sequence: Some(123),
                     shard_id: Some(ShardId::new(4)),
                 },

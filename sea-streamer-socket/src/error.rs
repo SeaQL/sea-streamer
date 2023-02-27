@@ -56,7 +56,7 @@ pub(crate) fn map_err<E: std::error::Error + Into<BackendErr>>(
         StreamErr::StreamKeyEmpty => StreamErr::StreamKeyEmpty,
         StreamErr::CommitNotAllowed => StreamErr::CommitNotAllowed,
         StreamErr::Utf8Error(e) => StreamErr::Utf8Error(e),
-        StreamErr::InvalidStreamKey => StreamErr::InvalidStreamKey,
+        StreamErr::StreamKeyErr(e) => StreamErr::StreamKeyErr(e),
         StreamErr::Unsupported(e) => StreamErr::Unsupported(e),
         StreamErr::Runtime(e) => StreamErr::Runtime(e),
     }

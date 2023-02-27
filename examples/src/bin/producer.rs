@@ -1,12 +1,16 @@
 use anyhow::Result;
-use sea_streamer::{Producer, SeaProducer, SeaStreamer, StreamKey, Streamer};
+use sea_streamer::{Producer, SeaProducer, SeaStreamer, StreamUrl, Streamer};
 use std::time::Duration;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 struct Args {
-    #[structopt(long, help = "Stream key")]
-    stream: StreamKey,
+    #[structopt(
+        long,
+        help = "Streamer URI with stream key, i.e. try `kafka://localhost:9092/my_topic`",
+        env = "STREAM_URL"
+    )]
+    stream: StreamUrl,
 }
 
 #[tokio::main]
@@ -15,15 +19,11 @@ async fn main() -> Result<()> {
 
     let Args { stream } = Args::from_args();
 
-    let streamer = SeaStreamer::connect(
-        std::env::var("STREAMER_URL")
-            .unwrap_or_else(|_| "kafka://localhost:9092".to_owned())
-            .parse()?,
-        Default::default(),
-    )
-    .await?;
+    let streamer = SeaStreamer::connect(stream.streamer(), Default::default()).await?;
 
-    let producer: SeaProducer = streamer.create_producer(stream, Default::default()).await?;
+    let producer: SeaProducer = streamer
+        .create_producer(stream.stream_key()?, Default::default())
+        .await?;
 
     for tick in 0..10 {
         let message = format!(r#""tick {tick}""#);

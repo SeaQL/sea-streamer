@@ -81,7 +81,7 @@ impl Consumers {
         let stream_key = meta
             .stream_key
             .to_owned()
-            .unwrap_or_else(|| StreamKey::new(BROADCAST.to_owned()));
+            .unwrap_or_else(|| StreamKey::new(BROADCAST).unwrap());
         let shard_id = meta.shard_id.unwrap_or_default();
         let entry = self
             .sequences

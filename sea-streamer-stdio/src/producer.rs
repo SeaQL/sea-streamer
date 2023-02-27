@@ -245,8 +245,7 @@ impl StdioProducer {
         // the trick here is to send an empty message (that will be dropped) to the stdout thread
         // and wait for the receipt. By the time it returns a receipt, everything before should
         // have already been sent
-        self.send_to(&StreamKey::new(BROADCAST.to_owned()), "")?
-            .await?;
+        self.send_to(&StreamKey::new(BROADCAST)?, "")?.await?;
         Ok(())
     }
 }

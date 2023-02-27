@@ -10,7 +10,7 @@ async fn main() -> anyhow::Result<()> {
 
     env_logger::init();
 
-    let stream = StreamKey::new("hello".to_owned());
+    let stream = StreamKey::new("hello")?;
     let streamer = StdioStreamer::connect(StreamerUri::zero(), Default::default()).await?;
     let consumer = streamer
         .create_consumer(&[stream.clone()], Default::default())

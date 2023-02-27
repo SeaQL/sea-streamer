@@ -25,8 +25,8 @@ pub enum StreamErr<E: std::error::Error> {
     CommitNotAllowed,
     #[error("Utf8Error: {0}")]
     Utf8Error(Utf8Error),
-    #[error("Invalid stream key: valid pattern is [a-zA-Z0-9._-]{{1, 249}}")]
-    InvalidStreamKey,
+    #[error("StreamKeyErr {0}")]
+    StreamKeyErr(#[from] StreamKeyErr),
     #[error("Unsupported feature: {0}")]
     Unsupported(String),
     #[error("Backend error: {0}")]
@@ -44,6 +44,24 @@ pub enum JsonErr {
     Utf8Error(#[from] std::str::Utf8Error),
     #[error("serde_json::Error {0}")]
     SerdeJson(#[from] serde_json::Error),
+}
+
+#[derive(Error, Debug)]
+/// Errors that may happen when parsing stream URL
+pub enum StreamUrlErr {
+    #[error("UrlParseError {0}")]
+    UrlParseError(#[from] url::ParseError),
+    #[error("StreamKeyErr {0}")]
+    StreamKeyErr(#[from] StreamKeyErr),
+    #[error("Expected one stream key, found zero or more than one")]
+    NotOneStreamKey,
+}
+
+#[derive(Error, Debug)]
+/// Errors that may happen when handling StreamKey
+pub enum StreamKeyErr {
+    #[error("Invalid stream key: valid pattern is [a-zA-Z0-9._-]{{1, 249}}")]
+    InvalidStreamKey,
 }
 
 /// Function to construct a [`StreamErr::Runtime`] error variant.

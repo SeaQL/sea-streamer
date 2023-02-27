@@ -1,14 +1,18 @@
 use anyhow::Result;
 use sea_streamer::{
     kafka::AutoOffsetReset, Buffer, Consumer, ConsumerMode, ConsumerOptions, Message, SeaConsumer,
-    SeaConsumerOptions, SeaMessage, SeaStreamer, StreamKey, Streamer,
+    SeaConsumerOptions, SeaMessage, SeaStreamer, StreamUrl, Streamer,
 };
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 struct Args {
-    #[structopt(long, help = "Stream key")]
-    stream: StreamKey,
+    #[structopt(
+        long,
+        help = "Streamer URI with stream key(s), i.e. try `kafka://localhost:9092/my_topic`",
+        env = "STREAM_URL"
+    )]
+    stream: StreamUrl,
 }
 
 #[tokio::main]
@@ -17,19 +21,15 @@ async fn main() -> Result<()> {
 
     let Args { stream } = Args::from_args();
 
-    let streamer = SeaStreamer::connect(
-        std::env::var("STREAMER_URL")
-            .unwrap_or_else(|_| "kafka://localhost:9092".to_owned())
-            .parse()?,
-        Default::default(),
-    )
-    .await?;
+    let streamer = SeaStreamer::connect(stream.streamer(), Default::default()).await?;
 
     let mut options = SeaConsumerOptions::new(ConsumerMode::RealTime);
     options.set_kafka_consumer_options(|options| {
         options.set_auto_offset_reset(AutoOffsetReset::Earliest);
     });
-    let consumer: SeaConsumer = streamer.create_consumer(&[stream], options).await?;
+    let consumer: SeaConsumer = streamer
+        .create_consumer(stream.stream_keys(), options)
+        .await?;
 
     loop {
         let mess: SeaMessage = consumer.next().await?;

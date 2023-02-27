@@ -54,19 +54,15 @@
 //!
 //!     let Args { stream } = Args::from_args();
 //!
-//!     let streamer = SeaStreamer::connect(
-//!         std::env::var("STREAMER_URL")
-//!             .unwrap_or_else(|_| "kafka://localhost:9092".to_owned())
-//!             .parse()?,
-//!         Default::default(),
-//!     )
-//!     .await?;
+//!     let streamer = SeaStreamer::connect(stream.streamer(), Default::default()).await?;
 //!
 //!     let mut options = SeaConsumerOptions::new(ConsumerMode::RealTime);
 //!     options.set_kafka_consumer_options(|options| {
 //!         options.set_auto_offset_reset(AutoOffsetReset::Earliest);
 //!     });
-//!     let consumer: SeaConsumer = streamer.create_consumer(&[stream], options).await?;
+//!     let consumer: SeaConsumer = streamer
+//!         .create_consumer(stream.stream_keys(), options)
+//!         .await?;
 //!
 //!     loop {
 //!         let mess: SeaMessage = consumer.next().await?;
@@ -84,15 +80,11 @@
 //!
 //!     let Args { stream } = Args::from_args();
 //!
-//!     let streamer = SeaStreamer::connect(
-//!         std::env::var("STREAMER_URL")
-//!             .unwrap_or_else(|_| "kafka://localhost:9092".to_owned())
-//!             .parse()?,
-//!         Default::default(),
-//!     )
-//!     .await?;
+//!     let streamer = SeaStreamer::connect(stream.streamer(), Default::default()).await?;
 //!
-//!     let producer: SeaProducer = streamer.create_producer(stream, Default::default()).await?;
+//!     let producer: SeaProducer = streamer
+//!         .create_producer(stream.stream_key()?, Default::default())
+//!         .await?;
 //!
 //!     for tick in 0..10 {
 //!         let message = format!(r#""tick {tick}""#);

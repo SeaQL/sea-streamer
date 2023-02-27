@@ -4,18 +4,19 @@ use anyhow::{bail, Result};
 use sea_streamer_kafka::AutoOffsetReset;
 use sea_streamer_socket::{SeaConsumerOptions, SeaStreamer};
 use sea_streamer_types::{
-    Consumer, ConsumerMode, ConsumerOptions, Message, Producer, StreamKey, Streamer, StreamerUri,
+    Consumer, ConsumerMode, ConsumerOptions, Message, Producer, StreamUrl, Streamer,
 };
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 struct Args {
-    #[structopt(long, help = "Streamer Source Uri, i.e. try `kafka://localhost:9092`")]
-    input: StreamerUri,
-    #[structopt(long, help = "Streamer Sink Uri, i.e. try `stdio://`")]
-    output: StreamerUri,
-    #[structopt(long, help = "Stream key (aka topic) to relay")]
-    stream: StreamKey,
+    #[structopt(
+        long,
+        help = "Streamer Source Uri, i.e. try `kafka://localhost:9092/stream_key`"
+    )]
+    input: StreamUrl,
+    #[structopt(long, help = "Streamer Sink Uri, i.e. try `stdio:///stream_key`")]
+    output: StreamUrl,
     #[structopt(long, help = "Stream from `start` or `end`", default_value = "end")]
     offset: Offset,
 }
@@ -45,15 +46,14 @@ async fn main() -> Result<()> {
     let Args {
         input,
         output,
-        stream,
         offset,
     } = Args::from_args();
 
-    if input == output && input.protocol() != Some("stdio") {
+    if input == output {
         bail!("input == output !!!");
     }
 
-    let source = SeaStreamer::connect(input, Default::default()).await?;
+    let source = SeaStreamer::connect(input.streamer(), Default::default()).await?;
     let mut options = SeaConsumerOptions::new(ConsumerMode::RealTime);
     options.set_kafka_consumer_options(|options| {
         options.set_auto_offset_reset(match offset {
@@ -61,10 +61,12 @@ async fn main() -> Result<()> {
             Offset::End => AutoOffsetReset::Latest,
         });
     });
-    let consumer = source.create_consumer(&[stream.clone()], options).await?;
+    let consumer = source.create_consumer(input.stream_keys(), options).await?;
 
-    let sink = SeaStreamer::connect(output, Default::default()).await?;
-    let producer = sink.create_producer(stream, Default::default()).await?;
+    let sink = SeaStreamer::connect(output.streamer(), Default::default()).await?;
+    let producer = sink
+        .create_producer(output.stream_key()?, Default::default())
+        .await?;
 
     loop {
         let mess = consumer.next().await?;

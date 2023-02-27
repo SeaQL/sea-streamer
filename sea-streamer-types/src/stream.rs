@@ -1,8 +1,7 @@
 use std::{fmt::Display, str::FromStr};
-use thiserror::Error;
 pub use time::OffsetDateTime as Timestamp;
 
-use crate::StreamErr;
+use crate::StreamKeyErr;
 
 /// Maximum string length of a stream key.
 pub const MAX_STREAM_KEY_LEN: usize = 249;
@@ -31,8 +30,8 @@ pub enum SeqPos {
 }
 
 impl StreamKey {
-    pub fn new(name: String) -> Self {
-        Self { name }
+    pub fn new<S: AsRef<str>>(key: S) -> Result<Self, StreamKeyErr> {
+        StreamKey::from_str(key.as_ref())
     }
 
     pub fn name(&self) -> &str {
@@ -62,18 +61,14 @@ impl Display for ShardId {
     }
 }
 
-#[derive(Error, Debug)]
-/// Placeholder type. Will never be constructed.
-pub enum NeverErr {}
-
 impl FromStr for StreamKey {
-    type Err = StreamErr<NeverErr>;
+    type Err = StreamKeyErr;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.len() <= MAX_STREAM_KEY_LEN && s.chars().all(is_valid_stream_key_char) {
-            Ok(StreamKey::new(s.to_owned()))
+            Ok(StreamKey { name: s.to_owned() })
         } else {
-            Err(StreamErr::InvalidStreamKey)
+            Err(StreamKeyErr::InvalidStreamKey)
         }
     }
 }
