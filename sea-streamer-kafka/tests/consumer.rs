@@ -20,7 +20,7 @@ async fn main() -> anyhow::Result<()> {
         Default::default(),
     )
     .await?;
-    let topic = StreamKey::new(format!("basic-{}", Timestamp::now_utc().unix_timestamp()));
+    let topic = StreamKey::new(format!("basic-{}", Timestamp::now_utc().unix_timestamp()))?;
     let zero = ShardId::new(0);
 
     let producer = streamer

@@ -181,10 +181,7 @@ mod test {
         let node_a: Url = "node-a:1234".parse().unwrap();
         let node_b: Url = "node-b:1234".parse().unwrap();
         let nodes = [node_a, node_b];
-        let stream_keys = vec![
-            StreamKey::new("a".to_owned()).unwrap(),
-            StreamKey::new("b".to_owned()).unwrap(),
-        ];
+        let stream_keys = vec![StreamKey::new("a").unwrap(), StreamKey::new("b").unwrap()];
 
         let streamer: StreamerUri = "streamer.cloud.org:1234".parse().unwrap();
         assert_eq!(streamer.protocol(), None);

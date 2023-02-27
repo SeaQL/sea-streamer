@@ -9,12 +9,12 @@ use structopt::StructOpt;
 struct Args {
     #[structopt(
         long,
-        help = "Streamer URI with stream key(s), i.e. try `kafka://localhost:9092/my_topic`",
+        help = "Streamer URI with stream key(s), i.e. try `kafka://localhost:9092/my_topic`"
     )]
     input: StreamUrl,
     #[structopt(
         long,
-        help = "Streamer URI with stream key, i.e. try `stdio:///my_stream`",
+        help = "Streamer URI with stream key, i.e. try `stdio:///my_stream`"
     )]
     output: StreamUrl,
 }
