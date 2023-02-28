@@ -58,6 +58,16 @@
 /// Default stream key
 pub const BROADCAST: &str = "broadcast";
 
+use time::{format_description::FormatItem, macros::format_description};
+
+/// Canonical time format
+pub const TIMESTAMP_FORMAT: &[FormatItem<'static>] =
+    format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]");
+// have no idea to how to make subsecond optional
+/// Canonical time format with sub-seconds
+pub const TIMESTAMP_FORMAT_SUBSEC: &[FormatItem<'static>] =
+    format_description!("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond]");
+
 mod consumers;
 mod error;
 pub(crate) mod parser;

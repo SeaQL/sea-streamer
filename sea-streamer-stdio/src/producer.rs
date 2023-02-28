@@ -6,10 +6,7 @@ use sea_streamer_types::{
     SeqNo, ShardId, SharedMessage, StreamErr, StreamKey, StreamResult, Timestamp,
 };
 
-use crate::{
-    parser::{PartialMeta, TIME_FORMAT},
-    StdioErr, StdioResult, BROADCAST,
-};
+use crate::{parser::PartialMeta, StdioErr, StdioResult, BROADCAST, TIMESTAMP_FORMAT};
 
 lazy_static::lazy_static! {
     static ref PRODUCERS: Mutex<Producers> = Default::default();
@@ -82,7 +79,7 @@ pub(crate) fn init() {
                                 "[{timestamp} | {stream} | {seq}] {payload}",
                                 timestamp = message
                                     .timestamp()
-                                    .format(TIME_FORMAT)
+                                    .format(TIMESTAMP_FORMAT)
                                     .expect("Timestamp format error"),
                                 stream = stream_key,
                                 seq = seq,

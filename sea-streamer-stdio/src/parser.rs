@@ -1,3 +1,4 @@
+use crate::{TIMESTAMP_FORMAT, TIMESTAMP_FORMAT_SUBSEC};
 use nom::{
     bytes::complete::{is_not, take_while_m_n},
     character::complete::char,
@@ -8,13 +9,7 @@ use sea_streamer_types::{
     is_valid_stream_key_char, SeqNo, ShardId, StreamKey, Timestamp, MAX_STREAM_KEY_LEN,
 };
 use thiserror::Error;
-use time::{format_description::FormatItem, macros::format_description, PrimitiveDateTime};
-
-pub const TIME_FORMAT: &[FormatItem<'static>] =
-    format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]");
-// have no idea to how to make subsecond optional
-pub const TIME_FORMAT_SUBSEC: &[FormatItem<'static>] =
-    format_description!("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond]");
+use time::PrimitiveDateTime;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct PartialMeta {
@@ -101,8 +96,8 @@ pub fn parse_meta(input: &str) -> Result<(PartialMeta, &str), ParseErr> {
 }
 
 fn parse_timestamp(input: &str) -> Result<PrimitiveDateTime, time::error::Parse> {
-    PrimitiveDateTime::parse(input, &TIME_FORMAT_SUBSEC)
-        .or_else(|_| PrimitiveDateTime::parse(input, &TIME_FORMAT))
+    PrimitiveDateTime::parse(input, &TIMESTAMP_FORMAT_SUBSEC)
+        .or_else(|_| PrimitiveDateTime::parse(input, &TIMESTAMP_FORMAT))
 }
 
 fn parse_stream_key(input: &str) -> IResult<&str, &str> {
