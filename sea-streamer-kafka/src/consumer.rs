@@ -2,7 +2,6 @@ use rdkafka::{
     config::ClientConfig,
     consumer::{CommitMode, Consumer, MessageStream as RawMessageStream},
     message::BorrowedMessage as RawMessage,
-    util::Timeout,
     Message as KafkaMessageTrait, Offset, TopicPartitionList,
 };
 use sea_streamer_runtime::spawn_blocking;
@@ -261,56 +260,20 @@ impl ConsumerTrait for KafkaConsumer {
     type Stream<'a> = KafkaMessageStream<'a>;
 
     /// Seek all streams to the given point in time.
+    /// Call [`ConsumerTrait::assign`] to assign a partition beforehand.
     ///
     /// # Warning
     ///
     /// This async method is not cancel safe. You must await this future,
     /// and this Consumer will be unusable for any operations until it finishes.
+    #[inline]
     async fn seek(&mut self, timestamp: Timestamp) -> KafkaResult<()> {
-        let shard = self.shard.unwrap_or_default();
-        let mut tpl = TopicPartitionList::new();
-
-        for stream in self.streams.iter() {
-            tpl.add_partition_offset(
-                stream.name(),
-                shard.id() as i32,
-                Offset::Offset(
-                    (timestamp.unix_timestamp_nanos() / 1_000_000)
-                        .try_into()
-                        .expect("KafkaConsumer::seek: timestamp out of range"),
-                ),
-            )
-            .map_err(stream_err)?;
-        }
-
-        let client = self.inner.take().unwrap();
-        let inner = spawn_blocking(move || {
-            match client.offsets_for_times(tpl, Timeout::After(Duration::from_secs(60))) {
-                Ok(tpl) => Ok((tpl, client)),
-                Err(err) => Err((err, client)),
-            }
-        })
-        .await
-        .map_err(runtime_error)?;
-
-        match inner {
-            Ok((tpl, inner)) => {
-                self.inner = Some(inner);
-                self.inner
-                    .as_mut()
-                    .unwrap()
-                    .assign(&tpl)
-                    .map_err(stream_err)?;
-                Ok(())
-            }
-            Err((err, inner)) => {
-                self.inner = Some(inner);
-                Err(stream_err(err))
-            }
-        }
+        self.seek_with_timeout(timestamp, Duration::from_secs(60))
+            .await
     }
 
     /// Note: this rewind all streams.
+    /// Call [`ConsumerTrait::assign`] to assign a partition beforehand.
     fn rewind(&mut self, offset: SeqPos) -> KafkaResult<()> {
         let shard = self.shard.unwrap_or_default();
         let mut tpl = TopicPartitionList::new();
@@ -354,16 +317,76 @@ impl ConsumerTrait for KafkaConsumer {
 
 impl KafkaConsumer {
     /// Get the underlying StreamConsumer
-    pub fn get(&self) -> &RawConsumer {
+    #[inline]
+    fn get(&self) -> &RawConsumer {
         self.inner
             .as_ref()
             .expect("Client is still inside an async operation, please await the future")
+    }
+
+    /// Borrow the inner KafkaConsumer. Use at your own risk.
+    pub fn inner(&mut self) -> &RawConsumer {
+        self.get()
     }
 
     fn process(res: Result<RawMessage, KafkaErr>) -> KafkaResult<KafkaMessage> {
         match res {
             Ok(mess) => Ok(KafkaMessage(mess)),
             Err(err) => Err(StreamErr::Backend(err)),
+        }
+    }
+
+    /// Seek all streams to the given point in time.
+    /// This is an async operation which you can set a timeout.
+    /// Call [`ConsumerTrait::assign`] to assign a partition beforehand.
+    ///
+    /// # Warning
+    ///
+    /// This async method is not cancel safe. You must await this future,
+    /// and this Consumer will be unusable for any operations until it finishes.
+    async fn seek_with_timeout(
+        &mut self,
+        timestamp: Timestamp,
+        timeout: Duration,
+    ) -> KafkaResult<()> {
+        let shard = self.shard.unwrap_or_default();
+        let mut tpl = TopicPartitionList::new();
+
+        for stream in self.streams.iter() {
+            tpl.add_partition_offset(
+                stream.name(),
+                shard.id() as i32,
+                Offset::Offset(
+                    (timestamp.unix_timestamp_nanos() / 1_000_000)
+                        .try_into()
+                        .expect("KafkaConsumer::seek: timestamp out of range"),
+                ),
+            )
+            .map_err(stream_err)?;
+        }
+
+        let client = self.inner.take().unwrap();
+        let inner = spawn_blocking(move || match client.offsets_for_times(tpl, timeout) {
+            Ok(tpl) => Ok((tpl, client)),
+            Err(err) => Err((err, client)),
+        })
+        .await
+        .map_err(runtime_error)?;
+
+        match inner {
+            Ok((tpl, inner)) => {
+                self.inner = Some(inner);
+                self.inner
+                    .as_mut()
+                    .unwrap()
+                    .assign(&tpl)
+                    .map_err(stream_err)?;
+                Ok(())
+            }
+            Err((err, inner)) => {
+                self.inner = Some(inner);
+                Err(stream_err(err))
+            }
         }
     }
 

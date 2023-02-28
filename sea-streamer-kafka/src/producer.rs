@@ -7,6 +7,7 @@ use rdkafka::{
     config::ClientConfig,
     producer::{DeliveryFuture, FutureRecord as RawPayload, Producer as ProducerTrait},
 };
+pub use rdkafka::{consumer::ConsumerGroupMetadata, TopicPartitionList};
 use sea_streamer_runtime::spawn_blocking;
 use sea_streamer_types::{
     export::futures::FutureExt, runtime_error, Buffer, MessageHeader, Producer, ProducerOptions,
@@ -16,7 +17,7 @@ use sea_streamer_types::{
 #[derive(Clone)]
 pub struct KafkaProducer {
     stream: Option<StreamKey>,
-    inner: RawProducer,
+    inner: Option<RawProducer>,
 }
 
 impl Debug for KafkaProducer {
@@ -81,9 +82,9 @@ impl Producer for KafkaProducer {
 
     fn send_to<S: Buffer>(&self, stream: &StreamKey, payload: S) -> KafkaResult<Self::SendFuture> {
         let fut = self
-            .inner
+            .get()
             .send_result(RawPayload::<str, [u8]>::to(stream.name()).payload(payload.as_bytes()))
-            .map_err(|(err, _raw)| StreamErr::Backend(err))?;
+            .map_err(|(err, _raw)| stream_err(err))?;
 
         let stream_key = stream.to_owned();
         Ok(SendFuture { stream_key, fut })
@@ -108,11 +109,113 @@ impl Producer for KafkaProducer {
 }
 
 impl KafkaProducer {
-    /// Flushes any pending messages. This method blocks
-    pub(crate) fn flush_sync(&self, timeout: Duration) -> KafkaResult<()> {
-        self.inner.flush(timeout).map_err(StreamErr::Backend)
+    /// Get the underlying FutureProducer
+    #[inline]
+    fn get(&self) -> &RawProducer {
+        self.inner
+            .as_ref()
+            .expect("Producer is still inside a transaction, please await the future")
     }
 
+    /// Returns the number of messages that are either waiting to be sent or
+    /// are sent but are waiting to be acknowledged.
+    pub fn in_flight_count(&self) -> i32 {
+        self.get().in_flight_count()
+    }
+
+    #[inline]
+    async fn transaction<F: FnOnce(&RawProducer) -> Result<(), KafkaErr> + Send + 'static>(
+        &mut self,
+        func: F,
+    ) -> KafkaResult<()> {
+        self.get();
+        let client = self.inner.take().unwrap();
+        match spawn_blocking(move || {
+            let s = client;
+            match func(&s) {
+                Ok(()) => Ok(s),
+                Err(e) => Err((s, e)),
+            }
+        })
+        .await
+        .map_err(runtime_error)?
+        {
+            Ok(inner) => {
+                self.inner = Some(inner);
+                Ok(())
+            }
+            Err((inner, err)) => {
+                self.inner = Some(inner);
+                Err(stream_err(err))
+            }
+        }
+    }
+
+    /// See https://docs.rs/rdkafka/latest/rdkafka/producer/trait.Producer.html#tymethod.init_transactions
+    ///
+    /// # Warning
+    ///
+    /// This async method is not cancel safe. You must await this future,
+    /// and this Producer will be unusable for any operations until it finishes.
+    pub async fn init_transactions(&mut self, timeout: Duration) -> KafkaResult<()> {
+        self.transaction(move |s| s.init_transactions(timeout))
+            .await
+    }
+
+    /// See https://docs.rs/rdkafka/latest/rdkafka/producer/trait.Producer.html#tymethod.begin_transaction
+    ///
+    /// # Warning
+    ///
+    /// This async method is not cancel safe. You must await this future,
+    /// and this Producer will be unusable for any operations until it finishes.
+    pub async fn begin_transaction(&mut self) -> KafkaResult<()> {
+        self.transaction(|s| s.begin_transaction()).await
+    }
+
+    /// See https://docs.rs/rdkafka/latest/rdkafka/producer/trait.Producer.html#tymethod.commit_transaction
+    ///
+    /// # Warning
+    ///
+    /// This async method is not cancel safe. You must await this future,
+    /// and this Producer will be unusable for any operations until it finishes.
+    pub async fn commit_transaction(&mut self, timeout: Duration) -> KafkaResult<()> {
+        self.transaction(move |s| s.commit_transaction(timeout))
+            .await
+    }
+
+    /// See https://docs.rs/rdkafka/latest/rdkafka/producer/trait.Producer.html#tymethod.abort_transaction
+    ///
+    /// # Warning
+    ///
+    /// This async method is not cancel safe. You must await this future,
+    /// and this Producer will be unusable for any operations until it finishes.
+    pub async fn abort_transaction(&mut self, timeout: Duration) -> KafkaResult<()> {
+        self.transaction(move |s| s.abort_transaction(timeout))
+            .await
+    }
+
+    /// https://docs.rs/rdkafka/latest/rdkafka/producer/trait.Producer.html#tymethod.send_offsets_to_transaction
+    ///
+    /// # Warning
+    ///
+    /// This async method is not cancel safe. You must await this future,
+    /// and this Producer will be unusable for any operations until it finishes.
+    pub async fn send_offsets_to_transaction(
+        &mut self,
+        offsets: TopicPartitionList,
+        cgm: ConsumerGroupMetadata,
+        timeout: Duration,
+    ) -> KafkaResult<()> {
+        self.transaction(move |s| s.send_offsets_to_transaction(&offsets, &cgm, timeout))
+            .await
+    }
+
+    /// Flush pending messages. This method blocks.
+    pub(crate) fn flush_sync(&self, timeout: Duration) -> KafkaResult<()> {
+        self.get().flush(timeout).map_err(stream_err)
+    }
+
+    /// Flush pending messages.
     pub async fn flush(self, timeout: Duration) -> KafkaResult<()> {
         spawn_blocking(move || self.flush_sync(timeout))
             .await
@@ -222,6 +325,6 @@ pub(crate) fn create_producer(
 
     Ok(KafkaProducer {
         stream: None,
-        inner: producer,
+        inner: Some(producer),
     })
 }
