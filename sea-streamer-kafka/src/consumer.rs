@@ -431,9 +431,9 @@ impl KafkaConsumer {
     /// and this Consumer will be unusable for any operations until it finishes.
     pub async fn commit_with(
         &mut self,
-        (stream_key, shard_id, sequence): (StreamKey, ShardId, SeqNo),
+        (stream_key, shard_id, sequence): &(StreamKey, ShardId, SeqNo),
     ) -> KafkaResult<()> {
-        self.commit(&stream_key, &shard_id, &sequence).await
+        self.commit(stream_key, shard_id, sequence).await
     }
 
     /// Commit an "ack" to broker for having processed up to this cursor.
@@ -516,9 +516,9 @@ impl KafkaConsumer {
     /// You must have `set_enable_auto_offset_store` to false.
     pub fn store_offset_with(
         &mut self,
-        (stream_key, shard_id, sequence): (StreamKey, ShardId, SeqNo),
+        (stream_key, shard_id, sequence): &(StreamKey, ShardId, SeqNo),
     ) -> KafkaResult<()> {
-        self.store_offset(&stream_key, &shard_id, &sequence)
+        self.store_offset(stream_key, shard_id, sequence)
     }
 }
 

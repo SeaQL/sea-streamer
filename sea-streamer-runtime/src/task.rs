@@ -1,5 +1,8 @@
 #[cfg(feature = "runtime-tokio")]
-pub use tokio::task::{spawn as spawn_task, spawn_blocking, JoinHandle as TaskHandle};
+mod tokio_task;
+
+#[cfg(feature = "runtime-tokio")]
+pub use tokio_task::*;
 
 #[cfg(feature = "runtime-async-std")]
 mod async_std_task;

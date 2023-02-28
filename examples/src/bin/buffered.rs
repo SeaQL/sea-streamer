@@ -4,7 +4,7 @@ use std::time::Duration;
 use structopt::StructOpt;
 
 use sea_streamer::{
-    runtime::{sleep, spawn_task, TaskHandle},
+    runtime::{sleep, spawn_task},
     Buffer, Consumer, ConsumerMode, ConsumerOptions, Message, Producer, SeaConsumer,
     SeaConsumerOptions, SeaMessage, SeaProducer, SeaStreamer, SharedMessage, StreamUrl, Streamer,
 };
@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
         .await?;
 
     // this will consume as quickly as possible, as long as the queue is not full
-    let _: TaskHandle<Result<()>> = spawn_task(async move {
+    spawn_task::<_, Result<()>>(async move {
         loop {
             let message: SeaMessage = consumer.next().await?;
             sender.send_async(message.to_owned()).await?;

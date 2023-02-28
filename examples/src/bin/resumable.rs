@@ -51,20 +51,20 @@ async fn main() -> Result<()> {
         let message: SeaMessage = consumer.next().await?;
         let identifier = message.identifier();
         // wait for the delivery receipt
-        producer.send(process(&message).await?)?.await?;
+        producer.send(process(message).await?)?.await?;
         if let Some(consumer) = consumer.get_kafka() {
             if TRANSACTION {
                 // wait until committed
-                consumer.commit_with(identifier).await?;
+                consumer.commit_with(&identifier).await?;
             } else {
                 // don't wait, so it may or may not have committed
-                consumer.store_offset_with(identifier)?;
+                consumer.store_offset_with(&identifier)?;
             }
         }
     }
 }
 
 // Of course this will be a complex async function
-async fn process<'a>(message: &SeaMessage<'a>) -> Result<String> {
+async fn process(message: SeaMessage<'_>) -> Result<String> {
     Ok(format!("{} processed", message.message().as_str()?))
 }

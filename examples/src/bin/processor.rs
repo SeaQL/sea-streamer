@@ -46,6 +46,6 @@ async fn main() -> Result<()> {
 }
 
 // Of course this will be a complex async function
-async fn process<'a>(message: SeaMessage<'a>) -> Result<String> {
+async fn process(message: SeaMessage<'_>) -> Result<String> {
     Ok(format!("{} processed", message.message().as_str()?))
 }
