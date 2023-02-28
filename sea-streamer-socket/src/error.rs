@@ -70,6 +70,7 @@ pub(crate) fn map_err<E: std::error::Error + Into<BackendErr>>(
         StreamErr::NotAnchored => StreamErr::NotAnchored,
         StreamErr::ConsumerGroupIsSet => StreamErr::ConsumerGroupIsSet,
         StreamErr::ConsumerGroupNotSet => StreamErr::ConsumerGroupNotSet,
+        StreamErr::ConsumerNotAssigned => StreamErr::ConsumerNotAssigned,
         StreamErr::StreamKeyEmpty => StreamErr::StreamKeyEmpty,
         StreamErr::CommitNotAllowed => StreamErr::CommitNotAllowed,
         StreamErr::Utf8Error(e) => StreamErr::Utf8Error(e),

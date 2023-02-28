@@ -19,6 +19,8 @@ pub enum StreamErr<E: std::error::Error> {
     ConsumerGroupIsSet,
     #[error("Consumer group has not yet been set")]
     ConsumerGroupNotSet,
+    #[error("Consumer is not assigned to the given shard")]
+    ConsumerNotAssigned,
     #[error("Stream key set is empty")]
     StreamKeyEmpty,
     #[error("You cannot commit on a real-time consumer")]
