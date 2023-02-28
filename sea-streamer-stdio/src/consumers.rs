@@ -157,33 +157,36 @@ pub(crate) fn create_consumer(
 pub(crate) fn init() {
     let mut thread = THREAD.lock().expect("Failed to lock stdin thread");
     if !*thread {
-        std::thread::spawn(move || {
-            log::debug!("[{pid}] stdin thread spawned", pid = std::process::id());
-            let _guard = PanicGuard;
-            loop {
-                let mut line = String::new();
-                // this has the potential to block forever
-                match std::io::stdin().read_line(&mut line) {
-                    Ok(0) => break, // this means stdin is closed
-                    Ok(_) => {}
-                    Err(e) => {
-                        panic!("{e:?}");
+        let builder = std::thread::Builder::new().name("sea-streamer-stdio-stdin".into());
+        builder
+            .spawn(move || {
+                log::debug!("[{pid}] stdin thread spawned", pid = std::process::id());
+                let _guard = PanicGuard;
+                loop {
+                    let mut line = String::new();
+                    // this has the potential to block forever
+                    match std::io::stdin().read_line(&mut line) {
+                        Ok(0) => break, // this means stdin is closed
+                        Ok(_) => {}
+                        Err(e) => {
+                            panic!("{e:?}");
+                        }
                     }
+                    if line.ends_with('\n') {
+                        line.truncate(line.len() - 1);
+                    }
+                    let (meta, remaining) = parse_meta(&line)
+                        .unwrap_or_else(|_| panic!("Failed to parse line: {line}"));
+                    let offset = remaining.as_ptr() as usize - line.as_ptr() as usize;
+                    dispatch(meta, line.into_bytes(), offset);
                 }
-                if line.ends_with('\n') {
-                    line.truncate(line.len() - 1);
+                log::debug!("[{pid}] stdin thread exit", pid = std::process::id());
+                {
+                    let mut thread = THREAD.lock().expect("Failed to lock stdin thread");
+                    *thread = false;
                 }
-                let (meta, remaining) =
-                    parse_meta(&line).unwrap_or_else(|_| panic!("Failed to parse line: {line}"));
-                let offset = remaining.as_ptr() as usize - line.as_ptr() as usize;
-                dispatch(meta, line.into_bytes(), offset);
-            }
-            log::debug!("[{pid}] stdin thread exit", pid = std::process::id());
-            {
-                let mut thread = THREAD.lock().expect("Failed to lock stdin thread");
-                *thread = false;
-            }
-        });
+            })
+            .unwrap();
         *thread = true;
     }
 }

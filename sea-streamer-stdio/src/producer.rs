@@ -44,77 +44,80 @@ pub(crate) fn init() {
     let mut thread = THREAD.lock().expect("Failed to lock stdout thread");
     if thread.is_none() {
         let (sender, receiver) = unbounded();
-        std::thread::spawn(move || {
-            log::debug!("[{pid}] stdout thread spawned", pid = std::process::id());
-            // this thread locks the mutex forever
-            let mut producers = PRODUCERS
-                .try_lock()
-                .expect("Should have no other thread trying to access Producers");
-            while let Ok(signal) = receiver.recv() {
-                match signal {
-                    Signal::SendRequest {
-                        mut message,
-                        receipt,
-                        loopback,
-                    } => {
-                        // we can time the difference from send() until now()
-                        message.touch(); // set timestamp to now
+        let builder = std::thread::Builder::new().name("sea-streamer-stdio-stdout".into());
+        builder
+            .spawn(move || {
+                log::debug!("[{pid}] stdout thread spawned", pid = std::process::id());
+                // this thread locks the mutex forever
+                let mut producers = PRODUCERS
+                    .try_lock()
+                    .expect("Should have no other thread trying to access Producers");
+                while let Ok(signal) = receiver.recv() {
+                    match signal {
+                        Signal::SendRequest {
+                            mut message,
+                            receipt,
+                            loopback,
+                        } => {
+                            // we can time the difference from send() until now()
+                            message.touch(); // set timestamp to now
 
-                        // I believe println is atomic now, so we don't have to lock stdout
-                        // fn main() {
-                        //     std::thread::scope(|s| {
-                        //         for num in 0..100 {
-                        //             s.spawn(move || {
-                        //                 println!("Hello from thread number {}", num);
-                        //             });
-                        //         }
-                        //     });
-                        // }
+                            // I believe println is atomic now, so we don't have to lock stdout
+                            // fn main() {
+                            //     std::thread::scope(|s| {
+                            //         for num in 0..100 {
+                            //             s.spawn(move || {
+                            //                 println!("Hello from thread number {}", num);
+                            //             });
+                            //         }
+                            //     });
+                            // }
 
-                        // don't print empty lines
-                        if message.message().size() != 0 {
-                            let stream_key = message.stream_key();
-                            let seq = producers.append(&stream_key);
-                            println!(
-                                "[{timestamp} | {stream} | {seq}] {payload}",
-                                timestamp = message
-                                    .timestamp()
-                                    .format(TIMESTAMP_FORMAT)
-                                    .expect("Timestamp format error"),
-                                stream = stream_key,
-                                seq = seq,
-                                payload = message
-                                    .message()
-                                    .as_str()
-                                    .expect("Should have already checked is valid string"),
-                            );
-                            if loopback {
-                                let payload = message.message();
-                                super::consumers::dispatch(
-                                    PartialMeta {
-                                        timestamp: Some(message.timestamp()),
-                                        stream_key: Some(stream_key),
-                                        sequence: Some(seq),
-                                        shard_id: Some(message.shard_id()),
-                                    },
-                                    payload.into_bytes(),
-                                    0,
+                            // don't print empty lines
+                            if message.message().size() != 0 {
+                                let stream_key = message.stream_key();
+                                let seq = producers.append(&stream_key);
+                                println!(
+                                    "[{timestamp} | {stream} | {seq}] {payload}",
+                                    timestamp = message
+                                        .timestamp()
+                                        .format(TIMESTAMP_FORMAT)
+                                        .expect("Timestamp format error"),
+                                    stream = stream_key,
+                                    seq = seq,
+                                    payload = message
+                                        .message()
+                                        .as_str()
+                                        .expect("Should have already checked is valid string"),
                                 );
+                                if loopback {
+                                    let payload = message.message();
+                                    super::consumers::dispatch(
+                                        PartialMeta {
+                                            timestamp: Some(message.timestamp()),
+                                            stream_key: Some(stream_key),
+                                            sequence: Some(seq),
+                                            shard_id: Some(message.shard_id()),
+                                        },
+                                        payload.into_bytes(),
+                                        0,
+                                    );
+                                }
                             }
+                            let meta = message.take_meta();
+                            // we don't care if the receipt can be delivered
+                            receipt.send(meta).ok();
                         }
-                        let meta = message.take_meta();
-                        // we don't care if the receipt can be delivered
-                        receipt.send(meta).ok();
+                        Signal::Shutdown => break,
                     }
-                    Signal::Shutdown => break,
                 }
-            }
-            log::debug!("[{pid}] stdout thread exit", pid = std::process::id());
-            {
-                let mut thread = THREAD.lock().expect("Failed to lock stdout thread");
-                thread.take(); // set to none
-            }
-        });
+                log::debug!("[{pid}] stdout thread exit", pid = std::process::id());
+                {
+                    let mut thread = THREAD.lock().expect("Failed to lock stdout thread");
+                    thread.take(); // set to none
+                }
+            })
+            .unwrap();
         thread.replace(sender);
     }
 }

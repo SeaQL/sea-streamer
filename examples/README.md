@@ -56,12 +56,12 @@ Output:
 [2023-02-28T10:13:59 | hello2 | 2] "tick 2" processed
 ...
 [2023-02-28T10:13:59 | hello2 | 9] "tick 9" processed
-thread '<unnamed>' panicked at 'failed printing to stdout: Broken pipe (os error 32)', library/std/src/io/stdio.rs:1009:9
+thread 'sea-streamer-stdio-stdout' panicked at 'failed printing to stdout: Broken pipe (os error 32)', library/std/src/io/stdio.rs:1009:9
 
 [2023-02-28T10:14:08 | hello2 | 0] "tick 10" processed
 ...
 [2023-02-28T10:14:08 | hello2 | 9] "tick 19" processed
-thread '<unnamed>' panicked at 'failed printing to stdout: Broken pipe (os error 32)', library/std/src/io/stdio.rs:1009:9
+thread 'sea-streamer-stdio-stdout' panicked at 'failed printing to stdout: Broken pipe (os error 32)', library/std/src/io/stdio.rs:1009:9
 
 ...
 ```
