@@ -166,8 +166,11 @@ impl Streamer for KafkaStreamer {
                     return Err(StreamErr::ConsumerGroupIsSet);
                 }
                 options.set_group_id(ConsumerGroup::new(format!("{}r", host_id())));
+                // try not to override user config
+                if options.session_timeout().is_none() {
+                    options.set_session_timeout(std::time::Duration::from_secs(6));
+                }
                 if options.enable_auto_commit().is_none() {
-                    // user might want to manually commit
                     options.set_enable_auto_commit(true);
                 }
             }

@@ -77,6 +77,10 @@ pub trait Message: Send {
             self.message().size(),
         )
     }
+
+    fn identifier(&self) -> (StreamKey, ShardId, SeqNo) {
+        (self.stream_key(), self.shard_id(), self.sequence())
+    }
 }
 
 impl SharedMessage {

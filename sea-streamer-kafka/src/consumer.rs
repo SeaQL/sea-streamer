@@ -429,6 +429,19 @@ impl KafkaConsumer {
     ///
     /// This async method is not cancel safe. You must await this future,
     /// and this Consumer will be unusable for any operations until it finishes.
+    pub async fn commit_with(
+        &mut self,
+        (stream_key, shard_id, sequence): (StreamKey, ShardId, SeqNo),
+    ) -> KafkaResult<()> {
+        self.commit(&stream_key, &shard_id, &sequence).await
+    }
+
+    /// Commit an "ack" to broker for having processed up to this cursor.
+    ///
+    /// # Warning
+    ///
+    /// This async method is not cancel safe. You must await this future,
+    /// and this Consumer will be unusable for any operations until it finishes.
     pub async fn commit(
         &mut self,
         stream: &StreamKey,
@@ -497,6 +510,15 @@ impl KafkaConsumer {
     /// You must have `set_enable_auto_offset_store` to false.
     pub fn store_offset_for_message(&mut self, mess: &KafkaMessage<'_>) -> KafkaResult<()> {
         self.store_offset(&mess.stream_key(), &mess.shard_id(), &mess.sequence())
+    }
+
+    /// Store the offset with message identifier so that it will be committed.
+    /// You must have `set_enable_auto_offset_store` to false.
+    pub fn store_offset_with(
+        &mut self,
+        (stream_key, shard_id, sequence): (StreamKey, ShardId, SeqNo),
+    ) -> KafkaResult<()> {
+        self.store_offset(&stream_key, &shard_id, &sequence)
     }
 }
 

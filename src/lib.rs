@@ -100,7 +100,7 @@
 //! ```
 //!
 //! Here is a [basic stream processor](https://github.com/SeaQL/sea-streamer/tree/main/examples/src/bin/processor.rs).
-//! See also the [advanced stream processor](https://github.com/SeaQL/sea-streamer/tree/main/examples/src/bin/buffered.rs) with internal buffering and batch processing.
+//! See also other [advanced stream processors](https://github.com/SeaQL/sea-streamer/tree/main/examples/).
 //!
 //! ```ignore
 //! #[tokio::main]
