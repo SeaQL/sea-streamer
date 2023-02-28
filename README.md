@@ -45,7 +45,7 @@ Add the following to your `Cargo.toml`
 sea-streamer = { version = "0", features = ["socket", "kafka", "runtime-tokio"] }
 ```
 
-Here is a basic stream consumer, [full example](https://github.com/SeaQL/sea-streamer/tree/main/examples/src/bin/consumer.rs):
+Here is a basic [stream consumer](https://github.com/SeaQL/sea-streamer/tree/main/examples/src/bin/consumer.rs):
 
 ```rust
 #[tokio::main]
@@ -71,7 +71,7 @@ async fn main() -> Result<()> {
 }
 ```
 
-Here is a basic stream producer, [full example](https://github.com/SeaQL/sea-streamer/tree/main/examples/src/bin/producer.rs):
+Here is a basic [stream producer](https://github.com/SeaQL/sea-streamer/tree/main/examples/src/bin/producer.rs):
 
 ```rust
 #[tokio::main]
@@ -86,9 +86,9 @@ async fn main() -> Result<()> {
         .create_producer(stream.stream_key()?, Default::default())
         .await?;
 
-    for tick in 0..10 {
+    for tick in 0..100 {
         let message = format!(r#""tick {tick}""#);
-        println!("{message}");
+        eprintln!("{message}");
         producer.send(message)?;
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
@@ -99,7 +99,8 @@ async fn main() -> Result<()> {
 }
 ```
 
-Here is a basic stream processor, [full example](https://github.com/SeaQL/sea-streamer/tree/main/examples/src/bin/processor.rs):
+Here is a [basic stream processor](https://github.com/SeaQL/sea-streamer/tree/main/examples/src/bin/processor.rs).
+See also the [advanced stream processor](https://github.com/SeaQL/sea-streamer/tree/main/examples/src/bin/buffered.rs) with internal buffering and batch processing.
 
 ```rust
 #[tokio::main]
@@ -122,10 +123,33 @@ async fn main() -> Result<()> {
     loop {
         let message: SeaMessage = consumer.next().await?;
         let message = process(message).await?;
-        println!("{message}");
+        eprintln!("{message}");
         producer.send(message)?; // send is non-blocking
     }
 }
+```
+
+Now, let's put them into action.
+
+With Kafka:
+
+```sh
+# Produce some input
+cargo run --bin producer -- --stream kafka://localhost:9092/hello1 &
+# Start the processor, producing some output
+cargo run --bin processor -- --input kafka://localhost:9092/hello1 --output kafka://localhost:9092/hello2 &
+# Replay the output
+cargo run --bin consumer -- --stream kafka://localhost:9092/hello2
+# Remember to stop the processes
+kill %1 %2
+```
+
+With Stdio:
+
+```sh
+# Pipe the producer to the processor
+cargo run --bin producer -- --stream stdio:///hello1 | \
+cargo run --bin processor -- --input stdio:///hello1 --output stdio:///hello2
 ```
 
 ## Architecture

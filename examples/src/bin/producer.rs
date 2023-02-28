@@ -26,9 +26,9 @@ async fn main() -> Result<()> {
         .create_producer(stream.stream_key()?, Default::default())
         .await?;
 
-    for tick in 0..10 {
+    for tick in 0..100 {
         let message = format!(r#""tick {tick}""#);
-        println!("{message}");
+        eprintln!("{message}");
         producer.send(message)?;
         tokio::time::sleep(Duration::from_secs(1)).await;
     }

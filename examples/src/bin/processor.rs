@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
     loop {
         let message: SeaMessage = consumer.next().await?;
         let message = process(message).await?;
-        println!("{message}");
+        eprintln!("{message}");
         producer.send(message)?; // send is non-blocking
     }
 }
