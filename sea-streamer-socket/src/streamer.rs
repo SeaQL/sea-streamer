@@ -21,10 +21,27 @@ enum SeaStreamerInner {
 }
 
 impl SeaStreamerBackend for SeaStreamer {
+    type Kafka = KafkaStreamer;
+    type Stdio = StdioStreamer;
+
     fn backend(&self) -> Backend {
         match self.backend {
             SeaStreamerInner::Kafka(_) => Backend::Kafka,
             SeaStreamerInner::Stdio(_) => Backend::Stdio,
+        }
+    }
+
+    fn get_kafka(&mut self) -> Option<&mut Self::Kafka> {
+        match &mut self.backend {
+            SeaStreamerInner::Kafka(s) => Some(s),
+            SeaStreamerInner::Stdio(_) => None,
+        }
+    }
+
+    fn get_stdio(&mut self) -> Option<&mut Self::Stdio> {
+        match &mut self.backend {
+            SeaStreamerInner::Kafka(_) => None,
+            SeaStreamerInner::Stdio(s) => Some(s),
         }
     }
 }

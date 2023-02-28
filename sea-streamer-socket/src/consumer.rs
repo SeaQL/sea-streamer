@@ -55,10 +55,27 @@ impl<'a> Debug for SeaMessageStream<'a> {
 }
 
 impl SeaStreamerBackend for SeaConsumer {
+    type Kafka = KafkaConsumer;
+    type Stdio = StdioConsumer;
+
     fn backend(&self) -> Backend {
         match self.backend {
             SeaConsumerBackend::Kafka(_) => Backend::Kafka,
             SeaConsumerBackend::Stdio(_) => Backend::Stdio,
+        }
+    }
+
+    fn get_kafka(&mut self) -> Option<&mut Self::Kafka> {
+        match &mut self.backend {
+            SeaConsumerBackend::Kafka(s) => Some(s),
+            SeaConsumerBackend::Stdio(_) => None,
+        }
+    }
+
+    fn get_stdio(&mut self) -> Option<&mut Self::Stdio> {
+        match &mut self.backend {
+            SeaConsumerBackend::Kafka(_) => None,
+            SeaConsumerBackend::Stdio(s) => Some(s),
         }
     }
 }

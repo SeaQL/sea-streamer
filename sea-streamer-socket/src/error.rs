@@ -31,10 +31,27 @@ impl From<StdioErr> for BackendErr {
 }
 
 impl SeaStreamerBackend for BackendErr {
+    type Kafka = KafkaErr;
+    type Stdio = StdioErr;
+
     fn backend(&self) -> Backend {
         match self {
             Self::Kafka(_) => Backend::Kafka,
             Self::Stdio(_) => Backend::Stdio,
+        }
+    }
+
+    fn get_kafka(&mut self) -> Option<&mut KafkaErr> {
+        match self {
+            Self::Kafka(s) => Some(s),
+            Self::Stdio(_) => None,
+        }
+    }
+
+    fn get_stdio(&mut self) -> Option<&mut StdioErr> {
+        match self {
+            Self::Kafka(_) => None,
+            Self::Stdio(s) => Some(s),
         }
     }
 }

@@ -21,10 +21,27 @@ pub(crate) enum SeaProducerBackend {
 }
 
 impl SeaStreamerBackend for SeaProducer {
+    type Kafka = KafkaProducer;
+    type Stdio = StdioProducer;
+
     fn backend(&self) -> Backend {
         match self.backend {
             SeaProducerBackend::Kafka(_) => Backend::Kafka,
             SeaProducerBackend::Stdio(_) => Backend::Stdio,
+        }
+    }
+
+    fn get_kafka(&mut self) -> Option<&mut Self::Kafka> {
+        match &mut self.backend {
+            SeaProducerBackend::Kafka(s) => Some(s),
+            SeaProducerBackend::Stdio(_) => None,
+        }
+    }
+
+    fn get_stdio(&mut self) -> Option<&mut Self::Stdio> {
+        match &mut self.backend {
+            SeaProducerBackend::Kafka(_) => None,
+            SeaProducerBackend::Stdio(s) => Some(s),
         }
     }
 }

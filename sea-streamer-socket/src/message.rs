@@ -12,10 +12,27 @@ pub enum SeaMessage<'a> {
 }
 
 impl<'a> SeaStreamerBackend for SeaMessage<'a> {
+    type Kafka = KafkaMessage<'a>;
+    type Stdio = StdioMessage;
+
     fn backend(&self) -> Backend {
         match self {
             Self::Kafka(_) => Backend::Kafka,
             Self::Stdio(_) => Backend::Stdio,
+        }
+    }
+
+    fn get_kafka(&mut self) -> Option<&mut KafkaMessage<'a>> {
+        match self {
+            Self::Kafka(s) => Some(s),
+            Self::Stdio(_) => None,
+        }
+    }
+
+    fn get_stdio(&mut self) -> Option<&mut StdioMessage> {
+        match self {
+            Self::Kafka(_) => None,
+            Self::Stdio(s) => Some(s),
         }
     }
 }
