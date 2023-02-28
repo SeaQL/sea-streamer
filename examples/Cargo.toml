@@ -9,7 +9,6 @@ documentation = "https://docs.rs/sea-streamer"
 repository = "https://github.com/SeaQL/sea-streamer"
 categories = ["database"]
 rust-version = "1.60"
-publish = false
 
 [dependencies]
 anyhow = { version = "1" }
