@@ -154,27 +154,22 @@ cargo run --bin processor -- --input stdio:///hello1 --output stdio:///hello2
 
 ## Architecture
 
-`sea-streamer` is the facade crate re-exporting implementation from a number of sub-crates:
+The architecture of [`sea-streamer`](https://docs.rs/sea-streamer) is constructed by a number of sub-crates:
 
-+ `sea-streamer-types`
-+ `sea-streamer-socket`
-    + `sea-streamer-kafka`
-    + `sea-streamer-stdio`
++ [`sea-streamer-types`](https://docs.rs/sea-streamer-types)
++ [`sea-streamer-socket`](https://docs.rs/sea-streamer-socket)
+    + [`sea-streamer-kafka`](https://docs.rs/sea-streamer-kafka)
+    + [`sea-streamer-stdio`](https://docs.rs/sea-streamer-stdio)
++ [`sea-streamer-runtime`](https://docs.rs/sea-streamer-runtime)
 
-[`sea-streamer` API Docs](https://docs.rs/sea-streamer)
-
-## SeaStreamer Types
+### `sea-streamer-types`: Traits & Types
 
 This crate defines all the traits and types for the SeaStreamer API, but does not provide any implementation.
 
-[`sea-streamer-types` API Docs](https://docs.rs/sea-streamer-types)
-
-## SeaStreamer backend-agnostic Socket API
+### `sea-streamer-socket`: Backend-agnostic Socket API
 
 Akin to how SeaORM allows you to build applications for different databases, SeaStreamer allows you to build
 stream processors for different streaming servers.
-
-[`sea-streamer-socket` API Docs](https://docs.rs/sea-streamer-socket)
 
 While the `sea-streamer-types` crate provides a nice trait-based abstraction, this crates provides a concrete-type API,
 so that your program can stream from/to any SeaStreamer backend selected by the user *on runtime*.
@@ -207,12 +202,10 @@ Here is how to *replay* the stream from Kafka ➡️ Stdio:
 relay -- --input kafka://localhost:9092/clock --output stdio:///clock --offset start
 ```
 
-## SeaStreamer Kafka / Redpanda Backend
+### `sea-streamer-kafka`: Kafka / Redpanda Backend
 
 This is the Kafka / Redpanda backend implementation for SeaStreamer.
 This crate provides a comprehensive type system that makes working with Kafka easier and safer.
-
-[`sea-streamer-kafka` API Docs](https://docs.rs/sea-streamer-kafka)
 
 `KafkaConsumerOptions` has typed parameters.
 
@@ -230,21 +223,19 @@ which in turn depends on [librdkafka-sys](https://docs.rs/librdkafka-sys), which
 
 Reference: https://kafka.apache.org/documentation/#configuration
 
-## SeaStreamer Standard I/O Backend
+### `sea-streamer-stdio`: Standard I/O Backend
 
 This is the `stdio` backend implementation for SeaStreamer. It is designed to be connected together with unix pipes,
 enabling great flexibility when developing stream processors or processing data locally.
 
-[`sea-streamer-stdio` API Docs](https://docs.rs/sea-streamer-stdio)
-
-You can connect processes together with pipes: `program_a | program_b`.
+You can connect processes together with pipes: `processor_a | processor_b`.
 
 You can also connect them asynchronously:
 
 ```sh
 touch stream # set up an empty file
-tail -f stream | program_b # program b can be spawned anytime
-program_a >> stream # append to the file
+tail -f stream | processor_b # program b can be spawned anytime
+processor_a >> stream # append to the file
 ```
 
 You can also use `cat` to replay a file, but it runs from start to end as fast as possible then stops,
@@ -283,6 +274,11 @@ If no stream key is given, it will be assigned the name `broadcast` and sent to 
 You can create consumers that subscribe to only a subset of the topics.
 
 Consumers in the same `ConsumerGroup` will be load balanced (in a round-robin fashion), meaning you can spawn multiple async tasks to process messages in parallel.
+
+### `sea-streamer-runtime`: Async runtime abstraction
+
+This crate provides a small set of functions aligning the type signatures between `async-std` and `tokio`,
+so that you can build applications generic to both runtimes.
 
 ## License
 

@@ -1,18 +1,16 @@
-## SeaStreamer Standard I/O Backend
+### `sea-streamer-stdio`: Standard I/O Backend
 
 This is the `stdio` backend implementation for SeaStreamer. It is designed to be connected together with unix pipes,
 enabling great flexibility when developing stream processors or processing data locally.
 
-[`sea-streamer-stdio` API Docs](https://docs.rs/sea-streamer-stdio)
-
-You can connect processes together with pipes: `program_a | program_b`.
+You can connect processes together with pipes: `processor_a | processor_b`.
 
 You can also connect them asynchronously:
 
 ```sh
 touch stream # set up an empty file
-tail -f stream | program_b # program b can be spawned anytime
-program_a >> stream # append to the file
+tail -f stream | processor_b # program b can be spawned anytime
+processor_a >> stream # append to the file
 ```
 
 You can also use `cat` to replay a file, but it runs from start to end as fast as possible then stops,

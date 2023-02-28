@@ -154,14 +154,13 @@
 //!
 //! ## Architecture
 //!
-//! `sea-streamer` is the facade crate re-exporting implementation from a number of sub-crates:
+//! The architecture of [`sea-streamer`](https://docs.rs/sea-streamer) is constructed by a number of sub-crates:
 //!
-//! + `sea-streamer-types`
-//! + `sea-streamer-socket`
-//!     + `sea-streamer-kafka`
-//!     + `sea-streamer-stdio`
-//!
-//! [`sea-streamer` API Docs](https://docs.rs/sea-streamer)
+//! + [`sea-streamer-types`](https://docs.rs/sea-streamer-types)
+//! + [`sea-streamer-socket`](https://docs.rs/sea-streamer-socket)
+//!     + [`sea-streamer-kafka`](https://docs.rs/sea-streamer-kafka)
+//!     + [`sea-streamer-stdio`](https://docs.rs/sea-streamer-stdio)
+//! + [`sea-streamer-runtime`](https://docs.rs/sea-streamer-runtime)
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 

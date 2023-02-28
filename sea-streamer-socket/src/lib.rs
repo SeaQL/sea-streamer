@@ -1,9 +1,7 @@
-//! ## SeaStreamer backend-agnostic Socket API
+//! ### `sea-streamer-socket`: Backend-agnostic Socket API
 //!
 //! Akin to how SeaORM allows you to build applications for different databases, SeaStreamer allows you to build
 //! stream processors for different streaming servers.
-//!
-//! [`sea-streamer-socket` API Docs](https://docs.rs/sea-streamer-socket)
 //!
 //! While the `sea-streamer-types` crate provides a nice trait-based abstraction, this crates provides a concrete-type API,
 //! so that your program can stream from/to any SeaStreamer backend selected by the user *on runtime*.

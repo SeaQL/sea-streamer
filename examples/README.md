@@ -14,7 +14,7 @@ This crate works for both `tokio` and `async-std`, and streams to `kafka` and `s
 
 With Kafka:
 
-```sh
+```bash
 # Produce some input
 cargo run --bin producer -- --stream kafka://localhost:9092/hello1 &
 # Start the processor, producing some output
@@ -27,7 +27,7 @@ kill %1 %2
 
 With Stdio:
 
-```sh
+```bash
 # Pipe the producer to the processor
 cargo run --bin producer -- --stream stdio:///hello1 | \
 cargo run --bin processor -- --input stdio:///hello1 --output stdio:///hello2
@@ -35,7 +35,11 @@ cargo run --bin processor -- --input stdio:///hello1 --output stdio:///hello2
 
 ## Running the resumable processor example
 
-```sh
+The resumable processor can be killed anytime, and will continue from where it left off.
+This is typically called "at least once" processing, meaning no messages should be skipped,
+but it's possible for the same message to be processed twice.
+
+```bash
 # Produce lots of input
 cargo run --bin producer -- --stream kafka://localhost:9092/hello1
 # Run the processor, but kill it before it can process the entire stream
@@ -66,7 +70,7 @@ thread '<unnamed>' panicked at 'failed printing to stdout: Broken pipe (os error
 
 The clock runs 10x faster than the processor, so we expect each batch consist of more or less 10 messages.
 
-```sh
+```bash
 alias clock='cargo run --package sea-streamer-stdio --features=executables --bin clock'
 clock -- --stream clock --interval 100ms | \
 cargo run --bin buffered -- --input stdio:///clock --output stdio:///output

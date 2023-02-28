@@ -1,8 +1,6 @@
-//! ## SeaStreamer Types
+//! ### `sea-streamer-types`: Traits & Types
 //!
 //! This crate defines all the traits and types for the SeaStreamer API, but does not provide any implementation.
-//!
-//! [`sea-streamer-types` API Docs](https://docs.rs/sea-streamer-types)
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![deny(missing_debug_implementations)]

@@ -5,7 +5,7 @@ use sea_streamer_types::{export::async_trait, StreamErr, StreamKey, Streamer, St
 use crate::{
     map_err, Backend, BackendErr, SeaConnectOptions, SeaConnectOptionsTrait, SeaConsumer,
     SeaConsumerBackend, SeaConsumerOptions, SeaProducer, SeaProducerBackend, SeaProducerOptions,
-    SeaProducerOptionsTrait, SeaResult, SeaStreamerBackend,
+    SeaResult, SeaStreamerBackend,
 };
 
 #[derive(Debug)]

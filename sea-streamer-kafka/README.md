@@ -1,9 +1,7 @@
-## SeaStreamer Kafka / Redpanda Backend
+### `sea-streamer-kafka`: Kafka / Redpanda Backend
 
 This is the Kafka / Redpanda backend implementation for SeaStreamer.
 This crate provides a comprehensive type system that makes working with Kafka easier and safer.
-
-[`sea-streamer-kafka` API Docs](https://docs.rs/sea-streamer-kafka)
 
 `KafkaConsumerOptions` has typed parameters.
 
