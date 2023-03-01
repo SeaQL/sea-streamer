@@ -1,7 +1,4 @@
-use rdkafka::{
-    admin::{AdminOptions, ResourceSpecifier},
-    ClientConfig,
-};
+use rdkafka::ClientConfig;
 use std::{
     sync::{Arc, Mutex},
     time::Duration,
@@ -103,11 +100,13 @@ impl Streamer for KafkaStreamer {
 
     async fn connect(uri: StreamerUri, options: Self::ConnectOptions) -> KafkaResult<Self> {
         let admin = create_admin(&uri, &options).map_err(StreamErr::Backend)?;
-        let admin_options = AdminOptions::new().validate_only(true);
-        admin
-            .describe_configs([ResourceSpecifier::Broker(0)].iter(), &admin_options)
+        let timeout = options.timeout().unwrap_or(Duration::from_secs(1));
+        spawn_blocking(move || admin.inner().fetch_cluster_id(timeout))
             .await
-            .map_err(StreamErr::Backend)?;
+            .map_err(runtime_error)?
+            .ok_or(StreamErr::Connect(
+                "Failed to connect to streamer".to_owned(),
+            ))?;
 
         Ok(KafkaStreamer {
             uri,
