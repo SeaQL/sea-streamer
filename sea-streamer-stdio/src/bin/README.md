@@ -6,7 +6,7 @@
 
 Usage: 
 
-```sh
+```shell
 cargo run --bin clock -- --interval 1s --stream clock
 
 [2022-12-06T18:31:23.285852 | clock | 0] { "tick": 0 }
@@ -21,7 +21,7 @@ cargo run --bin clock -- --interval 1s --stream clock
 
 Usage (using unix pipe):
 
-```sh
+```shell
 cargo run --bin clock -- --interval 1s --stream clock | cargo run --bin relay -- --input clock --output relay
 
 [2022-12-06T18:34:19.348575 | relay | 0] {"relay":true,"tick":0}
@@ -32,7 +32,7 @@ cargo run --bin clock -- --interval 1s --stream clock | cargo run --bin relay --
 
 ## complex
 
-```sh
+```shell
 cargo run --bin clock -- --interval 1s --stream clock | cargo run --bin complex -- --input clock --output relay
 
 [2023-02-24T08:13:10Z DEBUG sea_streamer_stdio::producer] [57811] stdout thread spawned

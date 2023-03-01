@@ -20,6 +20,22 @@ pub(crate) enum SeaProducerBackend {
     Stdio(StdioProducer),
 }
 
+impl From<KafkaProducer> for SeaProducer {
+    fn from(i: KafkaProducer) -> Self {
+        Self {
+            backend: SeaProducerBackend::Kafka(i),
+        }
+    }
+}
+
+impl From<StdioProducer> for SeaProducer {
+    fn from(i: StdioProducer) -> Self {
+        Self {
+            backend: SeaProducerBackend::Stdio(i),
+        }
+    }
+}
+
 impl SeaStreamerBackend for SeaProducer {
     type Kafka = KafkaProducer;
     type Stdio = StdioProducer;

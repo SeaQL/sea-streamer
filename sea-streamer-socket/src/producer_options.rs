@@ -18,6 +18,11 @@ impl SeaProducerOptions {
         self.kafka
     }
 
+    /// Set options that only applies to Stdio
+    pub fn set_stdio_producer_options<F: FnOnce(&mut StdioProducerOptions)>(&mut self, func: F) {
+        func(&mut self.stdio)
+    }
+
     /// Set options that only applies to Kafka
     pub fn set_kafka_producer_options<F: FnOnce(&mut KafkaProducerOptions)>(&mut self, func: F) {
         func(&mut self.kafka)

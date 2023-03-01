@@ -3,9 +3,9 @@ use sea_streamer_stdio::StdioStreamer;
 use sea_streamer_types::{export::async_trait, StreamErr, StreamKey, Streamer, StreamerUri};
 
 use crate::{
-    map_err, Backend, BackendErr, SeaConnectOptions, SeaConnectOptionsTrait, SeaConsumer,
-    SeaConsumerBackend, SeaConsumerOptions, SeaProducer, SeaProducerBackend, SeaProducerOptions,
-    SeaResult, SeaStreamerBackend,
+    map_err, Backend, BackendErr, SeaConnectOptions, SeaConsumer, SeaConsumerBackend,
+    SeaConsumerOptions, SeaProducer, SeaProducerBackend, SeaProducerOptions, SeaResult,
+    SeaStreamerBackend,
 };
 
 #[derive(Debug)]
@@ -18,6 +18,22 @@ pub struct SeaStreamer {
 enum SeaStreamerInner {
     Kafka(KafkaStreamer),
     Stdio(StdioStreamer),
+}
+
+impl From<KafkaStreamer> for SeaStreamer {
+    fn from(i: KafkaStreamer) -> Self {
+        Self {
+            backend: SeaStreamerInner::Kafka(i),
+        }
+    }
+}
+
+impl From<StdioStreamer> for SeaStreamer {
+    fn from(i: StdioStreamer) -> Self {
+        Self {
+            backend: SeaStreamerInner::Stdio(i),
+        }
+    }
 }
 
 impl SeaStreamerBackend for SeaStreamer {

@@ -133,7 +133,7 @@ Now, let's put them into action.
 
 With Kafka:
 
-```sh
+```shell
 # Produce some input
 cargo run --bin producer -- --stream kafka://localhost:9092/hello1 &
 # Start the processor, producing some output
@@ -146,7 +146,7 @@ kill %1 %2
 
 With Stdio:
 
-```sh
+```shell
 # Pipe the producer to the processor
 cargo run --bin producer -- --stream stdio:///hello1 | \
 cargo run --bin processor -- --input stdio:///hello1 --output stdio:///hello2
@@ -181,7 +181,7 @@ If you only ever work with Kafka, feel free to depend on `sea-streamer-kafka` di
 
 A small number of cli programs are provided for demonstration. Let's set them up first:
 
-```sh
+```shell
 # The `clock` program generate messages in the form of `{ "tick": N }`
 alias clock='cargo run --package sea-streamer-stdio  --features=executables --bin clock'
 # The `relay` program redirect messages from `input` to `output`
@@ -191,14 +191,14 @@ alias relay='cargo run --package sea-streamer-socket --features=executables --bi
 Here is how to stream from Stdio ➡️ Kafka. We generate messages using `clock` and then pipe it to `relay`,
 which then streams to Kafka:
 
-```sh
+```shell
 clock -- --stream clock --interval 1s | \
 relay -- --input stdio:///clock --output kafka://localhost:9092/clock
 ```
 
 Here is how to *replay* the stream from Kafka ➡️ Stdio:
 
-```sh
+```shell
 relay -- --input kafka://localhost:9092/clock --output stdio:///clock --offset start
 ```
 
@@ -221,18 +221,18 @@ This crate depends on [`rdkafka`](https://docs.rs/rdkafka),
 which in turn depends on [librdkafka-sys](https://docs.rs/librdkafka-sys), which itself is a wrapper of
 [librdkafka](https://docs.confluent.io/platform/current/clients/librdkafka/html/index.html).
 
-Reference: https://kafka.apache.org/documentation/#configuration
+Reference: <https://kafka.apache.org/documentation/#configuration>
 
 ### `sea-streamer-stdio`: Standard I/O Backend
 
 This is the `stdio` backend implementation for SeaStreamer. It is designed to be connected together with unix pipes,
 enabling great flexibility when developing stream processors or processing data locally.
 
-You can connect processes together with pipes: `processor_a | processor_b`.
+You can connect processors together with pipes: `processor_a | processor_b`.
 
 You can also connect them asynchronously:
 
-```sh
+```shell
 touch stream # set up an empty file
 tail -f stream | processor_b # program b can be spawned anytime
 processor_a >> stream # append to the file

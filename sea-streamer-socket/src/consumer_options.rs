@@ -20,6 +20,11 @@ impl SeaConsumerOptions {
         self.kafka
     }
 
+    /// Set options that only applies to Stdio
+    pub fn set_stdio_consumer_options<F: FnOnce(&mut StdioConsumerOptions)>(&mut self, func: F) {
+        func(&mut self.stdio)
+    }
+
     /// Set options that only applies to Kafka
     pub fn set_kafka_consumer_options<F: FnOnce(&mut KafkaConsumerOptions)>(&mut self, func: F) {
         func(&mut self.kafka)
@@ -41,7 +46,7 @@ impl ConsumerOptions for SeaConsumerOptions {
         self.stdio.mode().map_err(map_err)
     }
 
-    /// Get currently set consumer group; may return [`StreamErr::ConsumerGroupNotSet`].
+    /// Get currently set consumer group; may return `StreamErr::ConsumerGroupNotSet`.
     fn consumer_group(&self) -> SeaResult<&ConsumerGroup> {
         self.stdio.consumer_group().map_err(map_err)
     }

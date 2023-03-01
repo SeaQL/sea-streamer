@@ -97,7 +97,7 @@ impl KafkaConsumerOptions {
     /// This property is required if the consumer uses either the group management functionality
     /// by using subscribe(topic) or the Kafka-based offset management strategy.
     ///
-    /// https://kafka.apache.org/documentation/#connectconfigs_group.id
+    /// <https://kafka.apache.org/documentation/#connectconfigs_group.id>
     pub fn set_group_id(&mut self, id: ConsumerGroup) -> &mut Self {
         self.group_id = Some(id);
         self
@@ -111,7 +111,7 @@ impl KafkaConsumerOptions {
     /// before the expiration of this session timeout, then the broker will remove the worker
     /// from the group and initiate a rebalance.
     ///
-    /// https://kafka.apache.org/documentation/#connectconfigs_session.timeout.ms
+    /// <https://kafka.apache.org/documentation/#connectconfigs_session.timeout.ms>
     pub fn set_session_timeout(&mut self, v: Duration) -> &mut Self {
         self.session_timeout = Some(v);
         self
@@ -125,7 +125,7 @@ impl KafkaConsumerOptions {
     ///
     /// If unset, defaults to Latest
     ///
-    /// https://kafka.apache.org/documentation/#consumerconfigs_auto.offset.reset
+    /// <https://kafka.apache.org/documentation/#consumerconfigs_auto.offset.reset>
     pub fn set_auto_offset_reset(&mut self, v: AutoOffsetReset) -> &mut Self {
         self.auto_offset_reset = Some(v);
         self
@@ -138,7 +138,7 @@ impl KafkaConsumerOptions {
     ///
     /// If unset, defaults to true.
     ///
-    /// https://kafka.apache.org/documentation/#consumerconfigs_enable.auto.commit
+    /// <https://kafka.apache.org/documentation/#consumerconfigs_enable.auto.commit>
     pub fn set_enable_auto_commit(&mut self, v: bool) -> &mut Self {
         self.enable_auto_commit = Some(v);
         self
@@ -150,7 +150,7 @@ impl KafkaConsumerOptions {
     /// The interval for offsets to be auto-committed. If `enable_auto_commit` is set to false,
     /// this will have no effect.
     ///
-    /// https://kafka.apache.org/documentation/#consumerconfigs_auto.commit.interval.ms
+    /// <https://kafka.apache.org/documentation/#consumerconfigs_auto.commit.interval.ms>
     pub fn set_auto_commit_interval(&mut self, v: Duration) -> &mut Self {
         self.auto_commit_interval = Some(v);
         self

@@ -54,6 +54,22 @@ impl<'a> Debug for SeaMessageStream<'a> {
     }
 }
 
+impl From<KafkaConsumer> for SeaConsumer {
+    fn from(i: KafkaConsumer) -> Self {
+        Self {
+            backend: SeaConsumerBackend::Kafka(i),
+        }
+    }
+}
+
+impl From<StdioConsumer> for SeaConsumer {
+    fn from(i: StdioConsumer) -> Self {
+        Self {
+            backend: SeaConsumerBackend::Stdio(i),
+        }
+    }
+}
+
 impl SeaStreamerBackend for SeaConsumer {
     type Kafka = KafkaConsumer;
     type Stdio = StdioConsumer;

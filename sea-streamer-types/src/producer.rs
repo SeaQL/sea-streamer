@@ -33,7 +33,7 @@ pub trait Producer: Clone + Send + Sync {
     /// Subsequent calls should return `StreamErr::AlreadyAnchored` error.
     fn anchor(&mut self, stream: StreamKey) -> StreamResult<(), Self::Error>;
 
-    /// If the producer is already anchored, return a reference to the StreamKey
+    /// If the producer is already anchored, return a reference to the StreamKey.
     /// If the producer is not anchored, this will return `StreamErr::NotAnchored` error.
     fn anchored(&self) -> StreamResult<&StreamKey, Self::Error>;
 }

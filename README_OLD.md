@@ -24,7 +24,7 @@ Finally, we want to provide an array of command line tools for manual data maint
 
 Let me illustrate this extravagant concept:
 
-```sh
+```shell
 # we setup a `flux` which maps a unix file to a stream producer
 $ sea streamer flux ./producer --cluster localhost:9092 --topic news &
 # we want to stream the content of the Newline Delimited JSON file
@@ -35,7 +35,7 @@ $ kill %1 %2
 
 Likewise, we can tap in a stream:
 
-```sh
+```shell
 $ sea streamer tap ./consumer --cluster localhost:9092 --topic news &
 $ cat consumer > news.ndjson
 $ kill %1 %2

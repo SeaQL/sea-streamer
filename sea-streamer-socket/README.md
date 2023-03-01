@@ -13,7 +13,7 @@ If you only ever work with Kafka, feel free to depend on `sea-streamer-kafka` di
 
 A small number of cli programs are provided for demonstration. Let's set them up first:
 
-```sh
+```shell
 # The `clock` program generate messages in the form of `{ "tick": N }`
 alias clock='cargo run --package sea-streamer-stdio  --features=executables --bin clock'
 # The `relay` program redirect messages from `input` to `output`
@@ -23,13 +23,13 @@ alias relay='cargo run --package sea-streamer-socket --features=executables --bi
 Here is how to stream from Stdio ➡️ Kafka. We generate messages using `clock` and then pipe it to `relay`,
 which then streams to Kafka:
 
-```sh
+```shell
 clock -- --stream clock --interval 1s | \
 relay -- --input stdio:///clock --output kafka://localhost:9092/clock
 ```
 
 Here is how to *replay* the stream from Kafka ➡️ Stdio:
 
-```sh
+```shell
 relay -- --input kafka://localhost:9092/clock --output stdio:///clock --offset start
 ```

@@ -3,11 +3,11 @@
 This is the `stdio` backend implementation for SeaStreamer. It is designed to be connected together with unix pipes,
 enabling great flexibility when developing stream processors or processing data locally.
 
-You can connect processes together with pipes: `processor_a | processor_b`.
+You can connect processors together with pipes: `processor_a | processor_b`.
 
 You can also connect them asynchronously:
 
-```sh
+```shell
 touch stream # set up an empty file
 tail -f stream | processor_b # program b can be spawned anytime
 processor_a >> stream # append to the file

@@ -112,7 +112,7 @@ impl Consumers {
         let mut groups: BTreeMap<ConsumerGroup, Vec<Cid>> = Default::default();
 
         for (cid, consumer) in self.consumers.iter() {
-            if meta.stream_key.is_none()
+            if meta.stream_key.is_none() // broadcast message
                 || consumer.streams.contains(meta.stream_key.as_ref().unwrap())
             {
                 match &consumer.group {
@@ -231,7 +231,7 @@ impl ConsumerTrait for StdioConsumer {
         Err(StreamErr::Unsupported("StdioConsumer::rewind".to_owned()))
     }
 
-    // Always succeed
+    // Always succeed. There is only shard ZERO anyway.
     fn assign(&mut self, _: ShardId) -> StdioResult<()> {
         Ok(())
     }

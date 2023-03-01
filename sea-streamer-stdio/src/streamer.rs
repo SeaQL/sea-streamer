@@ -102,7 +102,9 @@ impl StdioConnectOptions {
     /// Be careful, if your stream processor consume and produce the same stream key,
     /// it will result in an infinite loop.
     ///
-    /// This option is meant for testing only. Use in production is not recommended.
+    /// This option is meant for testing only.
+    /// Enabling loopback would create considerable overhead where the producer and consumer threads would compete for the same Mutex.
+    /// Use in production is not recommended.
     pub fn set_loopback(&mut self, b: bool) {
         self.loopback = b;
     }
@@ -136,8 +138,8 @@ impl ConsumerOptionsTrait for StdioConsumerOptions {
         self.group.as_ref().ok_or(StreamErr::ConsumerGroupNotSet)
     }
 
-    /// If multiple consumers shares the same group, only one in the group will receive a message
-    /// This is load-balanced in a round-robin fashion
+    /// If multiple consumers share the same group, only one in the group will receive a message.
+    /// This is load-balanced in a round-robin fashion.
     fn set_consumer_group(&mut self, group: ConsumerGroup) -> StdioResult<&mut Self> {
         self.group = Some(group);
         Ok(self)

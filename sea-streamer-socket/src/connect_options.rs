@@ -1,26 +1,48 @@
+use std::time::Duration;
+
 use sea_streamer_kafka::KafkaConnectOptions;
 use sea_streamer_stdio::StdioConnectOptions;
 use sea_streamer_types::ConnectOptions;
 
-/// `sea-streamer-socket` concrete type of ConnectOptions.
-pub type SeaConnectOptions = KafkaConnectOptions;
+use crate::{map_err, BackendErr, SeaResult};
 
-/// `sea-streamer-socket` trait to convert between connect options of different backends.
-pub trait SeaConnectOptionsTrait {
-    fn into_stdio_connect_options(self) -> StdioConnectOptions;
-    fn into_kafka_connect_options(self) -> KafkaConnectOptions;
+#[derive(Debug, Default, Clone)]
+/// `sea-streamer-socket` concrete type of ConnectOptions.
+pub struct SeaConnectOptions {
+    stdio: StdioConnectOptions,
+    kafka: KafkaConnectOptions,
 }
 
-impl SeaConnectOptionsTrait for SeaConnectOptions {
-    fn into_stdio_connect_options(self) -> StdioConnectOptions {
-        let mut options = StdioConnectOptions::default();
-        if let Ok(v) = self.timeout() {
-            options.set_timeout(v).expect("Never fails");
-        }
-        options
+impl SeaConnectOptions {
+    pub fn into_stdio_connect_options(self) -> StdioConnectOptions {
+        self.stdio
     }
 
-    fn into_kafka_connect_options(self) -> KafkaConnectOptions {
-        self
+    pub fn into_kafka_connect_options(self) -> KafkaConnectOptions {
+        self.kafka
+    }
+
+    /// Set options that only applies to Stdio
+    pub fn set_stdio_connect_options<F: FnOnce(&mut StdioConnectOptions)>(&mut self, func: F) {
+        func(&mut self.stdio)
+    }
+
+    /// Set options that only applies to Kafka
+    pub fn set_kafka_connect_options<F: FnOnce(&mut KafkaConnectOptions)>(&mut self, func: F) {
+        func(&mut self.kafka)
+    }
+}
+
+impl ConnectOptions for SeaConnectOptions {
+    type Error = BackendErr;
+
+    fn timeout(&self) -> SeaResult<Duration> {
+        self.stdio.timeout().map_err(map_err)
+    }
+
+    fn set_timeout(&mut self, d: Duration) -> SeaResult<&mut Self> {
+        self.stdio.set_timeout(d).map_err(map_err)?;
+        self.kafka.set_timeout(d).map_err(map_err)?;
+        Ok(self)
     }
 }

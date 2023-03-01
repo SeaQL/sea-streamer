@@ -133,7 +133,7 @@
 //!
 //! With Kafka:
 //!
-//! ```sh
+//! ```shell
 //! # Produce some input
 //! cargo run --bin producer -- --stream kafka://localhost:9092/hello1 &
 //! # Start the processor, producing some output
@@ -146,7 +146,7 @@
 //!
 //! With Stdio:
 //!
-//! ```sh
+//! ```shell
 //! # Pipe the producer to the processor
 //! cargo run --bin producer -- --stream stdio:///hello1 | \
 //! cargo run --bin processor -- --input stdio:///hello1 --output stdio:///hello2

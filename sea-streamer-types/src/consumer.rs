@@ -34,7 +34,7 @@ pub trait ConsumerOptions: Default + Clone + Send {
     /// Get currently set ConsumerMode
     fn mode(&self) -> StreamResult<&ConsumerMode, Self::Error>;
 
-    /// Get currently set consumer group; may return [`StreamErr::ConsumerGroupNotSet`].
+    /// Get currently set consumer group; may return `StreamErr::ConsumerGroupNotSet`.
     fn consumer_group(&self) -> StreamResult<&ConsumerGroup, Self::Error>;
 
     /// Set consumer group for this consumer. Note the semantic is implementation-specific.
@@ -59,7 +59,7 @@ pub trait Consumer: Sized + Send + Sync {
     where
         Self: 'a;
 
-    /// Seek all streams to an arbitrary point in time. If will start consuming from the earliest message
+    /// Seek all streams to an arbitrary point in time. It will start consuming from the earliest message
     /// with a timestamp later than `to`.
     ///
     /// If the consumer is not already assigned, shard ZERO will be used.
