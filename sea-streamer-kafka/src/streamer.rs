@@ -1,4 +1,7 @@
-use rdkafka::ClientConfig;
+use rdkafka::{
+    admin::{AdminOptions, ResourceSpecifier},
+    ClientConfig,
+};
 use std::{
     sync::{Arc, Mutex},
     time::Duration,
@@ -11,8 +14,9 @@ use sea_streamer_types::{
 };
 
 use crate::{
-    create_consumer, create_producer, host_id, impl_into_string, KafkaConsumer,
-    KafkaConsumerOptions, KafkaErr, KafkaProducer, KafkaProducerOptions, KafkaResult,
+    cluster::cluster_uri, create_consumer, create_producer, host_id, impl_into_string,
+    KafkaConsumer, KafkaConsumerOptions, KafkaErr, KafkaProducer, KafkaProducerOptions,
+    KafkaResult,
 };
 
 #[derive(Debug, Clone)]
@@ -29,9 +33,12 @@ pub struct KafkaConnectOptions {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-enum OptionKey {
+pub(crate) enum BaseOptionKey {
+    BootstrapServers,
     SocketTimeout,
 }
+
+type AdminClient = rdkafka::admin::AdminClient<rdkafka::client::DefaultClientContext>;
 
 impl ConnectOptions for KafkaConnectOptions {
     type Error = KafkaErr;
@@ -66,7 +73,7 @@ impl KafkaConnectOptions {
 
     pub(crate) fn make_client_config(&self, client_config: &mut ClientConfig) {
         if let Some(v) = self.timeout {
-            client_config.set(OptionKey::SocketTimeout, format!("{}", v.as_millis()));
+            client_config.set(BaseOptionKey::SocketTimeout, format!("{}", v.as_millis()));
         }
         for (key, value) in self.custom_options() {
             client_config.set(key, value);
@@ -74,15 +81,16 @@ impl KafkaConnectOptions {
     }
 }
 
-impl OptionKey {
+impl BaseOptionKey {
     pub fn as_str(&self) -> &'static str {
         match self {
+            Self::BootstrapServers => "bootstrap.servers",
             Self::SocketTimeout => "socket.timeout.ms",
         }
     }
 }
 
-impl_into_string!(OptionKey);
+impl_into_string!(BaseOptionKey);
 
 #[async_trait]
 impl Streamer for KafkaStreamer {
@@ -93,8 +101,14 @@ impl Streamer for KafkaStreamer {
     type ConsumerOptions = KafkaConsumerOptions;
     type ProducerOptions = KafkaProducerOptions;
 
-    /// Nothing will happen until you create a producer/consumer
     async fn connect(uri: StreamerUri, options: Self::ConnectOptions) -> KafkaResult<Self> {
+        let admin = create_admin(&uri, &options).map_err(StreamErr::Backend)?;
+        let admin_options = AdminOptions::new().validate_only(true);
+        admin
+            .describe_configs([ResourceSpecifier::Broker(0)].iter(), &admin_options)
+            .await
+            .map_err(StreamErr::Backend)?;
+
         Ok(KafkaStreamer {
             uri,
             producers: Arc::new(Mutex::new(Vec::new())),
@@ -186,4 +200,17 @@ impl Streamer for KafkaStreamer {
                 .map_err(StreamErr::Backend)?,
         )
     }
+}
+
+fn create_admin(
+    streamer: &StreamerUri,
+    base_options: &KafkaConnectOptions,
+) -> Result<AdminClient, KafkaErr> {
+    let mut client_config = ClientConfig::new();
+    client_config.set(BaseOptionKey::BootstrapServers, cluster_uri(streamer)?);
+    base_options.make_client_config(&mut client_config);
+
+    let client: AdminClient = client_config.create()?;
+
+    Ok(client)
 }

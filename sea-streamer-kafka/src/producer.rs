@@ -1,7 +1,8 @@
 use std::{fmt::Debug, future::Future, time::Duration};
 
 use crate::{
-    cluster::cluster_uri, impl_into_string, stream_err, KafkaConnectOptions, KafkaErr, KafkaResult,
+    cluster::cluster_uri, impl_into_string, stream_err, BaseOptionKey, KafkaConnectOptions,
+    KafkaErr, KafkaResult,
 };
 use rdkafka::{
     config::ClientConfig,
@@ -47,7 +48,6 @@ pub struct SendFuture {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum KafkaProducerOptionKey {
-    BootstrapServers,
     CompressionType,
 }
 
@@ -264,7 +264,6 @@ impl KafkaProducerOptions {
 impl OptionKey {
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::BootstrapServers => "bootstrap.servers",
             Self::CompressionType => "compression.type",
         }
     }
@@ -317,7 +316,7 @@ pub(crate) fn create_producer(
     options: &KafkaProducerOptions,
 ) -> Result<KafkaProducer, KafkaErr> {
     let mut client_config = ClientConfig::new();
-    client_config.set(OptionKey::BootstrapServers, cluster_uri(streamer)?);
+    client_config.set(BaseOptionKey::BootstrapServers, cluster_uri(streamer)?);
     base_options.make_client_config(&mut client_config);
     options.make_client_config(&mut client_config);
 

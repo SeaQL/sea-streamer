@@ -59,13 +59,13 @@ pub trait Consumer: Sized + Send + Sync {
     where
         Self: 'a;
 
-    /// Seek to an arbitrary point in time. If will start consuming from the earliest message
+    /// Seek all streams to an arbitrary point in time. If will start consuming from the earliest message
     /// with a timestamp later than `to`.
     ///
     /// If the consumer is not already assigned, shard ZERO will be used.
     async fn seek(&mut self, to: Timestamp) -> StreamResult<(), Self::Error>;
 
-    /// Rewind the stream to a particular sequence number.
+    /// Rewind all streams to a particular sequence number.
     ///
     /// If the consumer is not already assigned, shard ZERO will be used.
     fn rewind(&mut self, offset: SeqPos) -> StreamResult<(), Self::Error>;

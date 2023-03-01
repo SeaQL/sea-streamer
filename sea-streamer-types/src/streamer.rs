@@ -54,7 +54,7 @@ pub trait Streamer: Sized {
         options: Self::ProducerOptions,
     ) -> StreamResult<Self::Producer, Self::Error>;
 
-    /// Create a producer that streams to the specified streams.
+    /// Create a producer that streams to the specified stream.
     async fn create_producer(
         &self,
         stream: StreamKey,

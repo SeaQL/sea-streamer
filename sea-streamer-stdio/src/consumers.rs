@@ -236,7 +236,6 @@ impl ConsumerTrait for StdioConsumer {
         Ok(())
     }
 
-    /// Backend error can be casted to [`StdioErr`] using [`GetStreamErr`]
     fn next(&self) -> Self::NextFuture<'_> {
         self.receiver
             .recv_async()

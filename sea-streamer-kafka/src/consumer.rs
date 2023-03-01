@@ -21,7 +21,8 @@ use sea_streamer_types::{
 };
 
 use crate::{
-    cluster_uri, impl_into_string, stream_err, KafkaConnectOptions, KafkaErr, KafkaResult,
+    cluster_uri, impl_into_string, stream_err, BaseOptionKey, KafkaConnectOptions, KafkaErr,
+    KafkaResult,
 };
 
 pub struct KafkaConsumer {
@@ -54,7 +55,6 @@ pub struct KafkaConsumerOptions {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum KafkaConsumerOptionKey {
-    BootstrapServers,
     GroupId,
     SessionTimeout,
     AutoOffsetReset,
@@ -221,7 +221,6 @@ impl KafkaConsumerOptions {
 impl OptionKey {
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::BootstrapServers => "bootstrap.servers",
             Self::GroupId => "group.id",
             Self::SessionTimeout => "session.timeout.ms",
             Self::AutoOffsetReset => "auto.offset.reset",
@@ -259,7 +258,7 @@ impl ConsumerTrait for KafkaConsumer {
     type NextFuture<'a> = NextFuture<'a>;
     type Stream<'a> = KafkaMessageStream<'a>;
 
-    /// Seek all streams to the given point in time.
+    /// Seek all streams to the given point in time, across all assigned partitions.
     /// Call [`ConsumerTrait::assign`] to assign a partition beforehand.
     ///
     /// # Warning
@@ -299,7 +298,8 @@ impl ConsumerTrait for KafkaConsumer {
         Ok(())
     }
 
-    /// Always succeed. This operation is additive. You can assign a consumer to multiple shards.
+    /// Always succeed. This operation is additive. You can assign a consumer to multiple shards (aka partition).
+    /// There is also a [`KafkaConsumer::unassign`] method.
     fn assign(&mut self, shard: ShardId) -> KafkaResult<()> {
         self.shards.insert(shard);
         Ok(())
@@ -611,7 +611,7 @@ pub(crate) fn create_consumer(
     streams: Vec<StreamKey>,
 ) -> Result<KafkaConsumer, KafkaErr> {
     let mut client_config = ClientConfig::new();
-    client_config.set(OptionKey::BootstrapServers, cluster_uri(streamer)?);
+    client_config.set(BaseOptionKey::BootstrapServers, cluster_uri(streamer)?);
     base_options.make_client_config(&mut client_config);
     options.make_client_config(&mut client_config);
 
