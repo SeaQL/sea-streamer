@@ -35,7 +35,7 @@
 //!
 //! 4. Micro-service Oriented
 //!
-//! Let's build real-time (multi-threaded, no GC), self-contained (aka easy to deploy), low-resource-usage, long-running (no memory leak) stream processors in Rust!
+//! Let's build real-time (multi-threaded, no GC), self-contained (aka easy to deploy), low-resource-usage, long-running stream processors in Rust!
 //!
 //! ## Quick Start
 //!

@@ -35,7 +35,7 @@ and extremely handy when working locally.
 
 4. Micro-service Oriented
 
-Let's build real-time (multi-threaded, no GC), self-contained (aka easy to deploy), low-resource-usage, long-running (no memory leak) stream processors in Rust!
+Let's build real-time (multi-threaded, no GC), self-contained (aka easy to deploy), low-resource-usage, long-running stream processors in Rust!
 
 ## Quick Start
 
@@ -297,6 +297,6 @@ dual licensed as above, without any additional terms or conditions.
 
 ## Sponsor
 
-Our [GitHub Sponsor](https://github.com/sponsors/SeaQL) profile is up! SeaQL.org is an independent open-source organization run by passionate developers. If you enjoy using SeaORM, please star and share our repositories. If you feel generous, a small donation will be greatly appreciated, and goes a long way towards sustaining the project.
+SeaQL.org is an independent open-source organization run by passionate developers. If you enjoy using our libraries, please star and share our repositories. If you feel generous, a small donation via [GitHub Sponsor](https://github.com/sponsors/SeaQL) will be greatly appreciated, and goes a long way towards sustaining the organization.
 
 We invite you to participate, contribute and together help build Rust's future.
