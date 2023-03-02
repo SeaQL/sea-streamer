@@ -1,6 +1,6 @@
 <div align="center">
 
-  <img src="./docs/SeaStreamer Banner.png"/>
+  <img src="https://raw.githubusercontent.com/SeaQL/sea-streamer/master/docs/SeaStreamer Banner.png"/>
 
   <h1>SeaStreamer</h1>
 
