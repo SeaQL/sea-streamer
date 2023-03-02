@@ -37,7 +37,7 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo build --all
       - run: cargo test --all
-      - run: cargo test --package sea-streamer-stdio --test loopback --features test -- --nocapture
+      - run: cargo test --package sea-streamer-stdio --test '*' --features test -- --nocapture
       - run: cargo clippy --features json,kafka,stdio,socket -- -D warnings
       - run: cargo clippy --all
 

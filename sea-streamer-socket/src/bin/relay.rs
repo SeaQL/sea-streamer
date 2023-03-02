@@ -49,7 +49,7 @@ async fn main() -> Result<()> {
         offset,
     } = Args::from_args();
 
-    if input == output {
+    if input == output && input.streamer().protocol() != Some("stdio") {
         bail!("input == output !!!");
     }
 

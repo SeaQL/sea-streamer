@@ -97,14 +97,13 @@ impl StdioConnectOptions {
         self.loopback
     }
 
-    /// If set to true, messages produced will be feed back to consumers.
+    /// If set to true, messages produced will be feed back to consumers in the same process.
     ///
     /// Be careful, if your stream processor consume and produce the same stream key,
     /// it will result in an infinite loop.
     ///
     /// This option is meant for testing only.
-    /// Enabling loopback would create considerable overhead where the producer and consumer threads would compete for the same Mutex.
-    /// Use in production is not recommended.
+    /// Enabling loopback might create overhead where the producer and consumer threads compete for the same Mutex.
     pub fn set_loopback(&mut self, b: bool) {
         self.loopback = b;
     }
