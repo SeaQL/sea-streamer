@@ -1,4 +1,4 @@
-use std::{future::Future, pin::Pin, task::Poll, time::Duration};
+use std::{future::Future, pin::Pin, task::Poll};
 
 use sea_streamer_kafka::KafkaProducer;
 use sea_streamer_stdio::StdioProducer;
@@ -102,9 +102,9 @@ impl Producer for SeaProducer {
 
 impl SeaProducer {
     // TODO may be we should add `flush` to the Producer trait
-    pub async fn flush(self, timeout: Duration) -> SeaResult<()> {
+    pub async fn flush(self) -> SeaResult<()> {
         match self.backend {
-            SeaProducerBackend::Kafka(i) => i.flush(timeout).await.map_err(map_err),
+            SeaProducerBackend::Kafka(i) => i.flush().await.map_err(map_err),
             SeaProducerBackend::Stdio(i) => i.flush().await.map_err(map_err),
         }
     }

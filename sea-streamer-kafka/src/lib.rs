@@ -25,6 +25,9 @@
 /// The default Kafka port number
 pub const KAFKA_PORT: u16 = 9092;
 
+/// The default timeout, if needed but unspecified
+pub const DEFAULT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
 #[cfg(all(feature = "runtime-async-std", feature = "runtime-tokio"))]
 compile_error!("'runtime-async-std' and 'runtime-tokio' cannot be enabled at the same time");
 

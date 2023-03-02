@@ -13,7 +13,7 @@ use sea_streamer_types::{
 use crate::{
     cluster::cluster_uri, create_consumer, create_producer, host_id, impl_into_string,
     KafkaConsumer, KafkaConsumerOptions, KafkaErr, KafkaProducer, KafkaProducerOptions,
-    KafkaResult,
+    KafkaResult, DEFAULT_TIMEOUT,
 };
 
 #[derive(Debug, Clone)]
@@ -122,7 +122,7 @@ impl Streamer for KafkaStreamer {
             mutex.drain(..).collect()
         };
         for producer in producers {
-            spawn_blocking(move || producer.flush_sync(std::time::Duration::from_secs(60)))
+            spawn_blocking(move || producer.flush_sync(DEFAULT_TIMEOUT))
                 .await
                 .map_err(runtime_error)??;
         }

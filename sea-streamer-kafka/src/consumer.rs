@@ -22,7 +22,7 @@ use sea_streamer_types::{
 
 use crate::{
     cluster_uri, impl_into_string, stream_err, BaseOptionKey, KafkaConnectOptions, KafkaErr,
-    KafkaResult,
+    KafkaResult, DEFAULT_TIMEOUT,
 };
 
 pub struct KafkaConsumer {
@@ -267,8 +267,7 @@ impl ConsumerTrait for KafkaConsumer {
     /// and this Consumer will be unusable for any operations until it finishes.
     #[inline]
     async fn seek(&mut self, timestamp: Timestamp) -> KafkaResult<()> {
-        self.seek_with_timeout(timestamp, Duration::from_secs(60))
-            .await
+        self.seek_with_timeout(timestamp, DEFAULT_TIMEOUT).await
     }
 
     /// Note: this rewind all streams across all assigned partitions.

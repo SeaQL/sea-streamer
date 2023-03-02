@@ -2,7 +2,7 @@ use std::{fmt::Debug, future::Future, time::Duration};
 
 use crate::{
     cluster::cluster_uri, impl_into_string, stream_err, BaseOptionKey, KafkaConnectOptions,
-    KafkaErr, KafkaResult,
+    KafkaErr, KafkaResult, DEFAULT_TIMEOUT,
 };
 use rdkafka::{
     config::ClientConfig,
@@ -19,6 +19,7 @@ use sea_streamer_types::{
 pub struct KafkaProducer {
     stream: Option<StreamKey>,
     inner: Option<RawProducer>,
+    options: KafkaProducerOptions,
 }
 
 impl Debug for KafkaProducer {
@@ -38,6 +39,7 @@ pub type RawProducer = rdkafka::producer::FutureProducer<
 #[derive(Debug, Default, Clone)]
 pub struct KafkaProducerOptions {
     compression_type: Option<CompressionType>,
+    transaction_timeout: Option<Duration>,
     custom_options: Vec<(String, String)>,
 }
 
@@ -151,18 +153,27 @@ impl KafkaProducer {
         }
     }
 
-    /// See https://docs.rs/rdkafka/latest/rdkafka/producer/trait.Producer.html#tymethod.init_transactions
+    #[inline]
+    fn transaction_timeout(&self) -> Duration {
+        self.options
+            .transaction_timeout()
+            .cloned()
+            .unwrap_or(DEFAULT_TIMEOUT)
+    }
+
+    /// See <https://docs.rs/rdkafka/latest/rdkafka/producer/trait.Producer.html#tymethod.init_transactions>
     ///
     /// # Warning
     ///
     /// This async method is not cancel safe. You must await this future,
     /// and this Producer will be unusable for any operations until it finishes.
-    pub async fn init_transactions(&mut self, timeout: Duration) -> KafkaResult<()> {
+    pub async fn init_transactions(&mut self) -> KafkaResult<()> {
+        let timeout = self.transaction_timeout();
         self.transaction(move |s| s.init_transactions(timeout))
             .await
     }
 
-    /// See https://docs.rs/rdkafka/latest/rdkafka/producer/trait.Producer.html#tymethod.begin_transaction
+    /// See <https://docs.rs/rdkafka/latest/rdkafka/producer/trait.Producer.html#tymethod.begin_transaction>
     ///
     /// # Warning
     ///
@@ -172,29 +183,31 @@ impl KafkaProducer {
         self.transaction(|s| s.begin_transaction()).await
     }
 
-    /// See https://docs.rs/rdkafka/latest/rdkafka/producer/trait.Producer.html#tymethod.commit_transaction
+    /// See <https://docs.rs/rdkafka/latest/rdkafka/producer/trait.Producer.html#tymethod.commit_transaction>
     ///
     /// # Warning
     ///
     /// This async method is not cancel safe. You must await this future,
     /// and this Producer will be unusable for any operations until it finishes.
-    pub async fn commit_transaction(&mut self, timeout: Duration) -> KafkaResult<()> {
+    pub async fn commit_transaction(&mut self) -> KafkaResult<()> {
+        let timeout = self.transaction_timeout();
         self.transaction(move |s| s.commit_transaction(timeout))
             .await
     }
 
-    /// See https://docs.rs/rdkafka/latest/rdkafka/producer/trait.Producer.html#tymethod.abort_transaction
+    /// See <https://docs.rs/rdkafka/latest/rdkafka/producer/trait.Producer.html#tymethod.abort_transaction>
     ///
     /// # Warning
     ///
     /// This async method is not cancel safe. You must await this future,
     /// and this Producer will be unusable for any operations until it finishes.
-    pub async fn abort_transaction(&mut self, timeout: Duration) -> KafkaResult<()> {
+    pub async fn abort_transaction(&mut self) -> KafkaResult<()> {
+        let timeout = self.transaction_timeout();
         self.transaction(move |s| s.abort_transaction(timeout))
             .await
     }
 
-    /// https://docs.rs/rdkafka/latest/rdkafka/producer/trait.Producer.html#tymethod.send_offsets_to_transaction
+    /// See <https://docs.rs/rdkafka/latest/rdkafka/producer/trait.Producer.html#tymethod.send_offsets_to_transaction>
     ///
     /// # Warning
     ///
@@ -204,8 +217,8 @@ impl KafkaProducer {
         &mut self,
         offsets: TopicPartitionList,
         cgm: ConsumerGroupMetadata,
-        timeout: Duration,
     ) -> KafkaResult<()> {
+        let timeout = self.transaction_timeout();
         self.transaction(move |s| s.send_offsets_to_transaction(&offsets, &cgm, timeout))
             .await
     }
@@ -216,7 +229,13 @@ impl KafkaProducer {
     }
 
     /// Flush pending messages.
-    pub async fn flush(self, timeout: Duration) -> KafkaResult<()> {
+    #[inline]
+    pub async fn flush(self) -> KafkaResult<()> {
+        self.flush_with_timeout(DEFAULT_TIMEOUT).await
+    }
+
+    /// Flush pending messages.
+    pub async fn flush_with_timeout(self, timeout: Duration) -> KafkaResult<()> {
         spawn_blocking(move || self.flush_sync(timeout))
             .await
             .map_err(runtime_error)?
@@ -233,6 +252,15 @@ impl KafkaProducerOptions {
     }
     pub fn compression_type(&self) -> Option<&CompressionType> {
         self.compression_type.as_ref()
+    }
+
+    /// Set the timeout used in all transactions for this producer
+    pub fn set_transaction_timeout(&mut self, v: Duration) -> &mut Self {
+        self.transaction_timeout = Some(v);
+        self
+    }
+    pub fn transaction_timeout(&self) -> Option<&Duration> {
+        self.transaction_timeout.as_ref()
     }
 
     /// Add a custom option. If you have an option you frequently use,
@@ -325,5 +353,6 @@ pub(crate) fn create_producer(
     Ok(KafkaProducer {
         stream: None,
         inner: Some(producer),
+        options: options.to_owned(),
     })
 }
