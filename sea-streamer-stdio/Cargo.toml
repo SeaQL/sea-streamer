@@ -7,7 +7,7 @@ description = "🌊 SeaStreamer Standard I/O Backend"
 license = "MIT OR Apache-2.0"
 documentation = "https://docs.rs/sea-streamer"
 repository = "https://github.com/SeaQL/sea-streamer"
-categories = ["database"]
+categories = ["concurrency"]
 # keywords = []
 rust-version = "1.60"
 
