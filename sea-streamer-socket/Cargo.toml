@@ -18,11 +18,11 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 anyhow = { version = "1", optional = true }
 env_logger = { version = "0.9.0", optional = true }
-sea-streamer-kafka = { version = "^0.1.0", path = "../sea-streamer-kafka", optional = true }
-sea-streamer-stdio = { version = "^0.1.0", path = "../sea-streamer-stdio", optional = true }
-sea-streamer-types = { version = "^0.1.0", path = "../sea-streamer-types" }
-structopt = { version = "^0.3", optional = true }
-thiserror = { version = "^1", default-features = false }
+sea-streamer-kafka = { version = "0.1", path = "../sea-streamer-kafka", optional = true }
+sea-streamer-stdio = { version = "0.1", path = "../sea-streamer-stdio", optional = true }
+sea-streamer-types = { version = "0.1", path = "../sea-streamer-types" }
+structopt = { version = "0.3", optional = true }
+thiserror = { version = "1", default-features = false }
 tokio = { version = "1.10.0", optional = true }
 
 [features]
