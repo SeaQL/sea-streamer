@@ -5,10 +5,10 @@ authors = ["Chris Tsang <chris.2y3@outlook.com>"]
 edition = "2021"
 description = "🌊 SeaStreamer backend-agnostic Socket API"
 license = "MIT OR Apache-2.0"
-documentation = "https://docs.rs/sea-streamer"
+documentation = "https://docs.rs/sea-streamer-socket"
 repository = "https://github.com/SeaQL/sea-streamer"
 categories = ["concurrency"]
-# keywords = []
+keywords = ["async", "stream", "kafka", "stream-processing"]
 rust-version = "1.60"
 
 [package.metadata.docs.rs]

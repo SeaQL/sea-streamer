@@ -5,10 +5,10 @@ authors = ["Chris Tsang <chris.2y3@outlook.com>"]
 edition = "2021"
 description = "🌊 SeaStreamer async runtime abstraction"
 license = "MIT OR Apache-2.0"
-documentation = "https://docs.rs/sea-streamer"
+documentation = "https://docs.rs/sea-streamer-runtime"
 repository = "https://github.com/SeaQL/sea-streamer"
 categories = ["concurrency"]
-# keywords = []
+keywords = ["async", "async-std", "tokio"]
 rust-version = "1.60"
 
 [package.metadata.docs.rs]

@@ -28,3 +28,7 @@ sleep 60
 
 # publish `sea-streamer`
 cargo publish
+sleep 60
+
+cd examples
+cargo publish
