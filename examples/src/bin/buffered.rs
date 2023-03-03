@@ -43,6 +43,7 @@ async fn main() -> Result<()> {
     spawn_task::<_, Result<()>>(async move {
         loop {
             let message: SeaMessage = consumer.next().await?;
+            // if the queue is full, we'll wait
             sender.send_async(message.to_owned()).await?;
         }
     });
