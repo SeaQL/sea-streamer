@@ -71,6 +71,8 @@ thread 'sea-streamer-stdio-stdout' panicked at 'failed printing to stdout: Broke
 
 The clock runs 10x faster than the processor, so we expect each batch consist of more or less 10 messages.
 
+This pattern is useful when an input stream has a high frequency, but the processor has a high impedance.
+
 ```bash
 alias clock='cargo run --package sea-streamer-stdio --features=executables --bin clock'
 clock -- --stream clock --interval 100ms | \
@@ -94,9 +96,7 @@ Output:
 
 A more throughout technical discussion:
 
-This pattern is useful when an input stream has a high frequency, but the processor has a high impedance.
-
-For example, to insert records into a database, it's more efficient to insert in batches. The larger the batch, the more efficient.
+For example, to insert records into a database, it's more efficient to insert in batches.
 But you can't naively fix the batch size at 10 or 100, because it might have buffered 9 messages and waiting for the 10th, and you can't handle a sudden burst of messages.
 
 So, how to minimize the overall task execution time? You decouple the two busy loops and use a queue to act as a fluid coupling device - this is the best mechanical analogy I can make: now both loops can spin at their optimal frequency, maximizing the overall throughput of the processor.
