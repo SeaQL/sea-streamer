@@ -161,6 +161,8 @@
 //!     + [`sea-streamer-kafka`](https://docs.rs/sea-streamer-kafka)
 //!     + [`sea-streamer-stdio`](https://docs.rs/sea-streamer-stdio)
 //! + [`sea-streamer-runtime`](https://docs.rs/sea-streamer-runtime)
+//!
+//! All crates share the same major version. So `0.1` of `sea-streamer` depends on `0.1` of `sea-streamer-socket`.
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 

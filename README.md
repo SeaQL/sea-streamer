@@ -162,6 +162,8 @@ The architecture of [`sea-streamer`](https://docs.rs/sea-streamer) is constructe
     + [`sea-streamer-stdio`](https://docs.rs/sea-streamer-stdio)
 + [`sea-streamer-runtime`](https://docs.rs/sea-streamer-runtime)
 
+All crates have the same major version. So `0.1` of `sea-streamer` depends on `0.1` of `sea-streamer-socket`.
+
 ### `sea-streamer-types`: Traits & Types
 
 This crate defines all the traits and types for the SeaStreamer API, but does not provide any implementation.

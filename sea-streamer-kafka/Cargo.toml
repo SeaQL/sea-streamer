@@ -36,6 +36,11 @@ test = ["anyhow", "async-std?/attributes", "tokio?/full", "env_logger"]
 executables = ["anyhow", "env_logger", "structopt", "runtime-tokio", "tokio/full"]
 runtime-async-std = ["async-std", "sea-streamer-runtime/runtime-async-std"]
 runtime-tokio = ["tokio", "rdkafka/tokio", "sea-streamer-runtime/runtime-tokio"]
+# passthru of rdkafka features
+libz = ["rdkafka/libz"]
+libz-static = ["rdkafka/libz-static"]
+ssl = ["rdkafka/ssl"]
+ssl-vendored = ["rdkafka/ssl-vendored"]
 
 [[bin]]
 name = "consumer"
