@@ -9,6 +9,7 @@ This crate works for both `tokio` and `async-std`, and streams to `kafka` and `s
 + `processor`: A basic stream processor
 + `resumable`: A resumable stream processor that continues from where it left off
 + `buffered`: An advanced stream processor with internal buffering and batch processing
++ `blocking`: An advanced stream processor for handling blocking / CPU-bound tasks
 
 ## Running the basic processor example
 
@@ -99,3 +100,25 @@ For example, to insert records into a database, it's more efficient to insert in
 But you can't naively fix the batch size at 10 or 100, because it might have buffered 9 messages and waiting for the 10th, and you can't handle a sudden burst of messages.
 
 So, how to minimize the overall task execution time? You decouple the two busy loops and use a queue to act as a fluid coupling device - this is the best mechanical analogy I can make: now both loops can spin at their optimal frequency, maximizing the overall throughput of the processor.
+
+## Running the blocking processor example
+
+The clock runs 3x faster than the processor, but we have 4 threads, so we expect it to be able to catch up in real-time, and that tasks are randomly assigned to threads.
+
+```bash
+alias clock='cargo run --package sea-streamer-stdio --features=executables --bin clock'
+clock -- --stream clock --interval 333ms | \
+cargo run --bin blocking -- --input stdio:///clock --output stdio:///output
+```
+
+Output:
+
+```log
+[2023-03-07T06:00:52 | output | 0] [thread 0] { "tick": 0 } processed
+[2023-03-07T06:00:53 | output | 1] [thread 1] { "tick": 1 } processed
+[2023-03-07T06:00:53 | output | 2] [thread 2] { "tick": 2 } processed
+[2023-03-07T06:00:53 | output | 3] [thread 3] { "tick": 3 } processed
+[2023-03-07T06:00:54 | output | 4] [thread 0] { "tick": 4 } processed
+[2023-03-07T06:00:54 | output | 5] [thread 1] { "tick": 5 } processed
+[2023-03-07T06:00:54 | output | 6] [thread 2] { "tick": 6 } processed
+```

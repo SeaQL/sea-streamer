@@ -23,6 +23,8 @@ struct Args {
     output: StreamUrl,
 }
 
+const NUM_THREADS: usize = 4; // Every one has at least 2 cores with 2 hyperthreads these days ... right? RIGHT?
+
 #[cfg_attr(feature = "runtime-tokio", tokio::main)]
 #[cfg_attr(feature = "runtime-async-std", async_std::main)]
 async fn main() -> Result<()> {
@@ -54,34 +56,43 @@ async fn main() -> Result<()> {
         .create_producer(output.stream_key()?, Default::default())
         .await?;
 
-    for batch in 0..std::usize::MAX {
-        // Take all messages currently buffered in the queue, but do not wait
-        let mut messages: Vec<SharedMessage> = receiver.drain().collect();
-        if messages.is_empty() {
-            // Queue is empty, so we wait until there is something
-            messages.push(receiver.recv_async().await?)
-        }
-        for message in process(batch, messages).await? {
-            // Send is non-blocking so it does not slow down the loop
-            producer.send(message)?;
-        }
-    }
+    // Spawn some threads
+    let mut threads: Vec<_> = (0..NUM_THREADS)
+        .map(|i| {
+            let producer = producer.clone();
+            let receiver = receiver.clone();
+            // This is an OS thread, so it can use up 100% of a pseudo CPU core
+            std::thread::spawn::<_, Result<()>>(move || {
+                loop {
+                    let message = receiver.recv()?;
+                    let message = process(i, message)?;
+                    producer.send(message)?; // send is non-blocking
+                }
+            })
+        })
+        .collect();
 
-    Ok(())
+    // Handle errors if the threads exit unexpectedly
+    loop {
+        watch(&mut threads);
+        // We can still do async IO here
+        sleep(Duration::from_secs(1)).await;
+    }
 }
 
-// Process the messages in batch
-async fn process(batch: usize, messages: Vec<SharedMessage>) -> Result<Vec<String>> {
-    // Here we simulate a slow operation
-    sleep(Duration::from_secs(1)).await;
-    messages
-        .into_iter()
-        .map(|message| {
-            Ok(format!(
-                "[batch {}] {} processed",
-                batch,
-                message.message().as_str()?
-            ))
-        })
-        .collect()
+// Here we simulate a slow, blocking function
+fn process(i: usize, message: SharedMessage) -> Result<String> {
+    std::thread::sleep(Duration::from_secs(1));
+    Ok(format!(
+        "[thread {i}] {m} processed",
+        m = message.message().as_str()?
+    ))
+}
+
+fn watch(threads: &mut Vec<std::thread::JoinHandle<Result<()>>>) {
+    for (i, thread) in threads.iter().enumerate() {
+        if thread.is_finished() {
+            panic!("thread {i} exited: {err:?}", err = threads.remove(i).join());
+        }
+    }
 }
