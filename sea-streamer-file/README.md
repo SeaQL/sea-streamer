@@ -7,3 +7,13 @@ It will thus attempt to run through the messages as fast as possible (super-real
 In addition, `stdio` can only work with UTF-8 text data, while `file` is able to work with binary data.
 
 We might be able to commit consumer states into a local SQLite database, enabling transactional behavior.
+
+### Blockers
+
+The status for Decimal serde format in Rust is incomplete. MessagePack has no native Decimal type, while BSON has but the `bson` crate does not. We will need to roll out a Decimal128 crate first...
+
+Ref:
+https://en.wikipedia.org/wiki/Decimal_floating_point
+https://docs.rs/bson/latest/bson/struct.Decimal128.html
+https://github.com/mongodb/specifications/pull/795
+https://github.com/JohnAD/decimal128/blob/master/src/decimal128.nim
