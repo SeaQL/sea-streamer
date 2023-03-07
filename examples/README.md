@@ -103,7 +103,9 @@ So, how to minimize the overall task execution time? You decouple the two busy l
 
 ## Running the blocking processor example
 
-The clock runs 3x faster than the processor, but we have 4 threads, so we expect it to be able to catch up in real-time, and that tasks are randomly assigned to threads.
+The clock runs 3x faster than the processor, but we have 4 threads, so we expect it to be able to catch up in real-time. Tasks are randomly assigned to threads, aka. a "fan out" pattern.
+
+This pattern is useful when you have to perform blocking IO or CPU-heavy computation.
 
 ```bash
 alias clock='cargo run --package sea-streamer-stdio --features=executables --bin clock'
