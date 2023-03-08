@@ -1,4 +1,7 @@
-use redis::{from_redis_value, ErrorKind, FromRedisValue, RedisError, RedisResult};
+use redis::{
+    aio::ConnectionLike, cmd as command, streams::StreamReadOptions, ErrorKind, RedisError,
+    RedisResult, ToRedisArgs,
+};
 use sea_streamer_types::{MessageHeader, SeqNo, SharedMessage, StreamKey, Timestamp};
 
 pub use redis::Value;
@@ -30,9 +33,34 @@ pub struct StreamReadReply {
     pub messages: Vec<SharedMessage>,
 }
 
+pub async fn xread_options<C, K, ID>(
+    con: &mut C,
+    keys: &[K],
+    ids: &[ID],
+    options: &StreamReadOptions,
+) -> RedisResult<StreamReadReply>
+where
+    K: ToRedisArgs,
+    ID: ToRedisArgs,
+    C: ConnectionLike,
+{
+    let mut cmd = command(if options.read_only() {
+        "XREAD"
+    } else {
+        "XREADGROUP"
+    });
+    cmd.arg(options).arg("STREAMS").arg(keys).arg(ids);
+
+    let value = con.req_packed_command(&cmd).await?;
+
+    StreamReadReply::from_redis_value(value)
+}
+
 // bulk(bulk(string-data('"my_stream_1"'), bulk(bulk(string-data('"1678280595282-0"'), bulk(string-data('"msg"'), string-data('"hi 0"'), field, value, ...)), ...)))
-impl FromRedisValue for StreamReadReply {
-    fn from_redis_value(value: &Value) -> RedisResult<Self> {
+// LOL such nesting. This is still undesirable, as there are 5 layers of nested Vec. But at least we don't have to copy the bytes again.
+impl StreamReadReply {
+    /// Like [`redis::FromRedisValue`], but taking ownership instead of copying.
+    fn from_redis_value(value: Value) -> RedisResult<Self> {
         let mut messages = Vec::new();
 
         let err = || {
@@ -49,13 +77,16 @@ impl FromRedisValue for StreamReadReply {
                             if values.len() != 2 {
                                 return Err(err());
                             }
-                            let stream_key: String = from_redis_value(&values[0])?;
+                            let mut values = values.into_iter();
+                            let value_0 = values.next().unwrap();
+                            let value_1 = values.next().unwrap();
+                            let stream_key = string_from_redis_value(value_0)?;
                             let stream_key = StreamKey::new(stream_key).map_err(|_| {
                                 let err: RedisError =
                                     (ErrorKind::ResponseError, "Invalid StreamKey").into();
                                 err
                             })?;
-                            match &values[1] {
+                            match value_1 {
                                 Value::Bulk(values) => {
                                     for value in values {
                                         match value {
@@ -63,19 +94,25 @@ impl FromRedisValue for StreamReadReply {
                                                 if values.len() != 2 {
                                                     return Err(err());
                                                 }
-                                                let id: String = from_redis_value(&values[0])?;
+                                                let mut values = values.into_iter();
+                                                let value_0 = values.next().unwrap();
+                                                let value_1 = values.next().unwrap();
+                                                let id = string_from_redis_value(value_0)?;
                                                 let (timestamp, sequence) =
                                                     parse_message_id(&id).map_err(|_| err())?;
-                                                match &values[1] {
+                                                match value_1 {
                                                     Value::Bulk(values) => {
-                                                        for pair in values.chunks(2) {
-                                                            assert_eq!(pair.len(), 2);
-                                                            let field: String =
-                                                                from_redis_value(&pair[0])?;
-                                                            let value = &pair[1];
-                                                            if field == MSG {
-                                                                let bytes: Vec<u8> =
-                                                                    from_redis_value(&value)?;
+                                                        assert!(values.len() % 2 == 0);
+                                                        let pairs = values.len() / 2;
+                                                        let mut values = values.into_iter();
+                                                        for _ in 0..pairs {
+                                                            let field = values.next().unwrap();
+                                                            let field =
+                                                                string_from_redis_value(field)?;
+                                                            let value = values.next().unwrap();
+                                                            if &field == MSG {
+                                                                let bytes =
+                                                                    bytes_from_redis_value(value)?;
                                                                 let length = bytes.len();
                                                                 messages.push(SharedMessage::new(
                                                                     MessageHeader::new(
@@ -109,5 +146,21 @@ impl FromRedisValue for StreamReadReply {
         }
 
         Ok(StreamReadReply { messages })
+    }
+}
+
+fn string_from_redis_value(v: Value) -> RedisResult<String> {
+    match v {
+        Value::Data(bytes) => Ok(String::from_utf8(bytes)?),
+        Value::Okay => Ok("OK".to_owned()),
+        Value::Status(val) => Ok(val),
+        _ => Err((ErrorKind::TypeError, "Value not String").into()),
+    }
+}
+
+fn bytes_from_redis_value(v: Value) -> RedisResult<Vec<u8>> {
+    match v {
+        Value::Data(bytes) => Ok(bytes),
+        _ => Err((ErrorKind::TypeError, "Value not Data").into()),
     }
 }

@@ -1,6 +1,6 @@
 use anyhow::Result;
-use redis::{streams::StreamReadOptions, AsyncCommands};
-use sea_streamer_redis::StreamReadReply;
+use redis::streams::StreamReadOptions;
+use sea_streamer_redis::{xread_options, StreamReadReply};
 use sea_streamer_types::{Buffer, Message};
 
 #[tokio::main]
@@ -12,9 +12,13 @@ async fn main() -> Result<()> {
 
     let opts = StreamReadOptions::default().count(100).block(0);
 
-    let res: StreamReadReply = con
-        .xread_options(&["my_stream_1", "my_stream_2"], &["0", "0"], &opts)
-        .await?;
+    let res: StreamReadReply = xread_options(
+        &mut con,
+        &["my_stream_1", "my_stream_2"],
+        &["0", "0"],
+        &opts,
+    )
+    .await?;
 
     for message in res.messages {
         println!(
