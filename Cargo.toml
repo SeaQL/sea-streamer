@@ -3,6 +3,7 @@ members = [
     ".",
     "examples",
     "sea-streamer-kafka",
+    "sea-streamer-redis",
     "sea-streamer-runtime",
     "sea-streamer-socket",
     "sea-streamer-stdio",
