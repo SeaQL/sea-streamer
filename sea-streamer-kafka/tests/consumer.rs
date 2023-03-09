@@ -20,7 +20,7 @@ async fn main() -> anyhow::Result<()> {
         Default::default(),
     )
     .await?;
-    let topic = StreamKey::new(format!("basic-{}", Timestamp::now_utc().unix_timestamp()))?;
+    let topic = StreamKey::new(format!("test-{}", Timestamp::now_utc().unix_timestamp()))?;
     let zero = ShardId::new(0);
 
     let producer = streamer
@@ -29,9 +29,11 @@ async fn main() -> anyhow::Result<()> {
 
     for i in 0..7 {
         let message = format!("{i}");
-        producer.send(message)?;
+        let receipt = producer.send(message)?.await?;
+        assert_eq!(receipt.stream_key(), &topic);
+        assert_eq!(receipt.sequence(), &i);
+        assert_eq!(receipt.shard_id(), &zero);
     }
-    sea_streamer_runtime::sleep(std::time::Duration::from_secs(1)).await;
     let point_in_time = Timestamp::now_utc();
     // the seek function is supposedly up to millisecond precision, but lets not push too hard
     sea_streamer_runtime::sleep(std::time::Duration::from_secs(1)).await;

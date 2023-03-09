@@ -26,6 +26,7 @@ impl Debug for KafkaProducer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("KafkaProducer")
             .field("stream", &self.stream)
+            .field("options", &self.options)
             .finish()
     }
 }
@@ -44,7 +45,7 @@ pub struct KafkaProducerOptions {
 }
 
 pub struct SendFuture {
-    stream_key: StreamKey,
+    stream_key: Option<StreamKey>,
     fut: DeliveryFuture,
 }
 
@@ -88,8 +89,10 @@ impl Producer for KafkaProducer {
             .send_result(RawPayload::<str, [u8]>::to(stream.name()).payload(payload.as_bytes()))
             .map_err(|(err, _raw)| stream_err(err))?;
 
-        let stream_key = stream.to_owned();
-        Ok(SendFuture { stream_key, fut })
+        Ok(SendFuture {
+            stream_key: Some(stream.to_owned()),
+            fut,
+        })
     }
 
     fn anchor(&mut self, stream: StreamKey) -> KafkaResult<()> {
@@ -319,12 +322,11 @@ impl Future for SendFuture {
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
-        let stream_key = self.stream_key.to_owned();
         match self.fut.poll_unpin(cx) {
             std::task::Poll::Ready(res) => std::task::Poll::Ready(match res {
                 Ok(res) => match res {
                     Ok((part, offset)) => Ok(MessageHeader::new(
-                        stream_key,
+                        self.stream_key.take().expect("Must have stream_key"),
                         ShardId::new(part as u64),
                         offset as u64,
                         Timestamp::now_utc(),
