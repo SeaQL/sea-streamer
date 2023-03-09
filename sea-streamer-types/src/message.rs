@@ -106,7 +106,7 @@ impl SharedMessage {
 
 impl Message for SharedMessage {
     fn stream_key(&self) -> StreamKey {
-        self.meta.stream_key().to_owned()
+        self.meta.stream_key().clone()
     }
 
     fn shard_id(&self) -> ShardId {

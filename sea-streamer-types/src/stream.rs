@@ -1,4 +1,4 @@
-use std::{fmt::Display, str::FromStr};
+use std::{fmt::Display, str::FromStr, sync::Arc};
 pub use time::OffsetDateTime as Timestamp;
 
 use crate::StreamKeyErr;
@@ -9,7 +9,7 @@ pub const MAX_STREAM_KEY_LEN: usize = 249;
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// Identifies a stream. Aka. topic.
 pub struct StreamKey {
-    name: String,
+    name: Arc<String>,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -30,8 +30,15 @@ pub enum SeqPos {
 }
 
 impl StreamKey {
-    pub fn new<S: AsRef<str>>(key: S) -> Result<Self, StreamKeyErr> {
-        StreamKey::from_str(key.as_ref())
+    pub fn new<S: Into<String>>(key: S) -> Result<Self, StreamKeyErr> {
+        let key = key.into();
+        if is_valid_stream_key(key.as_str()) {
+            Ok(Self {
+                name: Arc::new(key),
+            })
+        } else {
+            Err(StreamKeyErr::InvalidStreamKey)
+        }
     }
 
     pub fn name(&self) -> &str {
@@ -65,12 +72,12 @@ impl FromStr for StreamKey {
     type Err = StreamKeyErr;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.len() <= MAX_STREAM_KEY_LEN && s.chars().all(is_valid_stream_key_char) {
-            Ok(StreamKey { name: s.to_owned() })
-        } else {
-            Err(StreamKeyErr::InvalidStreamKey)
-        }
+        StreamKey::new(s)
     }
+}
+
+pub fn is_valid_stream_key(s: &str) -> bool {
+    s.len() <= MAX_STREAM_KEY_LEN && s.chars().all(is_valid_stream_key_char)
 }
 
 /// Returns true if this character can be used in a stream key.
