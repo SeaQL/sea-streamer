@@ -19,7 +19,6 @@ rustdoc-args = ["--cfg", "docsrs"]
 anyhow = { version = "1", optional = true }
 async-std = { version = "1", optional = true }
 env_logger = { version = "0.9", optional = true }
-fastrand = { version = "1.8" }
 lazy_static = { version = "1.4" }
 mac_address = { version = "1" }
 rdkafka = { version = "0.29", default-features = false, features = ["libz"] }

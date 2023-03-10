@@ -5,6 +5,8 @@
 
 mod sleep;
 mod task;
+mod timeout;
 
 pub use sleep::*;
 pub use task::*;
+pub use timeout::*;

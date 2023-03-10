@@ -2,8 +2,9 @@ use flume::{bounded, r#async::RecvFut, unbounded, Sender};
 use std::{collections::HashMap, fmt::Debug, future::Future, sync::Mutex};
 
 use sea_streamer_types::{
-    export::futures::FutureExt, Buffer, Message, MessageHeader, Producer as ProducerTrait, Receipt,
-    SeqNo, ShardId, SharedMessage, StreamErr, StreamKey, StreamResult, Timestamp,
+    export::{async_trait, futures::FutureExt},
+    Buffer, Message, MessageHeader, Producer as ProducerTrait, Receipt, SeqNo, ShardId,
+    SharedMessage, StreamErr, StreamKey, StreamResult, Timestamp,
 };
 
 use crate::{parser::PartialMeta, StdioErr, StdioResult, BROADCAST, TIMESTAMP_FORMAT};
@@ -173,6 +174,7 @@ impl Debug for SendFuture {
     }
 }
 
+#[async_trait]
 impl ProducerTrait for StdioProducer {
     type Error = StdioErr;
     type SendFuture = SendFuture;
@@ -202,6 +204,11 @@ impl ProducerTrait for StdioProducer {
         Ok(SendFuture {
             fut: receiver.into_recv_async(),
         })
+    }
+
+    #[inline]
+    async fn flush(self) -> StdioResult<()> {
+        self.flush_once().await
     }
 
     fn anchor(&mut self, stream: StreamKey) -> StdioResult<()> {
@@ -241,7 +248,8 @@ impl StdioProducer {
         }
     }
 
-    pub async fn flush(&self) -> StdioResult<()> {
+    /// Like [`ProducerTrait::flush`], but does not destroy one self.
+    pub async fn flush_once(&self) -> StdioResult<()> {
         // the trick here is to send an empty message (that will be dropped) to the stdout thread
         // and wait for the receipt. By the time it returns a receipt, everything before should
         // have already been sent

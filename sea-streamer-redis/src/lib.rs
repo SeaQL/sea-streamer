@@ -16,8 +16,14 @@ pub const ZERO: ShardId = ShardId::new(0);
 #[cfg(all(feature = "runtime-async-std", feature = "runtime-tokio"))]
 compile_error!("'runtime-async-std' and 'runtime-tokio' cannot be enabled at the same time");
 
+mod consumer;
 mod error;
 mod message;
+mod producer;
+mod streamer;
 
+pub use consumer::*;
 pub use error::*;
 pub use message::*;
+pub use producer::*;
+pub use streamer::*;

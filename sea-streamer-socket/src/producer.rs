@@ -3,7 +3,8 @@ use std::{future::Future, pin::Pin, task::Poll};
 use sea_streamer_kafka::KafkaProducer;
 use sea_streamer_stdio::StdioProducer;
 use sea_streamer_types::{
-    export::futures::FutureExt, Buffer, Producer, Receipt, StreamKey, StreamResult,
+    export::{async_trait, futures::FutureExt},
+    Buffer, Producer, Receipt, StreamKey, StreamResult,
 };
 
 use crate::{map_err, Backend, BackendErr, SeaResult, SeaStreamerBackend};
@@ -69,6 +70,7 @@ pub enum SendFuture {
     Stdio(sea_streamer_stdio::SendFuture),
 }
 
+#[async_trait]
 impl Producer for SeaProducer {
     type Error = BackendErr;
 
@@ -85,6 +87,13 @@ impl Producer for SeaProducer {
         })
     }
 
+    async fn flush(self) -> SeaResult<()> {
+        match self.backend {
+            SeaProducerBackend::Kafka(i) => i.flush().await.map_err(map_err),
+            SeaProducerBackend::Stdio(i) => i.flush().await.map_err(map_err),
+        }
+    }
+
     fn anchor(&mut self, stream: StreamKey) -> SeaResult<()> {
         match &mut self.backend {
             SeaProducerBackend::Kafka(i) => i.anchor(stream).map_err(map_err),
@@ -96,16 +105,6 @@ impl Producer for SeaProducer {
         match &self.backend {
             SeaProducerBackend::Kafka(i) => i.anchored().map_err(map_err),
             SeaProducerBackend::Stdio(i) => i.anchored().map_err(map_err),
-        }
-    }
-}
-
-impl SeaProducer {
-    // TODO may be we should add `flush` to the Producer trait
-    pub async fn flush(self) -> SeaResult<()> {
-        match self.backend {
-            SeaProducerBackend::Kafka(i) => i.flush().await.map_err(map_err),
-            SeaProducerBackend::Stdio(i) => i.flush().await.map_err(map_err),
         }
     }
 }

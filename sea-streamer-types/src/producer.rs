@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use futures::Future;
 
 use crate::{Buffer, MessageHeader, StreamKey, StreamResult};
@@ -8,6 +9,7 @@ pub trait ProducerOptions: Default + Clone + Send {}
 /// Delivery receipt.
 pub type Receipt = MessageHeader;
 
+#[async_trait]
 /// Common interface of producers, to be implemented by all backends.
 pub trait Producer: Clone + Send + Sync {
     type Error: std::error::Error;
@@ -20,6 +22,9 @@ pub trait Producer: Clone + Send + Sync {
         stream: &StreamKey,
         payload: S,
     ) -> StreamResult<Self::SendFuture, Self::Error>;
+
+    /// Destroy this producer, only after flushing all it's pending messages.
+    async fn flush(self) -> StreamResult<(), Self::Error>;
 
     /// Send a message to the already anchored stream. This function is non-blocking.
     /// You don't have to await the future if you are not interested in the Receipt.

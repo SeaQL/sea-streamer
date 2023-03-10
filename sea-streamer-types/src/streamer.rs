@@ -22,6 +22,7 @@ pub struct StreamerUri {
 /// ```ignore
 /// stdio://
 /// stdio:///stream_a,stream_b
+/// redis://localhost/
 /// kafka://node-a:1234,node-b:1234/stream_a,stream_b
 /// ```
 pub struct StreamUrl {
@@ -143,7 +144,14 @@ impl FromStr for StreamUrl {
         let urls: Vec<_> = urls
             .split(',')
             .filter(|x| !x.is_empty())
-            .map(|s| FromStr::from_str(s).map_err(Into::into))
+            .map(|s| {
+                if let Some(protocol) = protocol {
+                    FromStr::from_str(format!("{protocol}://{s}").as_str())
+                } else {
+                    FromStr::from_str(s)
+                }
+                .map_err(Into::into)
+            })
             .collect();
 
         Ok(StreamUrl {
@@ -177,40 +185,48 @@ mod test {
 
     #[test]
     fn test_parse_stream_url() {
-        let node: [Url; 1] = ["streamer.cloud.org:1234".parse().unwrap()];
-        let node_a: Url = "node-a:1234".parse().unwrap();
-        let node_b: Url = "node-b:1234".parse().unwrap();
-        let nodes = [node_a, node_b];
         let stream_keys = vec![StreamKey::new("a").unwrap(), StreamKey::new("b").unwrap()];
 
-        let streamer: StreamerUri = "streamer.cloud.org:1234".parse().unwrap();
+        let streamer: StreamerUri = "sea-ql.org:1234".parse().unwrap();
         assert_eq!(streamer.protocol(), None);
-        assert_eq!(streamer.nodes(), &node);
+        assert_eq!(streamer.nodes(), &["sea-ql.org:1234".parse().unwrap()]);
 
-        let streamer: StreamerUri = "node-a:1234,node-b:1234".parse().unwrap();
-        assert_eq!(streamer.protocol(), None);
-        assert_eq!(streamer.nodes(), &nodes);
-
-        let stream: StreamUrl = "proto://streamer.cloud.org:1234".parse().unwrap();
+        let stream: StreamUrl = "proto://sea-ql.org:1234".parse().unwrap();
         assert_eq!(stream.streamer.protocol(), Some("proto"));
-        assert_eq!(stream.streamer.nodes(), &node);
+        assert_eq!(
+            stream.streamer.nodes(),
+            &["proto://sea-ql.org:1234".parse().unwrap()]
+        );
         assert_eq!(stream.stream_keys(), &[]);
 
-        let stream: StreamUrl = "proto://streamer.cloud.org:1234/".parse().unwrap();
+        let stream: StreamUrl = "proto://sea-ql.org:1234/".parse().unwrap();
         assert_eq!(stream.streamer.protocol(), Some("proto"));
-        assert_eq!(stream.streamer.nodes(), &node);
+        assert_eq!(
+            stream.streamer.nodes(),
+            &["proto://sea-ql.org:1234".parse().unwrap()]
+        );
         assert_eq!(stream.stream_keys(), &[]);
 
-        let stream: StreamUrl = "proto://streamer.cloud.org:1234/stream".parse().unwrap();
+        let stream: StreamUrl = "proto://sea-ql.org:1234/stream".parse().unwrap();
         assert_eq!(stream.streamer.protocol(), Some("proto"));
-        assert_eq!(stream.streamer.nodes(), &node);
+        assert_eq!(
+            stream.streamer.nodes(),
+            &["proto://sea-ql.org:1234".parse().unwrap()]
+        );
         assert_eq!(stream.stream_keys(), &[StreamKey::new("stream").unwrap()]);
 
-        let stream: StreamUrl = "proto://streamer.cloud.org:1234/a,b".parse().unwrap();
+        let stream: StreamUrl = "proto://sea-ql.org:1234/a,b".parse().unwrap();
         assert_eq!(stream.streamer.protocol(), Some("proto"));
-        assert_eq!(stream.streamer.nodes(), &node);
+        assert_eq!(
+            stream.streamer.nodes(),
+            &["proto://sea-ql.org:1234".parse().unwrap()]
+        );
         assert_eq!(stream.stream_keys(), &stream_keys);
 
+        let nodes = [
+            "kafka://node-a:1234".parse().unwrap(),
+            "kafka://node-b:1234".parse().unwrap(),
+        ];
         let stream: StreamUrl = "kafka://node-a:1234,node-b:1234/a,b".parse().unwrap();
         assert_eq!(stream.streamer.protocol(), Some("kafka"));
         assert_eq!(stream.streamer.nodes(), &nodes);
@@ -219,6 +235,14 @@ mod test {
         let stream: StreamUrl = "stdio://".parse().unwrap();
         assert_eq!(stream.streamer.protocol(), Some("stdio"));
         assert_eq!(stream.streamer.nodes(), &[]);
+        assert_eq!(stream.stream_keys(), &[]);
+
+        let stream: StreamUrl = "redis://localhost/".parse().unwrap();
+        assert_eq!(stream.streamer.protocol(), Some("redis"));
+        assert_eq!(
+            stream.streamer.nodes(),
+            &["redis://localhost".parse().unwrap()]
+        );
         assert_eq!(stream.stream_keys(), &[]);
 
         let stream: StreamUrl = "stdio:///a,b".parse().unwrap();
@@ -232,7 +256,7 @@ mod test {
         use crate::StreamKeyErr;
 
         assert!(matches!(
-            "proto://streamer.cloud.org:1234/stream?".parse::<StreamUrl>(),
+            "proto://sea-ql.org:1234/stream?".parse::<StreamUrl>(),
             Err(StreamUrlErr::StreamKeyErr(StreamKeyErr::InvalidStreamKey))
         ));
     }

@@ -259,7 +259,7 @@ impl ConsumerTrait for KafkaConsumer {
     type Stream<'a> = KafkaMessageStream<'a>;
 
     /// Seek all streams to the given point in time, across all assigned partitions.
-    /// Call [`ConsumerTrait::assign`] to assign a partition beforehand.
+    /// Call [`Consumer::assign`] to assign a partition beforehand.
     ///
     /// # Warning
     ///
@@ -271,7 +271,7 @@ impl ConsumerTrait for KafkaConsumer {
     }
 
     /// Note: this rewind all streams across all assigned partitions.
-    /// Call [`ConsumerTrait::assign`] to assign a partition beforehand.
+    /// Call [`Consumer::assign`] to assign a partition beforehand.
     fn rewind(&mut self, offset: SeqPos) -> KafkaResult<()> {
         let mut tpl = TopicPartitionList::new();
 
@@ -358,7 +358,7 @@ impl KafkaConsumer {
 
     /// Seek all streams to the given point in time.
     /// This is an async operation which you can set a timeout.
-    /// Call [`ConsumerTrait::assign`] to assign a partition beforehand.
+    /// Call [`Consumer::assign`] to assign a partition beforehand.
     ///
     /// # Warning
     ///

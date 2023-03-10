@@ -11,8 +11,9 @@ use rdkafka::{
 pub use rdkafka::{consumer::ConsumerGroupMetadata, TopicPartitionList};
 use sea_streamer_runtime::spawn_blocking;
 use sea_streamer_types::{
-    export::futures::FutureExt, runtime_error, Buffer, MessageHeader, Producer, ProducerOptions,
-    ShardId, StreamErr, StreamKey, StreamResult, StreamerUri, Timestamp,
+    export::{async_trait, futures::FutureExt},
+    runtime_error, Buffer, MessageHeader, Producer, ProducerOptions, ShardId, StreamErr, StreamKey,
+    StreamResult, StreamerUri, Timestamp,
 };
 
 #[derive(Clone)]
@@ -49,6 +50,14 @@ pub struct SendFuture {
     fut: DeliveryFuture,
 }
 
+impl Debug for SendFuture {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SendFuture")
+            .field("stream_key", &self.stream_key)
+            .finish()
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum KafkaProducerOptionKey {
     CompressionType,
@@ -71,14 +80,7 @@ impl Default for CompressionType {
     }
 }
 
-impl Debug for SendFuture {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SendFuture")
-            .field("stream_key", &self.stream_key)
-            .finish()
-    }
-}
-
+#[async_trait]
 impl Producer for KafkaProducer {
     type Error = KafkaErr;
     type SendFuture = SendFuture;
@@ -93,6 +95,11 @@ impl Producer for KafkaProducer {
             stream_key: Some(stream.to_owned()),
             fut,
         })
+    }
+
+    #[inline]
+    async fn flush(self) -> KafkaResult<()> {
+        self.flush_with_timeout(DEFAULT_TIMEOUT).await
     }
 
     fn anchor(&mut self, stream: StreamKey) -> KafkaResult<()> {
@@ -231,13 +238,7 @@ impl KafkaProducer {
         self.get().flush(timeout).map_err(stream_err)
     }
 
-    /// Flush pending messages.
-    #[inline]
-    pub async fn flush(self) -> KafkaResult<()> {
-        self.flush_with_timeout(DEFAULT_TIMEOUT).await
-    }
-
-    /// Flush pending messages.
+    /// Flush pending messages with a timeout.
     pub async fn flush_with_timeout(self, timeout: Duration) -> KafkaResult<()> {
         spawn_blocking(move || self.flush_sync(timeout))
             .await
