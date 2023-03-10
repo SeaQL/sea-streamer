@@ -3,6 +3,8 @@
 This is the Kafka / Redpanda backend implementation for SeaStreamer.
 This crate provides a comprehensive type system that makes working with Kafka easier and safer.
 
+First of all, all API (many are sync) are properly wrapped as async. Methods are also marked `&mut` to eliminate possible race conditions.
+
 `KafkaConsumerOptions` has typed parameters.
 
 `KafkaConsumer` allows you to `seek` to point in time, `rewind` to particular offset, and `commit` message read.
@@ -17,4 +19,4 @@ This crate depends on [`rdkafka`](https://docs.rs/rdkafka),
 which in turn depends on [librdkafka-sys](https://docs.rs/librdkafka-sys), which itself is a wrapper of
 [librdkafka](https://docs.confluent.io/platform/current/clients/librdkafka/html/index.html).
 
-Reference: <https://kafka.apache.org/documentation/#configuration>
+Configuration Reference: <https://kafka.apache.org/documentation/#configuration>

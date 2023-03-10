@@ -63,7 +63,8 @@ impl ConsumerOptions for RedisConsumerOptions {
     }
 
     /// If multiple consumers share the same group, only one in the group will receive a message.
-    /// This is load-balanced in a 'fair' manner, according to Redis.
+    /// This is load-balanced in a first-ask-first-served manner, according to the Redis documentation.
+    /// This can be considered dynamic load-balancing: faster consumers will consume more messages.
     fn set_consumer_group(&mut self, group: ConsumerGroup) -> RedisResult<&mut Self> {
         self.group = Some(group);
         Ok(self)

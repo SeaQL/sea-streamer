@@ -1,4 +1,6 @@
 //! ### `sea-streamer-redis`: Redis Backend
+//!
+//! > 🚧 Work in Progress
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![deny(missing_debug_implementations)]
