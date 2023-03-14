@@ -20,8 +20,9 @@ anyhow = { version = "1", optional = true }
 async-std = { version = "1", optional = true }
 env_logger = { version = "0.9", optional = true }
 flume = { version = "0.10", default-features = false, features = ["async"] }
-# lazy_static = { version = "1.4" }
-# mac_address = { version = "1" }
+lazy_static = { version = "1.4" }
+log = { version = "0.4", default-features = false }
+mac_address = { version = "1" }
 redis = { version = "0.22", default-features = false, features = ["acl", "streams"] }
 sea-streamer-types = { version = "0.1", path = "../sea-streamer-types" }
 sea-streamer-runtime = { version = "0.1", path = "../sea-streamer-runtime" }
@@ -32,7 +33,7 @@ tokio = { version = "1.10.0", optional = true }
 [dev-dependencies]
 
 [features]
-default = ["executables"]
+default = ["executables"] # remove before publish
 test = ["anyhow", "async-std?/attributes", "tokio?/full", "env_logger"]
 executables = ["anyhow", "env_logger", "structopt", "runtime-tokio", "tokio/full"]
 runtime-async-std = ["async-std", "redis/async-std-comp", "sea-streamer-runtime/runtime-async-std"]

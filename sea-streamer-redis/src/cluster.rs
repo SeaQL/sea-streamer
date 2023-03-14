@@ -47,8 +47,8 @@ impl RedisCluster {
         self.cluster.protocol()
     }
 
-    /// Will drop all existing connections
-    pub async fn reconnect(&mut self) -> RedisResult<()> {
+    /// Will drop all existing connections. This method returns OK only if it can connect to all nodes.
+    pub async fn reconnect_all(&mut self) -> RedisResult<()> {
         self.conn = Default::default();
         for node in self.cluster.nodes() {
             let conn = create_connection(node.clone(), self.options.clone()).await?;
@@ -57,12 +57,20 @@ impl RedisCluster {
         Ok(())
     }
 
+    /// An error has occured on the connection. Attempt to reconnect *later*.
+    pub fn reconnect(&mut self, node: &Url) -> RedisResult<()> {
+        if let Some(state) = self.conn.get_mut(node) {
+            *state = Connection::Reconnecting { delay: 1 };
+        }
+        Ok(())
+    }
+
+    #[inline]
     /// Get the cached node for this key. There is no guarantee that the key assignment is right.
     pub fn node_for(&self, key: &str) -> &Url {
         Self::get_node_for(&self.keys, &self.cluster, key)
     }
 
-    #[inline]
     fn get_node_for<'a>(
         keys: &'a HashMap<String, Url>,
         cluster: &'a StreamerUri,
@@ -84,22 +92,36 @@ impl RedisCluster {
         }
     }
 
+    #[inline]
     /// Get a connection to the specific node, will wait and retry a few times until dead.
     pub async fn get(&mut self, node: &Url) -> RedisResult<&mut redis::aio::Connection> {
         Self::get_connection(&mut self.conn, &self.options, node).await
     }
 
+    /// Get any available connection to the cluster
+    pub fn get_any(&mut self) -> RedisResult<&mut redis::aio::Connection> {
+        for state in self.conn.values_mut() {
+            if let Connection::Alive(conn) = state {
+                return Ok(conn);
+            }
+        }
+        Err(StreamErr::Connect("No open connections".to_owned()))
+    }
+
+    #[inline]
     /// Get a connection that is assigned with the specific key, will wait and retry a few times until dead.
     /// There is no guarantee that the key assignment is right.
     pub async fn get_connection_for(
         &mut self,
         key: &str,
-    ) -> RedisResult<&mut redis::aio::Connection> {
+    ) -> RedisResult<(&Url, &mut redis::aio::Connection)> {
         let node = Self::get_node_for(&self.keys, &self.cluster, key);
-        Self::get_connection(&mut self.conn, &self.options, node).await
+        Ok((
+            node,
+            Self::get_connection(&mut self.conn, &self.options, node).await?,
+        ))
     }
 
-    #[inline]
     async fn get_connection<'a>(
         conn: &'a mut HashMap<Url, Connection>,
         options: &Arc<RedisConnectOptions>,
@@ -112,6 +134,7 @@ impl RedisCluster {
             match state {
                 Connection::Alive(_) | Connection::Dead => (),
                 Connection::Reconnecting { delay } => {
+                    assert!(*delay > 0);
                     sleep(Duration::from_secs(*delay as u64)).await;
                     match create_connection(node.clone(), options.clone()).await {
                         Ok(conn) => {

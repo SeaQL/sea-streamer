@@ -1,26 +1,31 @@
 use anyhow::Result;
-use redis::streams::StreamReadOptions;
-use sea_streamer_redis::{xread_options, StreamReadReply};
-use sea_streamer_types::{Buffer, Message};
+use sea_streamer_redis::RedisStreamer;
+use sea_streamer_types::{Buffer, Consumer, Message, StreamUrl, Streamer};
+use structopt::StructOpt;
+
+#[derive(Debug, StructOpt)]
+struct Args {
+    #[structopt(
+        long,
+        help = "Streamer URI with stream key, i.e. try `redis://localhost/hello`",
+        env = "STREAM_URL"
+    )]
+    stream: StreamUrl,
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
 
-    let client = redis::Client::open("redis://localhost/")?;
-    let mut con = client.get_async_connection().await?;
+    let Args { stream } = Args::from_args();
 
-    let opts = StreamReadOptions::default().count(100).block(0);
+    let streamer = RedisStreamer::connect(stream.streamer(), Default::default()).await?;
+    let consumer = streamer
+        .create_consumer(stream.stream_keys(), Default::default())
+        .await?;
 
-    let res: StreamReadReply = xread_options(
-        &mut con,
-        &["my_stream_1", "my_stream_2"],
-        &["0", "0"],
-        &opts,
-    )
-    .await?;
-
-    for message in res.messages {
+    loop {
+        let message = consumer.next().await?;
         println!(
             "[{timestamp} | {stream_key} | {sequence}] {payload}",
             timestamp = message.timestamp(),
@@ -29,6 +34,4 @@ async fn main() -> Result<()> {
             payload = message.message().as_str().unwrap(),
         );
     }
-
-    Ok(())
 }

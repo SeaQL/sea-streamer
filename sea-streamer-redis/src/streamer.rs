@@ -1,8 +1,8 @@
 use std::{sync::Arc, time::Duration};
 
 use crate::{
-    create_producer, RedisCluster, RedisConsumer, RedisConsumerOptions, RedisErr, RedisProducer,
-    RedisProducerOptions, RedisResult, REDIS_PORT,
+    create_consumer, create_producer, RedisCluster, RedisConsumer, RedisConsumerOptions, RedisErr,
+    RedisProducer, RedisProducerOptions, RedisResult, REDIS_PORT,
 };
 use sea_streamer_types::{
     export::async_trait, ConnectOptions, StreamErr, StreamKey, StreamUrlErr, Streamer, StreamerUri,
@@ -49,7 +49,7 @@ impl Streamer for RedisStreamer {
         }));
         let options = Arc::new(options);
         let mut cluster = RedisCluster::new(uri.clone(), options.clone())?;
-        cluster.reconnect().await?;
+        cluster.reconnect_all().await?;
         Ok(RedisStreamer { uri, options })
     }
 
@@ -67,10 +67,11 @@ impl Streamer for RedisStreamer {
 
     async fn create_consumer(
         &self,
-        _streams: &[StreamKey],
-        _options: Self::ConsumerOptions,
+        streams: &[StreamKey],
+        options: Self::ConsumerOptions,
     ) -> RedisResult<Self::Consumer> {
-        todo!()
+        let cluster = RedisCluster::new(self.uri.clone(), self.options.clone())?;
+        create_consumer(cluster, options, streams.to_vec()).await
     }
 }
 

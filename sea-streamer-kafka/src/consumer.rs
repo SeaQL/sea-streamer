@@ -67,11 +67,11 @@ type OptionKey = KafkaConsumerOptionKey;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum AutoOffsetReset {
-    /// automatically reset the offset to the earliest offset
+    /// Automatically reset the offset to the earliest offset.
     Earliest,
-    /// automatically reset the offset to the latest offset
+    /// Automatically reset the offset to the latest offset.
     Latest,
-    /// throw exception to the consumer if no previous offset is found for the consumer's group
+    /// Throw exception to the consumer if no previous offset is found for the consumer's group.
     NoReset,
 }
 
@@ -120,10 +120,10 @@ impl KafkaConsumerOptions {
         self.session_timeout.as_ref()
     }
 
-    /// What to do when there is no initial offset in Kafka or if the current offset does
+    /// Where to stream from when there is no initial offset in Kafka or if the current offset does
     /// not exist any more on the server.
     ///
-    /// If unset, defaults to Latest
+    /// If unset, defaults to Latest.
     ///
     /// <https://kafka.apache.org/documentation/#consumerconfigs_auto.offset.reset>
     pub fn set_auto_offset_reset(&mut self, v: AutoOffsetReset) -> &mut Self {

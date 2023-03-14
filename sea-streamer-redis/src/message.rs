@@ -1,6 +1,8 @@
 use crate::{RedisErr, RedisResult, StreamReadReply, MSG, ZERO};
 use redis::Value;
-use sea_streamer_types::{MessageHeader, SeqNo, SharedMessage, StreamErr, StreamKey, Timestamp};
+use sea_streamer_types::{
+    MessageHeader, SeqNo, ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
+};
 
 /// The Redis message id comprises two 64 bit integers. In order to fit it into 64 bit,
 /// we only allocate 48 bit to the timestamp, and the remaining 16 bit to the sub-sequence number.
@@ -11,6 +13,11 @@ pub fn parse_message_id(id: &str) -> RedisResult<(Timestamp, SeqNo)> {
     if let Some((timestamp, seq_no)) = id.split_once('-') {
         if let Ok(timestamp) = timestamp.parse::<u64>() {
             if let Ok(seq_no) = seq_no.parse::<u64>() {
+                if seq_no > 0xFFFF {
+                    return Err(StreamErr::Backend(RedisErr::MessageId(format!(
+                        "Sequence number out of range: {seq_no}"
+                    ))));
+                }
                 return Ok((
                     Timestamp::from_unix_timestamp_nanos(timestamp as i128 * 1_000_000)
                         .expect("from_unix_timestamp_nanos"),
@@ -41,6 +48,19 @@ impl StreamReadReply {
                     let value_0 = values.next().unwrap();
                     let value_1 = values.next().unwrap();
                     let stream_key = string_from_redis_value(value_0)?;
+                    let (stream_key, shard) =
+                        if let Some((front, remaining)) = stream_key.split_once(':') {
+                            (
+                                front.to_owned(),
+                                ShardId::new(remaining.parse().map_err(|_| {
+                                    StreamErr::Backend(RedisErr::StreamReadReply(format!(
+                                        "Failed to parse `{remaining}` as u64"
+                                    )))
+                                })?),
+                            )
+                        } else {
+                            (stream_key, ZERO)
+                        };
                     let stream_key = StreamKey::new(stream_key)?;
                     if let Value::Bulk(values) = value_1 {
                         for value in values {
@@ -67,7 +87,7 @@ impl StreamReadReply {
                                             messages.push(SharedMessage::new(
                                                 MessageHeader::new(
                                                     stream_key.clone(),
-                                                    ZERO,
+                                                    shard,
                                                     sequence,
                                                     timestamp,
                                                 ),
@@ -85,7 +105,7 @@ impl StreamReadReply {
             }
         }
 
-        Ok(StreamReadReply { messages })
+        Ok(StreamReadReply(messages))
     }
 }
 

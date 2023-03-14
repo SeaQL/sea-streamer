@@ -24,6 +24,7 @@ compile_error!("'runtime-async-std' and 'runtime-tokio' cannot be enabled at the
 mod cluster;
 mod consumer;
 mod error;
+mod host;
 mod message;
 mod producer;
 mod streamer;
@@ -31,6 +32,7 @@ mod streamer;
 pub use cluster::*;
 pub use consumer::*;
 pub use error::*;
+pub use host::*;
 pub use message::*;
 pub use producer::*;
 pub use streamer::*;

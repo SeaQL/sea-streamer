@@ -156,7 +156,7 @@ pub(crate) async fn create_producer(
     mut cluster: RedisCluster,
     mut options: RedisProducerOptions,
 ) -> RedisResult<RedisProducer> {
-    cluster.reconnect().await?; // init connections
+    cluster.reconnect_all().await?; // init connections
     let (sender, receiver) = unbounded();
     let mut sharder = options.sharder.take().map(|a| a.init());
 
@@ -194,12 +194,15 @@ pub(crate) async fn create_producer(
                 cmd.arg("*");
                 let msg = [(MSG, bytes)];
                 cmd.arg(&msg);
-                let (mut i, mut asked) = (0, 0);
+                let (mut retried, mut asked) = (0, 0);
                 let result = loop {
-                    let conn = match cluster.get_connection_for(redis_key).await {
+                    let (node, conn) = match cluster.get_connection_for(redis_key).await {
                         Ok(conn) => conn,
                         Err(StreamErr::Backend(RedisErr::TryAgain(_))) => continue, // it will sleep inside `get_connection`
-                        Err(_) => return, // this will kill all producers
+                        Err(err) => {
+                            log::error!("{err:?}");
+                            return; // this will kill the producer
+                        }
                     };
                     match conn.req_packed_command(&cmd).await {
                         Ok(id) => {
@@ -214,36 +217,43 @@ pub(crate) async fn create_producer(
                             }
                         }
                         Err(err) => {
-                            i += 1;
-                            if i == MAX_RETRY {
+                            retried += 1;
+                            if retried == MAX_RETRY {
                                 panic!(
-                                    "The cluster might have a problem. Already retried {i} times."
+                                    "The cluster might have a problem. Already retried {retried} times."
                                 );
                             }
-                            if err.is_cluster_error() {
-                                let kind = err.kind();
-
-                                if kind == ErrorKind::Moved {
-                                    cluster.moved(
-                                        redis_key,
-                                        match err.redirect_node() {
-                                            Some((to, _slot)) => {
-                                                // `to` must be in form of `host:port` without protocol
-                                                format!("{}://{}", cluster.protocol().unwrap(), to)
-                                                    .parse()
-                                                    .expect("Failed to parse URL: {to}")
-                                            }
-                                            None => panic!("Key is moved, but to where? {err:?}"),
-                                        },
-                                    );
-                                } else {
-                                    // If it's an ASK, we wait until it finished moving.
-                                    // What benefits, in stream producing terms, does ASK give?
-                                    // This is an exponential backoff, in seq of [1, 2, 4, 8, 16, 32, 64].
-                                    sleep(Duration::from_secs(1 << std::cmp::min(6, asked))).await;
-                                    asked += 1;
-                                }
+                            let kind = err.kind();
+                            if kind == ErrorKind::Moved {
+                                cluster.moved(
+                                    redis_key,
+                                    match err.redirect_node() {
+                                        Some((to, _slot)) => {
+                                            // `to` must be in form of `host:port` without protocol
+                                            format!("{}://{}", cluster.protocol().unwrap(), to)
+                                                .parse()
+                                                .expect("Failed to parse URL: {to}")
+                                        }
+                                        None => panic!("Key is moved, but to where? {err:?}"),
+                                    },
+                                );
+                            } else if matches!(
+                                kind,
+                                ErrorKind::Ask
+                                    | ErrorKind::TryAgain
+                                    | ErrorKind::ClusterDown
+                                    | ErrorKind::MasterDown
+                            ) {
+                                // If it's an ASK, we wait until it finished moving.
+                                // What benefits, in stream producing terms, does ASK give?
+                                // This is an exponential backoff, in seq of [1, 2, 4, 8, 16, 32, 64].
+                                sleep(Duration::from_secs(1 << std::cmp::min(6, asked))).await;
+                                asked += 1;
+                            } else if kind == ErrorKind::IoError {
+                                let node = node.to_owned();
+                                cluster.reconnect(&node).ok();
                             } else {
+                                // unrecoverable
                                 break Err(map_err(err));
                             }
                         }
