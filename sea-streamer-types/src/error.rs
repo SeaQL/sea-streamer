@@ -27,6 +27,8 @@ pub enum StreamErr<E: std::error::Error> {
     CommitNotAllowed,
     #[error("Utf8Error: {0}")]
     Utf8Error(Utf8Error),
+    #[error("StreamUrlErr {0}")]
+    StreamUrlErr(#[from] StreamUrlErr),
     #[error("StreamKeyErr {0}")]
     StreamKeyErr(#[from] StreamKeyErr),
     #[error("Unsupported feature: {0}")]
@@ -57,6 +59,8 @@ pub enum StreamUrlErr {
     StreamKeyErr(#[from] StreamKeyErr),
     #[error("Expected one stream key, found zero or more than one")]
     NotOneStreamKey,
+    #[error("Protocol is required")]
+    ProtocolRequired,
 }
 
 #[derive(Error, Debug)]

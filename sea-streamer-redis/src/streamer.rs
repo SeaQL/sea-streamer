@@ -1,19 +1,17 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use crate::{
-    create_producer, map_err, RedisConsumer, RedisConsumerOptions, RedisErr, RedisProducer,
+    create_producer, RedisCluster, RedisConsumer, RedisConsumerOptions, RedisErr, RedisProducer,
     RedisProducerOptions, RedisResult, REDIS_PORT,
 };
-use redis::{ConnectionAddr, ConnectionInfo, RedisConnectionInfo};
-use sea_streamer_runtime::timeout;
 use sea_streamer_types::{
-    export::async_trait, ConnectOptions, StreamErr, StreamKey, Streamer, StreamerUri,
+    export::async_trait, ConnectOptions, StreamErr, StreamKey, StreamUrlErr, Streamer, StreamerUri,
 };
 
 #[derive(Debug, Clone)]
 pub struct RedisStreamer {
     uri: StreamerUri,
-    options: RedisConnectOptions,
+    options: Arc<RedisConnectOptions>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -35,6 +33,23 @@ impl Streamer for RedisStreamer {
     type ProducerOptions = RedisProducerOptions;
 
     async fn connect(uri: StreamerUri, options: Self::ConnectOptions) -> RedisResult<Self> {
+        if uri.protocol().is_none() {
+            return Err(StreamErr::StreamUrlErr(StreamUrlErr::ProtocolRequired));
+        }
+        let uri = StreamerUri::many(uri.into_nodes().map(|u| {
+            // normalize uri
+            format!(
+                "{}://{}:{}",
+                u.scheme(),
+                u.host().expect("Should have host"),
+                u.port().unwrap_or(REDIS_PORT)
+            )
+            .parse()
+            .expect("Must not fail")
+        }));
+        let options = Arc::new(options);
+        let mut cluster = RedisCluster::new(uri.clone(), options.clone())?;
+        cluster.reconnect().await?;
         Ok(RedisStreamer { uri, options })
     }
 
@@ -46,7 +61,8 @@ impl Streamer for RedisStreamer {
         &self,
         options: Self::ProducerOptions,
     ) -> RedisResult<Self::Producer> {
-        create_producer(self.create_connection().await?, options).await
+        let cluster = RedisCluster::new(self.uri.clone(), self.options.clone())?;
+        create_producer(cluster, options).await
     }
 
     async fn create_consumer(
@@ -58,52 +74,6 @@ impl Streamer for RedisStreamer {
     }
 }
 
-impl RedisStreamer {
-    async fn create_connection(&self) -> RedisResult<redis::aio::Connection> {
-        let nodes = self.uri.nodes();
-        if nodes.is_empty() {
-            return Err(StreamErr::Connect("There are no nodes".to_owned()));
-        }
-        let url = nodes.first().unwrap();
-        let host = if let Some(host) = url.host_str() {
-            host.to_owned()
-        } else {
-            return Err(StreamErr::Connect("Host empty".to_owned()));
-        };
-        let port = url.port().unwrap_or(REDIS_PORT);
-        let conn = ConnectionInfo {
-            addr: match self.uri.protocol() {
-                Some("redis") => ConnectionAddr::Tcp(host, port),
-                Some("rediss") => ConnectionAddr::TcpTls {
-                    host,
-                    port,
-                    insecure: self.options.disable_hostname_verification,
-                },
-                Some(protocol) => {
-                    return Err(StreamErr::Connect(format!("unknown protocol `{protocol}`")))
-                }
-                None => return Err(StreamErr::Connect("protocol not set".to_owned())),
-            },
-            redis: RedisConnectionInfo {
-                db: self.options.db as i64,
-                username: self.options.username.clone(),
-                password: self.options.password.clone(),
-            },
-        };
-        let client = redis::Client::open(conn).map_err(map_err)?;
-        if let Ok(dur) = self.options.timeout() {
-            // I wish we could do `.await_timeout(d)` some day
-            match timeout(dur, client.get_async_connection()).await {
-                Ok(Ok(conn)) => Ok(conn),
-                Ok(Err(err)) => Err(map_err(err)),
-                Err(_) => Err(StreamErr::Connect("Connection timeout".to_owned())),
-            }
-        } else {
-            client.get_async_connection().await.map_err(map_err)
-        }
-    }
-}
-
 impl ConnectOptions for RedisConnectOptions {
     type Error = RedisErr;
 
@@ -111,7 +81,7 @@ impl ConnectOptions for RedisConnectOptions {
         self.timeout.ok_or(StreamErr::TimeoutNotSet)
     }
 
-    /// Timeout for network requests. If unset, it will never timeout.
+    /// Timeout for network requests. Defaults to [`crate::DEFAULT_TIMEOUT`].
     fn set_timeout(&mut self, v: Duration) -> RedisResult<&mut Self> {
         self.timeout = Some(v);
         Ok(self)

@@ -10,7 +10,6 @@ use url::Url;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// URI of Streaming Server. If this is a cluster, there can be multiple nodes.
 pub struct StreamerUri {
-    protocol: Option<String>,
     nodes: Vec<Url>,
 }
 
@@ -76,32 +75,37 @@ pub trait Streamer: Sized {
 
 impl StreamerUri {
     pub fn zero() -> Self {
-        Self {
-            protocol: None,
-            nodes: Vec::new(),
-        }
+        Self { nodes: Vec::new() }
     }
 
     pub fn one(url: Url) -> Self {
-        Self {
-            protocol: None,
-            nodes: vec![url],
-        }
+        Self { nodes: vec![url] }
     }
 
     pub fn many(urls: impl Iterator<Item = Url>) -> Self {
-        Self {
-            protocol: None,
-            nodes: urls.collect(),
-        }
+        let nodes: Vec<Url> = urls.collect();
+        Self { nodes }
     }
 
     pub fn protocol(&self) -> Option<&str> {
-        self.protocol.as_deref()
+        match self.nodes.first() {
+            Some(node) => {
+                if !node.scheme().is_empty() && node.host().is_some() {
+                    Some(node.scheme())
+                } else {
+                    None
+                }
+            }
+            None => None,
+        }
     }
 
     pub fn nodes(&self) -> &[Url] {
         &self.nodes
+    }
+
+    pub fn into_nodes(self) -> impl Iterator<Item = Url> {
+        self.nodes.into_iter()
     }
 }
 
@@ -141,24 +145,31 @@ impl FromStr for StreamUrl {
             urls = front;
             streams = Some(remaining);
         }
-        let urls: Vec<_> = urls
-            .split(',')
-            .filter(|x| !x.is_empty())
-            .map(|s| {
-                if let Some(protocol) = protocol {
-                    FromStr::from_str(format!("{protocol}://{s}").as_str())
-                } else {
-                    FromStr::from_str(s)
-                }
-                .map_err(Into::into)
-            })
-            .collect();
+        let urls: Vec<_> = if urls.is_empty() {
+            if let Some(protocol) = protocol {
+                vec![format!("{protocol}://.")
+                    .as_str()
+                    .parse::<Url>()
+                    .map_err(Into::<Self::Err>::into)?]
+            } else {
+                return Err(StreamUrlErr::ProtocolRequired);
+            }
+        } else {
+            urls.split(',')
+                .filter(|x| !x.is_empty())
+                .map(|s| {
+                    if let Some(protocol) = protocol {
+                        FromStr::from_str(format!("{protocol}://{s}").as_str())
+                    } else {
+                        FromStr::from_str(s)
+                    }
+                    .map_err(Into::into)
+                })
+                .collect::<Result<Vec<_>, Self::Err>>()?
+        };
 
         Ok(StreamUrl {
-            streamer: StreamerUri {
-                protocol: protocol.map(|s| s.to_owned()),
-                nodes: urls.into_iter().collect::<Result<Vec<_>, Self::Err>>()?,
-            },
+            streamer: StreamerUri { nodes: urls },
             streams: match streams {
                 None => Default::default(),
                 Some(streams) => streams
@@ -234,7 +245,7 @@ mod test {
 
         let stream: StreamUrl = "stdio://".parse().unwrap();
         assert_eq!(stream.streamer.protocol(), Some("stdio"));
-        assert_eq!(stream.streamer.nodes(), &[]);
+        assert_eq!(stream.streamer.nodes(), &["stdio://.".parse().unwrap()]);
         assert_eq!(stream.stream_keys(), &[]);
 
         let stream: StreamUrl = "redis://localhost/".parse().unwrap();
@@ -247,7 +258,7 @@ mod test {
 
         let stream: StreamUrl = "stdio:///a,b".parse().unwrap();
         assert_eq!(stream.streamer.protocol(), Some("stdio"));
-        assert_eq!(stream.streamer.nodes(), &[]);
+        assert_eq!(stream.streamer.nodes(), &["stdio://.".parse().unwrap()]);
         assert_eq!(stream.stream_keys(), &stream_keys);
     }
 

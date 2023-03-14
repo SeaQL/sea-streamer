@@ -1,9 +1,12 @@
 use flume::{bounded, r#async::RecvFut, unbounded, Sender};
-use redis::{aio::ConnectionLike, cmd as command};
-use std::{fmt::Debug, future::Future, sync::Arc};
+use redis::{aio::ConnectionLike, cmd as command, ErrorKind};
+use std::{fmt::Debug, future::Future, sync::Arc, time::Duration};
 
-use crate::{map_err, parse_message_id, string_from_redis_value, RedisErr, RedisResult, MSG, ZERO};
-use sea_streamer_runtime::spawn_task;
+use crate::{
+    map_err, parse_message_id, string_from_redis_value, RedisCluster, RedisErr, RedisResult, MSG,
+    ZERO,
+};
+use sea_streamer_runtime::{sleep, spawn_task};
 use sea_streamer_types::{
     export::{async_trait, futures::FutureExt},
     Buffer, MessageHeader, Producer, ProducerOptions, Receipt, ShardId, StreamErr, StreamKey,
@@ -11,6 +14,7 @@ use sea_streamer_types::{
 };
 
 const SEA_STREAMER_INTERNAL: &str = "SEA_STREAMER_INTERNAL";
+const MAX_RETRY: usize = 100;
 
 #[derive(Debug, Clone)]
 pub struct RedisProducer {
@@ -57,10 +61,12 @@ pub trait SharderConfig: Debug + Send + Sync {
 /// Custom sharding strategy
 pub trait Sharder: Send {
     /// Return the determined shard id for the given message.
-    /// It will then be sent to the stream `STREAM_KEY:{SHARD}`, i.e. the shard becomes the hash tag.
-    /// This will ensure that shards will be properly sharded by Redis Cluster.
     /// This should be a *real quick* computation, otherwise this can become the bottleneck of streaming.
     /// Mutex, atomic or anything that can create contention will be disastrous.
+    ///
+    /// It will then be sent to the stream with key `STREAM_KEY:SHARD`.
+    /// The Redis Cluster will allocate this shard to a particular node as the cluster scales.
+    /// Different shards may or may not end up in the same slot, and thus may or may not end up in the same node.
     fn shard(&mut self, stream_key: &StreamKey, bytes: &[u8]) -> u64;
 }
 
@@ -118,7 +124,7 @@ impl Producer for RedisProducer {
 impl RedisProducer {
     /// Like [`ProducerTrait::flush`], but does not destroy one self.
     pub async fn flush_once(&self) -> RedisResult<()> {
-        // The trick here is to send a special message and wait for the receipt.
+        // The trick here is to send a signal message and wait for the receipt.
         // By the time it returns a receipt, everything before should have already been sent.
         let null = [];
         self.send_to(&StreamKey::new(SEA_STREAMER_INTERNAL)?, null.as_slice())?
@@ -147,9 +153,10 @@ impl Future for SendFuture {
 }
 
 pub(crate) async fn create_producer(
-    mut conn: redis::aio::Connection,
+    mut cluster: RedisCluster,
     mut options: RedisProducerOptions,
 ) -> RedisResult<RedisProducer> {
+    cluster.reconnect().await?; // init connections
     let (sender, receiver) = unbounded();
     let mut sharder = options.sharder.take().map(|a| a.init());
 
@@ -163,6 +170,7 @@ pub(crate) async fn create_producer(
         }) = receiver.recv_async().await
         {
             if stream_key.name() == SEA_STREAMER_INTERNAL && bytes.is_empty() {
+                // A signalling message
                 receipt
                     .send_async(Ok(MessageHeader::new(
                         stream_key,
@@ -174,36 +182,74 @@ pub(crate) async fn create_producer(
                     .ok();
             } else {
                 let mut cmd = command("XADD");
-                let shard = if let Some(sharder) = sharder.as_mut() {
+                let redis_stream_key;
+                let (redis_key, shard) = if let Some(sharder) = sharder.as_mut() {
                     let shard = sharder.shard(&stream_key, bytes.as_slice());
-                    cmd.arg(format!(
-                        "{name}:{{{i}}}",
-                        name = stream_key.name(),
-                        i = shard
-                    ));
-                    ShardId::new(shard)
+                    redis_stream_key = format!("{name}:{shard}", name = stream_key.name());
+                    (redis_stream_key.as_str(), ShardId::new(shard))
                 } else {
-                    cmd.arg(stream_key.name());
-                    ZERO
+                    (stream_key.name(), ZERO)
                 };
+                cmd.arg(redis_key);
                 cmd.arg("*");
                 let msg = [(MSG, bytes)];
                 cmd.arg(&msg);
-                receipt
-                    .send_async(match conn.req_packed_command(&cmd).await {
-                        Ok(id) => match string_from_redis_value(id) {
-                            Ok(id) => match parse_message_id(&id) {
-                                Ok((timestamp, sequence)) => {
-                                    Ok(MessageHeader::new(stream_key, shard, sequence, timestamp))
-                                }
+                let (mut i, mut asked) = (0, 0);
+                let result = loop {
+                    let conn = match cluster.get_connection_for(redis_key).await {
+                        Ok(conn) => conn,
+                        Err(StreamErr::Backend(RedisErr::TryAgain(_))) => continue, // it will sleep inside `get_connection`
+                        Err(_) => return, // this will kill all producers
+                    };
+                    match conn.req_packed_command(&cmd).await {
+                        Ok(id) => {
+                            break match string_from_redis_value(id) {
+                                Ok(id) => match parse_message_id(&id) {
+                                    Ok((timestamp, sequence)) => Ok(MessageHeader::new(
+                                        stream_key, shard, sequence, timestamp,
+                                    )),
+                                    Err(err) => Err(err),
+                                },
                                 Err(err) => Err(err),
-                            },
-                            Err(err) => Err(err),
-                        },
-                        Err(err) => Err(map_err(err)),
-                    })
-                    .await
-                    .ok();
+                            }
+                        }
+                        Err(err) => {
+                            i += 1;
+                            if i == MAX_RETRY {
+                                panic!(
+                                    "The cluster might have a problem. Already retried {i} times."
+                                );
+                            }
+                            if err.is_cluster_error() {
+                                let kind = err.kind();
+
+                                if kind == ErrorKind::Moved {
+                                    cluster.moved(
+                                        redis_key,
+                                        match err.redirect_node() {
+                                            Some((to, _slot)) => {
+                                                // `to` must be in form of `host:port` without protocol
+                                                format!("{}://{}", cluster.protocol().unwrap(), to)
+                                                    .parse()
+                                                    .expect("Failed to parse URL: {to}")
+                                            }
+                                            None => panic!("Key is moved, but to where? {err:?}"),
+                                        },
+                                    );
+                                } else {
+                                    // If it's an ASK, we wait until it finished moving.
+                                    // What benefits, in stream producing terms, does ASK give?
+                                    // This is an exponential backoff, in seq of [1, 2, 4, 8, 16, 32, 64].
+                                    sleep(Duration::from_secs(1 << std::cmp::min(6, asked))).await;
+                                    asked += 1;
+                                }
+                            } else {
+                                break Err(map_err(err));
+                            }
+                        }
+                    }
+                };
+                receipt.send_async(result).await.ok();
             }
         }
     });
@@ -212,6 +258,12 @@ pub(crate) async fn create_producer(
         stream: None,
         sender,
     })
+}
+
+impl PseudoRandomSharder {
+    pub fn new_config(num_shards: u64) -> Arc<dyn SharderConfig> {
+        Arc::new(Self { num_shards })
+    }
 }
 
 impl SharderConfig for PseudoRandomSharder {
