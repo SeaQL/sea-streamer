@@ -22,6 +22,7 @@ pub const ZERO: ShardId = ShardId::new(0);
 compile_error!("'runtime-async-std' and 'runtime-tokio' cannot be enabled at the same time");
 
 mod cluster;
+mod connection;
 mod consumer;
 mod error;
 mod host;
@@ -30,6 +31,7 @@ mod producer;
 mod streamer;
 
 pub use cluster::*;
+pub use connection::*;
 pub use consumer::*;
 pub use error::*;
 pub use host::*;

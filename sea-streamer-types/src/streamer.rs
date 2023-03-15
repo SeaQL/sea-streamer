@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{fmt::Display, str::FromStr};
 
 use crate::{
     ConnectOptions, Consumer, ConsumerOptions, Producer, ProducerOptions, StreamKey, StreamResult,
@@ -71,6 +71,19 @@ pub trait Streamer: Sized {
         streams: &[StreamKey],
         options: Self::ConsumerOptions,
     ) -> StreamResult<Self::Consumer, Self::Error>;
+}
+
+impl Display for StreamerUri {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "(")?;
+        for (i, node) in self.nodes.iter().enumerate() {
+            if i > 0 {
+                write!(f, ",")?;
+            }
+            write!(f, "{}", node)?;
+        }
+        write!(f, ")")
+    }
 }
 
 impl StreamerUri {

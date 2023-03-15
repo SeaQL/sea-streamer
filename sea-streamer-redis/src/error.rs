@@ -2,7 +2,7 @@ use redis::{ErrorKind, RedisError};
 use sea_streamer_types::{StreamErr, StreamResult};
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 pub enum RedisErr {
     #[error("Failed to parse message ID: {0}")]
     MessageId(String),

@@ -59,6 +59,8 @@ pub enum StreamUrlErr {
     StreamKeyErr(#[from] StreamKeyErr),
     #[error("Expected one stream key, found zero or more than one")]
     NotOneStreamKey,
+    #[error("No node has been specified")]
+    ZeroNode,
     #[error("Protocol is required")]
     ProtocolRequired,
 }
