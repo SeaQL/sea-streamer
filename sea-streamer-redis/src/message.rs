@@ -4,6 +4,8 @@ use sea_streamer_types::{
     MessageHeader, SeqNo, ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
 };
 
+pub type MessageId = (u64, u16);
+
 /// The Redis message id comprises two 64 bit integers. In order to fit it into 64 bit,
 /// we only allocate 48 bit to the timestamp, and the remaining 16 bit to the sub-sequence number.
 ///
@@ -27,6 +29,17 @@ pub fn parse_message_id(id: &str) -> RedisResult<(Timestamp, SeqNo)> {
         }
     }
     Err(StreamErr::Backend(RedisErr::MessageId(id.to_owned())))
+}
+
+pub fn get_message_id(header: &MessageHeader) -> MessageId {
+    (
+        (header.timestamp().unix_timestamp_nanos() / 1_000_000)
+            .try_into()
+            .expect("RedisConsumer: timestamp out of range"),
+        (header.sequence() & 0xFFFF)
+            .try_into()
+            .expect("Never fails"),
+    )
 }
 
 // bulk(bulk(string-data('"my_stream_1"'), bulk(bulk(string-data('"1678280595282-0"'), bulk(string-data('"msg"'), string-data('"hi 0"'), field, value, ...)), ...)))

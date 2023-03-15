@@ -10,6 +10,8 @@ pub enum RedisErr {
     StreamReadReply(String),
     #[error("The Producer task died")]
     ProducerDied,
+    #[error("Consumer died with unrecoverable error. Check the log for details.")]
+    ConsumerDied,
     #[error("The server generated an invalid response: {0}")]
     ResponseError(String),
     #[error("The authentication with the server failed: {0}")]

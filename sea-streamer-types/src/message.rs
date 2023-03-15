@@ -5,7 +5,7 @@ use crate::{SeqNo, ShardId, StreamKey, Timestamp};
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// It uses an `Arc` to hold the bytes, so is cheap to clone.
 pub struct SharedMessage {
-    meta: MessageHeader,
+    header: MessageHeader,
     bytes: Arc<Vec<u8>>,
     offset: u32,
     length: u32,
@@ -33,7 +33,7 @@ where
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-/// Metadata associated with a message.
+/// headerdata associated with a message.
 pub struct MessageHeader {
     stream_key: StreamKey,
     shard_id: ShardId,
@@ -84,10 +84,10 @@ pub trait Message: Send {
 }
 
 impl SharedMessage {
-    pub fn new(meta: MessageHeader, bytes: Vec<u8>, offset: usize, length: usize) -> Self {
+    pub fn new(header: MessageHeader, bytes: Vec<u8>, offset: usize, length: usize) -> Self {
         assert!(offset <= bytes.len());
         Self {
-            meta,
+            header,
             bytes: Arc::new(bytes),
             offset: offset as u32,
             length: length as u32,
@@ -96,29 +96,33 @@ impl SharedMessage {
 
     /// Touch the timestamp to now
     pub fn touch(&mut self) {
-        self.meta.timestamp = Timestamp::now_utc();
+        self.header.timestamp = Timestamp::now_utc();
     }
 
-    pub fn take_meta(self) -> MessageHeader {
-        self.meta
+    pub fn header(&self) -> &MessageHeader {
+        &self.header
+    }
+
+    pub fn take_header(self) -> MessageHeader {
+        self.header
     }
 }
 
 impl Message for SharedMessage {
     fn stream_key(&self) -> StreamKey {
-        self.meta.stream_key().clone()
+        self.header.stream_key().clone()
     }
 
     fn shard_id(&self) -> ShardId {
-        *self.meta.shard_id()
+        *self.header.shard_id()
     }
 
     fn sequence(&self) -> SeqNo {
-        *self.meta.sequence()
+        *self.header.sequence()
     }
 
     fn timestamp(&self) -> Timestamp {
-        *self.meta.timestamp()
+        *self.header.timestamp()
     }
 
     fn message(&self) -> Payload {

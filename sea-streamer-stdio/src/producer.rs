@@ -105,7 +105,7 @@ pub(crate) fn init() {
                                     );
                                 }
                             }
-                            let meta = message.take_meta();
+                            let meta = message.take_header();
                             // we don't care if the receipt can be delivered
                             receipt.send(meta).ok();
                         }

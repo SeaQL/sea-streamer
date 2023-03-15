@@ -245,7 +245,6 @@ pub(crate) async fn create_producer(
                                     | ErrorKind::MasterDown
                             ) {
                                 // If it's an ASK, we wait until it finished moving.
-                                // What benefits, in stream producing terms, does ASK give?
                                 // This is an exponential backoff, in seq of [1, 2, 4, 8, 16, 32, 64].
                                 sleep(Duration::from_secs(1 << std::cmp::min(6, asked))).await;
                                 asked += 1;
