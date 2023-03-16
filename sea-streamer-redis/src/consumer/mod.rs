@@ -10,15 +10,14 @@ use node::*;
 pub use options::*;
 use shard::*;
 
+use flume::{bounded, unbounded, Receiver, Sender};
 use std::{fmt::Debug, sync::Arc, time::Duration};
 
-use flume::{bounded, r#async::RecvStream, unbounded, Receiver, Sender};
-use sea_streamer_runtime::spawn_task;
-
-use crate::{get_message_id, RedisCluster, RedisErr, RedisResult};
+use crate::{get_message_id, RedisCluster, RedisErr, RedisResult, DEFAULT_TIMEOUT};
+use sea_streamer_runtime::{spawn_task, timeout};
 use sea_streamer_types::{
-    export::async_trait, Consumer, ConsumerGroup, ConsumerMode, Message, SeqPos, ShardId,
-    SharedMessage, StreamErr, StreamKey, Timestamp,
+    export::async_trait, ConnectOptions, Consumer, ConsumerGroup, ConsumerMode, Message, SeqPos,
+    ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
 };
 
 #[derive(Debug)]
@@ -48,7 +47,7 @@ impl Consumer for RedisConsumer {
     type Error = RedisErr;
     type Message<'a> = SharedMessage;
     type NextFuture<'a> = NextFuture<'a>;
-    type Stream<'a> = RecvStream<'a, RedisResult<SharedMessage>>;
+    type Stream<'a> = StreamFuture<'a>;
 
     async fn seek(&mut self, _: Timestamp) -> RedisResult<()> {
         todo!()
@@ -70,7 +69,7 @@ impl Consumer for RedisConsumer {
     }
 
     fn stream<'a, 'b: 'a>(&'b mut self) -> Self::Stream<'a> {
-        todo!()
+        StreamFuture::new(self)
     }
 }
 
@@ -107,6 +106,7 @@ pub(crate) async fn create_consumer(
     }
 
     let (uri, connect_options) = cluster.into_config();
+    let dur = connect_options.timeout().unwrap_or(DEFAULT_TIMEOUT);
     let cluster = Cluster::new(
         uri,
         connect_options,
@@ -116,11 +116,17 @@ pub(crate) async fn create_consumer(
     )?;
 
     let (handle, response) = unbounded();
-    spawn_task(cluster.run(response));
+    let (status, ready) = bounded(1);
+    spawn_task(cluster.run(response, status));
 
-    Ok(RedisConsumer {
-        options: consumer_options,
-        receiver,
-        handle,
-    })
+    match timeout(dur, ready.recv_async()).await {
+        Ok(Ok(StatusMsg::Ready)) => Ok(RedisConsumer {
+            options: consumer_options,
+            receiver,
+            handle,
+        }),
+        _ => Err(StreamErr::Connect(
+            "Failed to initialize cluster".to_owned(),
+        )),
+    }
 }

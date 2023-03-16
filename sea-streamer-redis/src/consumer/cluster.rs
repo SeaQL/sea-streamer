@@ -18,7 +18,9 @@ pub struct Cluster {
     keys: HashMap<StreamShard, NodeId>,
 }
 
-pub enum ClusterEvent {
+#[allow(clippy::large_enum_variant)]
+pub enum StatusMsg {
+    Ready,
     Moved {
         shard: ShardState,
         from: NodeId,
@@ -53,7 +55,7 @@ impl Cluster {
         })
     }
 
-    pub async fn run(mut self, response: Receiver<CtrlMsg>) {
+    pub async fn run(mut self, response: Receiver<CtrlMsg>, status: Sender<StatusMsg>) {
         let (sender, receiver) = bounded(128);
         let uri = self.uri.clone();
         for node_id in uri.nodes() {
@@ -68,6 +70,7 @@ impl Cluster {
                 node.send_async(CtrlMsg::AddShard(shard)).await.unwrap();
             }
         }
+        let mut ready_count = 0;
         'outer: loop {
             loop {
                 match response.try_recv() {
@@ -94,7 +97,13 @@ impl Cluster {
 
             if let Ok(event) = receiver.try_recv() {
                 match event {
-                    ClusterEvent::Moved { shard, from, to } => {
+                    StatusMsg::Ready => {
+                        ready_count += 1;
+                        if ready_count == self.nodes.len() {
+                            status.send_async(StatusMsg::Ready).await.ok();
+                        }
+                    }
+                    StatusMsg::Moved { shard, from, to } => {
                         log::info!("Shard {shard:?} moving from {from} to {to}");
                         self.add_node(to.clone(), sender.clone());
                         let node = self.nodes.get(&to).unwrap();
@@ -116,7 +125,7 @@ impl Cluster {
         log::debug!("Cluster {uri} exit");
     }
 
-    fn add_node(&mut self, node_id: NodeId, event_sender: Sender<ClusterEvent>) {
+    fn add_node(&mut self, node_id: NodeId, event_sender: Sender<StatusMsg>) {
         if self.nodes.get(&node_id).is_none() {
             let (ctrl_sender, receiver) = bounded(128);
             self.nodes.insert(node_id.clone(), ctrl_sender);
@@ -126,7 +135,7 @@ impl Cluster {
                 self.consumer_options.clone(),
                 self.messages.clone(),
             );
-            spawn_task(node.run(receiver, Some(event_sender)));
+            spawn_task(node.run(receiver, event_sender));
         }
     }
 }

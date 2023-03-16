@@ -6,8 +6,7 @@ use redis::{
 use std::{fmt::Display, sync::Arc, time::Duration};
 
 use super::{
-    AutoCommit, AutoStreamReset, ClusterEvent, CtrlMsg, ShardState, StreamShard, BATCH_SIZE,
-    HEARTBEAT,
+    AutoCommit, AutoStreamReset, CtrlMsg, ShardState, StatusMsg, StreamShard, BATCH_SIZE, HEARTBEAT,
 };
 use crate::{
     host_id, map_err, Connection, MessageId, NodeId, RedisConnectOptions, RedisConsumerOptions,
@@ -84,7 +83,7 @@ impl Node {
             ConsumerMode::Resumable => "r",
             ConsumerMode::LoadBalanced => "s",
         };
-        let group_id = if let Some(group_id) = consumer_options.consumer_group().ok() {
+        let group_id = if let Ok(group_id) = consumer_options.consumer_group() {
             group_id.name().to_owned()
         } else {
             format!("{}:{}", host_id(), suffix)
@@ -94,7 +93,7 @@ impl Node {
             ConsumerMode::LoadBalanced => format!("{}:{}", consumer_id(), suffix),
         };
         if matches!(mode, ConsumerMode::Resumable | ConsumerMode::LoadBalanced) {
-            opts = opts.group(&group_id, &consumer_id);
+            opts = opts.group(&group_id, consumer_id);
             if consumer_options.auto_commit() == &AutoCommit::Immediate {
                 opts = opts.noack();
             }
@@ -115,12 +114,13 @@ impl Node {
         }
     }
 
-    pub async fn run(mut self, receiver: Receiver<CtrlMsg>, sender: Option<Sender<ClusterEvent>>) {
+    pub async fn run(mut self, receiver: Receiver<CtrlMsg>, sender: Sender<StatusMsg>) {
         let mut conn =
             Connection::create_or_reconnect(self.id.clone(), self.connect_options.clone())
                 .await
                 .unwrap();
         let mut ack_failure = 0;
+        let mut ready = false;
 
         'outer: loop {
             loop {
@@ -154,13 +154,16 @@ impl Node {
                     break;
                 }
             };
+            if !ready {
+                ready = true;
+                if sender.send_async(StatusMsg::Ready).await.is_err() {
+                    break 'outer;
+                }
+            }
             match self.read_next(inner).await {
                 Ok(None) => (),
                 Ok(Some(events)) => {
                     for event in events {
-                        let sender = sender
-                            .as_ref()
-                            .expect("Client is not configured to Redis Cluster");
                         if sender.send_async(event).await.is_err() {
                             break 'outer;
                         }
@@ -254,7 +257,7 @@ impl Node {
             }
         }
 
-        fn ad<'a>(v: &'a Vec<PendingAck>) -> AckDisplay<'a> {
+        fn ad(v: &Vec<PendingAck>) -> AckDisplay {
             AckDisplay(v)
         }
 
@@ -264,34 +267,34 @@ impl Node {
     async fn read_next(
         &mut self,
         conn: &mut redis::aio::Connection,
-    ) -> RedisResult<Option<Vec<ClusterEvent>>> {
+    ) -> RedisResult<Option<Vec<StatusMsg>>> {
         let mode = self.consumer_options.mode;
         if mode == ConsumerMode::LoadBalanced {
             todo!()
         }
-        if matches!(mode, ConsumerMode::Resumable | ConsumerMode::LoadBalanced) {
-            if self.group.first_read {
-                self.group.first_read = false;
-                self.group.pending_state = true;
-                for shard in self.shards.iter() {
-                    let result: Result<Value, _> = conn
-                        .xgroup_create(
-                            &shard.key,
-                            &self.group.group_id,
-                            match self.consumer_options.auto_stream_reset() {
-                                AutoStreamReset::Earliest => "0",
-                                AutoStreamReset::Latest => "$",
-                            },
-                        )
-                        .await;
-                    match result {
-                        Ok(_) => (),
-                        Err(err) => {
-                            if err.code() == Some("BUSYGROUP") {
-                                // OK
-                            } else {
-                                return self.send_error(map_err(err)).await;
-                            }
+        if matches!(mode, ConsumerMode::Resumable | ConsumerMode::LoadBalanced)
+            && self.group.first_read
+        {
+            self.group.first_read = false;
+            self.group.pending_state = true;
+            for shard in self.shards.iter() {
+                let result: Result<Value, _> = conn
+                    .xgroup_create(
+                        &shard.key,
+                        &self.group.group_id,
+                        match self.consumer_options.auto_stream_reset() {
+                            AutoStreamReset::Earliest => "0",
+                            AutoStreamReset::Latest => "$",
+                        },
+                    )
+                    .await;
+                match result {
+                    Ok(_) => (),
+                    Err(err) => {
+                        if err.code() == Some("BUSYGROUP") {
+                            // OK
+                        } else {
+                            return self.send_error(map_err(err)).await;
                         }
                     }
                 }
@@ -379,7 +382,7 @@ impl Node {
         }
     }
 
-    async fn move_shards(&mut self, conn: &mut redis::aio::Connection) -> Vec<ClusterEvent> {
+    async fn move_shards(&mut self, conn: &mut redis::aio::Connection) -> Vec<StatusMsg> {
         let mut events = Vec::new();
         let shards = std::mem::take(&mut self.shards);
         for shard in shards {
@@ -392,7 +395,7 @@ impl Node {
                 Err(err) => {
                     if err.kind() == ErrorKind::Moved {
                         // remove this shard from self
-                        events.push(ClusterEvent::Moved {
+                        events.push(StatusMsg::Moved {
                             shard,
                             from: self.id.clone(),
                             to: match err.redirect_node() {
@@ -434,7 +437,7 @@ impl Node {
         panic!("Unknown shard {:?}", key);
     }
 
-    async fn send_error(&self, err: StreamErr<RedisErr>) -> RedisResult<Option<Vec<ClusterEvent>>> {
+    async fn send_error(&self, err: StreamErr<RedisErr>) -> RedisResult<Option<Vec<StatusMsg>>> {
         if let StreamErr::Backend(err) = err {
             self.messages
                 .send_async(Err(StreamErr::Backend(err.clone())))
