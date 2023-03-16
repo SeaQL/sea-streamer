@@ -31,6 +31,7 @@ pub enum CtrlMsg {
     Init(Box<(NodeId, Connection)>),
     AddShard(Box<ShardState>),
     Ack(StreamShard, MessageId, Timestamp),
+    Kill(Sender<()>),
 }
 
 impl Cluster {
@@ -93,6 +94,16 @@ impl Cluster {
                             }
                         }
                         CtrlMsg::AddShard(m) => panic!("Unexpected CtrlMsg {:?}", m),
+                        CtrlMsg::Kill(finally) => {
+                            for node in self.nodes.values() {
+                                let (signal, notify) = bounded(1);
+                                if node.send_async(CtrlMsg::Kill(signal)).await.is_ok() {
+                                    notify.recv_async().await.ok();
+                                }
+                            }
+                            finally.send(()).ok();
+                            break 'outer;
+                        }
                         _ => panic!("Unexpected CtrlMsg"),
                     },
                     Err(TryRecvError::Disconnected) => {

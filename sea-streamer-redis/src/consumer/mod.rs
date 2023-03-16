@@ -90,6 +90,14 @@ impl RedisConsumer {
             Err(StreamErr::Backend(RedisErr::ConsumerDied))
         }
     }
+
+    pub async fn end(self) -> RedisResult<()> {
+        let (sender, receiver) = bounded(1);
+        if self.handle.send_async(CtrlMsg::Kill(sender)).await.is_ok() {
+            receiver.recv_async().await.ok();
+        }
+        Ok(())
+    }
 }
 
 pub(crate) async fn create_consumer(

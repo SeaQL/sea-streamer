@@ -165,6 +165,10 @@ impl Node {
                         CtrlMsg::Ack(key, id, ts) => {
                             self.ack_message(key, id, ts);
                         }
+                        CtrlMsg::Kill(signal) => {
+                            signal.send(()).ok();
+                            break 'outer;
+                        }
                     },
                     Err(TryRecvError::Disconnected) => {
                         // parent cluster is dead
@@ -237,6 +241,9 @@ impl Node {
     async fn commit_ack(&mut self, conn: &mut redis::aio::Connection) -> RedisResult<()> {
         let mode = self.consumer_options.mode;
         if mode == ConsumerMode::RealTime {
+            return Ok(());
+        }
+        if self.consumer_options.auto_commit() == &AutoCommit::Immediate {
             return Ok(());
         }
         if self.group.first_read {
@@ -367,6 +374,12 @@ impl Node {
             }
         }
 
+        if false {
+            log::debug!(
+                "{}",
+                std::str::from_utf8(cmd.get_packed_command().as_slice()).unwrap()
+            );
+        }
         match conn.req_packed_command(&cmd).await {
             Ok(value) => match StreamReadReply::from_redis_value(value) {
                 Ok(res) => {
