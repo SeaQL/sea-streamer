@@ -76,11 +76,12 @@ impl Node {
     ) -> RedisResult<Self> {
         let (node_id, conn) = cluster.conn.into_iter().next().unwrap();
         let node = Node::add(node_id.clone(), options, messages);
+        // unbounded, so never blocks
         handle
-            .send(CtrlMsg::Init(Box::new((node_id, conn))))
+            .try_send(CtrlMsg::Init(Box::new((node_id, conn))))
             .unwrap();
         for shard in shards {
-            handle.send(CtrlMsg::AddShard(Box::new(shard))).unwrap();
+            handle.try_send(CtrlMsg::AddShard(Box::new(shard))).unwrap();
         }
         Ok(node)
     }
@@ -165,8 +166,8 @@ impl Node {
                         CtrlMsg::Ack(key, id, ts) => {
                             self.ack_message(key, id, ts);
                         }
-                        CtrlMsg::Kill(signal) => {
-                            signal.send(()).ok();
+                        CtrlMsg::Kill(notify) => {
+                            notify.try_send(()).ok();
                             break 'outer;
                         }
                     },

@@ -39,6 +39,9 @@ pub struct RedisConsumerOptions {
 }
 
 pub const DEFAULT_AUTO_COMMIT_DELAY: Duration = Duration::from_secs(5);
+#[cfg(feature = "test")]
+pub const HEARTBEAT: Duration = Duration::from_secs(1);
+#[cfg(not(feature = "test"))]
 pub const HEARTBEAT: Duration = Duration::from_secs(10);
 pub const BATCH_SIZE: usize = 100;
 
@@ -75,10 +78,10 @@ impl Consumer for RedisConsumer {
 
 impl RedisConsumer {
     fn ack(&self, msg: &SharedMessage) -> RedisResult<()> {
-        // unbounded never blocks
+        // unbounded, so never blocks
         if self
             .handle
-            .send(CtrlMsg::Ack(
+            .try_send(CtrlMsg::Ack(
                 (msg.stream_key(), msg.shard_id()),
                 get_message_id(msg.header()),
                 Timestamp::now_utc(),
@@ -114,7 +117,7 @@ pub(crate) async fn create_consumer(
 
     let dur = conn.options.timeout().unwrap_or(DEFAULT_TIMEOUT);
     let enable_cluster = conn.options.enable_cluster();
-    let (sender, receiver) = bounded(1);
+    let (sender, receiver) = bounded(0);
     let (handle, response) = unbounded();
     let (status, ready) = bounded(1);
 

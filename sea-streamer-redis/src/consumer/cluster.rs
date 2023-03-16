@@ -101,7 +101,7 @@ impl Cluster {
                                     notify.recv_async().await.ok();
                                 }
                             }
-                            finally.send(()).ok();
+                            finally.try_send(()).ok();
                             break 'outer;
                         }
                         _ => panic!("Unexpected CtrlMsg"),
