@@ -1,26 +1,24 @@
 mod cluster;
+mod future;
 mod node;
 mod options;
 mod shard;
 
 use cluster::*;
+use future::*;
 use node::*;
 pub use options::*;
 use shard::*;
 
-use std::{sync::Arc, time::Duration};
+use std::{fmt::Debug, sync::Arc, time::Duration};
 
-use flume::{bounded, r#async::RecvStream, Receiver, Sender};
+use flume::{bounded, r#async::RecvStream, unbounded, Receiver, Sender};
 use sea_streamer_runtime::spawn_task;
 
 use crate::{get_message_id, RedisCluster, RedisErr, RedisResult};
 use sea_streamer_types::{
-    export::{
-        async_trait,
-        futures::{future::BoxFuture, FutureExt},
-    },
-    Consumer, ConsumerGroup, ConsumerMode, Message, SeqPos, ShardId, SharedMessage, StreamErr,
-    StreamKey, Timestamp,
+    export::async_trait, Consumer, ConsumerGroup, ConsumerMode, Message, SeqPos, ShardId,
+    SharedMessage, StreamErr, StreamKey, Timestamp,
 };
 
 #[derive(Debug)]
@@ -45,8 +43,6 @@ pub const DEFAULT_AUTO_COMMIT_DELAY: Duration = Duration::from_secs(5);
 pub const HEARTBEAT: Duration = Duration::from_secs(10);
 pub const BATCH_SIZE: usize = 100;
 
-pub type NextFuture<'a> = BoxFuture<'a, RedisResult<SharedMessage>>;
-
 #[async_trait]
 impl Consumer for RedisConsumer {
     type Error = RedisErr;
@@ -66,32 +62,34 @@ impl Consumer for RedisConsumer {
         todo!()
     }
 
-    fn next(&self) -> Self::NextFuture<'_> {
-        async {
-            let dead = || StreamErr::Backend(RedisErr::ConsumerDied);
-            match self.receiver.recv_async().await {
-                Ok(Ok(msg)) => {
-                    if self.options.auto_commit() == &AutoCommit::Delayed {
-                        self.handle
-                            .send_async(CtrlMsg::Ack(
-                                (msg.stream_key(), msg.shard_id()),
-                                get_message_id(msg.header()),
-                                Timestamp::now_utc(),
-                            ))
-                            .await
-                            .map_err(|_| dead())?;
-                    }
-                    Ok(msg)
-                }
-                Ok(Err(err)) => Err(err),
-                Err(_) => Err(dead()),
-            }
+    fn next(&self) -> NextFuture<'_> {
+        NextFuture {
+            con: self,
+            fut: self.receiver.recv_async(),
         }
-        .boxed()
     }
 
     fn stream<'a, 'b: 'a>(&'b mut self) -> Self::Stream<'a> {
         todo!()
+    }
+}
+
+impl RedisConsumer {
+    fn ack(&self, msg: &SharedMessage) -> RedisResult<()> {
+        // unbounded never blocks
+        if self
+            .handle
+            .send(CtrlMsg::Ack(
+                (msg.stream_key(), msg.shard_id()),
+                get_message_id(msg.header()),
+                Timestamp::now_utc(),
+            ))
+            .is_ok()
+        {
+            Ok(())
+        } else {
+            Err(StreamErr::Backend(RedisErr::ConsumerDied))
+        }
     }
 }
 
@@ -117,7 +115,7 @@ pub(crate) async fn create_consumer(
         sender,
     )?;
 
-    let (handle, response) = bounded(1024);
+    let (handle, response) = unbounded();
     spawn_task(cluster.run(response));
 
     Ok(RedisConsumer {

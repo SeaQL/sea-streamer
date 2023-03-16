@@ -313,7 +313,10 @@ impl Node {
                     if let Some((a, b)) = shard.id {
                         cmd.arg(format!("{a}-{b}"));
                     } else {
-                        cmd.arg(DOLLAR);
+                        match self.consumer_options.auto_stream_reset() {
+                            AutoStreamReset::Earliest => cmd.arg("0-0"),
+                            AutoStreamReset::Latest => cmd.arg(DOLLAR),
+                        };
                     }
                 }
                 ConsumerMode::Resumable | ConsumerMode::LoadBalanced => {
