@@ -1,10 +1,14 @@
-use crate::{RedisErr, RedisResult, StreamReadReply, MSG, ZERO};
+use crate::{RedisErr, RedisResult, MSG, ZERO};
 use redis::Value;
 use sea_streamer_types::{
     MessageHeader, SeqNo, ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
 };
 
 pub type MessageId = (u64, u16);
+
+#[derive(Debug)]
+#[repr(transparent)]
+pub(crate) struct StreamReadReply(pub(crate) Vec<SharedMessage>);
 
 /// The Redis message id comprises two 64 bit integers. In order to fit it into 64 bit,
 /// we only allocate 48 bit to the timestamp, and the remaining 16 bit to the sub-sequence number.
