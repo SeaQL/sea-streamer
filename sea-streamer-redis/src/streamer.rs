@@ -20,6 +20,7 @@ pub struct RedisConnectOptions {
     username: Option<String>,
     password: Option<String>,
     timeout: Option<Duration>,
+    enable_cluster: bool,
     disable_hostname_verification: bool,
 }
 
@@ -112,6 +113,15 @@ impl RedisConnectOptions {
     }
     pub fn set_password(&mut self, password: Option<String>) -> &mut Self {
         self.password = password;
+        self
+    }
+
+    pub fn enable_cluster(&self) -> bool {
+        self.enable_cluster
+    }
+    /// Enable support for Redis Cluster.
+    pub fn set_enable_cluster(&mut self, bool: bool) -> &mut Self {
+        self.enable_cluster = bool;
         self
     }
 

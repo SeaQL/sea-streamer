@@ -93,40 +93,46 @@ impl RedisConsumer {
 }
 
 pub(crate) async fn create_consumer(
-    mut cluster: RedisCluster,
-    consumer_options: RedisConsumerOptions,
+    mut conn: RedisCluster,
+    options: RedisConsumerOptions,
     streams: Vec<StreamKey>,
 ) -> RedisResult<RedisConsumer> {
-    let consumer_options = Arc::new(consumer_options);
-    cluster.reconnect_all().await?;
-    let (sender, receiver) = bounded(1);
+    let options = Arc::new(options);
+    conn.reconnect_all().await?;
     let mut shards = Vec::new();
     for stream in streams {
-        shards.extend(discover_shards(&mut cluster, stream).await?);
+        shards.extend(discover_shards(&mut conn, stream).await?);
     }
 
-    let (uri, connect_options) = cluster.into_config();
-    let dur = connect_options.timeout().unwrap_or(DEFAULT_TIMEOUT);
-    let cluster = Cluster::new(
-        uri,
-        connect_options,
-        consumer_options.clone(),
-        shards,
-        sender,
-    )?;
-
+    let dur = conn.options.timeout().unwrap_or(DEFAULT_TIMEOUT);
+    let enable_cluster = conn.options.enable_cluster();
+    let (sender, receiver) = bounded(1);
     let (handle, response) = unbounded();
     let (status, ready) = bounded(1);
-    spawn_task(cluster.run(response, status));
+
+    if enable_cluster {
+        let cluster = Cluster::new(options.clone(), shards, sender)?;
+        spawn_task(cluster.run(conn, response, status));
+    } else {
+        if conn.cluster.nodes().len() != 1 {
+            return Err(StreamErr::Connect(
+                "There are multiple nodes in streamer URI, please enable the cluster option"
+                    .to_owned(),
+            ));
+        }
+        let node = Node::new(conn, options.clone(), shards, handle.clone(), sender)?;
+        spawn_task(node.run(response, status));
+    }
 
     match timeout(dur, ready.recv_async()).await {
         Ok(Ok(StatusMsg::Ready)) => Ok(RedisConsumer {
-            options: consumer_options,
+            options,
             receiver,
             handle,
         }),
-        _ => Err(StreamErr::Connect(
-            "Failed to initialize cluster".to_owned(),
-        )),
+        _ => Err(StreamErr::Connect(format!(
+            "Failed to initialize {}",
+            if enable_cluster { "cluster" } else { "node" }
+        ))),
     }
 }

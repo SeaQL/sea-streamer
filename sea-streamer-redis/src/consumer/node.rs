@@ -9,8 +9,8 @@ use super::{
     AutoCommit, AutoStreamReset, CtrlMsg, ShardState, StatusMsg, StreamShard, BATCH_SIZE, HEARTBEAT,
 };
 use crate::{
-    host_id, map_err, Connection, MessageId, NodeId, RedisConnectOptions, RedisConsumerOptions,
-    RedisErr, RedisResult, StreamReadReply,
+    host_id, map_err, MessageId, NodeId, RedisCluster, RedisConsumerOptions, RedisErr, RedisResult,
+    StreamReadReply,
 };
 use sea_streamer_runtime::sleep;
 use sea_streamer_types::{
@@ -23,7 +23,6 @@ const ONE_SEC: Duration = Duration::from_secs(1);
 
 pub struct Node {
     id: NodeId,
-    connect_options: Arc<RedisConnectOptions>,
     consumer_options: Arc<RedisConsumerOptions>,
     shards: Vec<ShardState>,
     messages: Sender<RedisResult<SharedMessage>>,
@@ -67,9 +66,28 @@ impl<'a> Display for AckDisplay<'a> {
 }
 
 impl Node {
+    /// Create a standalone node, without parent cluster
     pub fn new(
+        cluster: RedisCluster,
+        options: Arc<RedisConsumerOptions>,
+        shards: Vec<ShardState>,
+        handle: Sender<CtrlMsg>,
+        messages: Sender<RedisResult<SharedMessage>>,
+    ) -> RedisResult<Self> {
+        let (node_id, conn) = cluster.conn.into_iter().next().unwrap();
+        let node = Node::add(node_id.clone(), options, messages);
+        handle
+            .send(CtrlMsg::Init(Box::new((node_id, conn))))
+            .unwrap();
+        for shard in shards {
+            handle.send(CtrlMsg::AddShard(Box::new(shard))).unwrap();
+        }
+        Ok(node)
+    }
+
+    /// Create a node that is managed by a cluster
+    pub fn add(
         id: NodeId,
-        connect_options: Arc<RedisConnectOptions>,
         consumer_options: Arc<RedisConsumerOptions>,
         messages: Sender<RedisResult<SharedMessage>>,
     ) -> Self {
@@ -101,7 +119,6 @@ impl Node {
 
         Self {
             id,
-            connect_options,
             consumer_options,
             shards: Vec::new(),
             messages,
@@ -115,10 +132,23 @@ impl Node {
     }
 
     pub async fn run(mut self, receiver: Receiver<CtrlMsg>, sender: Sender<StatusMsg>) {
-        let mut conn =
-            Connection::create_or_reconnect(self.id.clone(), self.connect_options.clone())
-                .await
-                .unwrap();
+        let mut conn = match receiver.recv_async().await {
+            Ok(ctrl) => match ctrl {
+                CtrlMsg::Init(boxed) => {
+                    let (node_id, conn) = unbox(boxed);
+                    if node_id == self.id {
+                        conn
+                    } else {
+                        panic!("Not {}?", self.id);
+                    }
+                }
+                _ => panic!("Unexpected CtrlMsg"),
+            },
+            Err(_) => {
+                log::error!("Cluster dead?");
+                return;
+            }
+        };
         let mut ack_failure = 0;
         let mut ready = false;
 
@@ -126,9 +156,10 @@ impl Node {
             loop {
                 match receiver.try_recv() {
                     Ok(ctrl) => match ctrl {
+                        CtrlMsg::Init(_) => panic!("Unexpected CtrlMsg"),
                         CtrlMsg::AddShard(state) => {
                             log::debug!("Node {id} add shard {state:?}", id = self.id);
-                            self.shards.push(state);
+                            self.shards.push(unbox(state));
                             self.group.first_read = true;
                         }
                         CtrlMsg::Ack(key, id, ts) => {
@@ -457,4 +488,9 @@ pub fn consumer_id() -> String {
         std::process::id(),
         (Timestamp::now_utc().unix_timestamp_nanos() / 1_000_000) % 1_000_000
     )
+}
+
+#[allow(clippy::boxed_local)]
+fn unbox<T>(value: Box<T>) -> T {
+    *value
 }

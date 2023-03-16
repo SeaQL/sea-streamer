@@ -2,15 +2,13 @@ use flume::{bounded, Receiver, Sender, TryRecvError};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use super::{Node, ShardState, StreamShard};
-use crate::{MessageId, NodeId, RedisConnectOptions, RedisConsumerOptions, RedisResult};
+use crate::{Connection, MessageId, NodeId, RedisCluster, RedisConsumerOptions, RedisResult};
 use sea_streamer_runtime::{sleep, spawn_task};
-use sea_streamer_types::{SharedMessage, StreamErr, StreamUrlErr, StreamerUri, Timestamp};
+use sea_streamer_types::{SharedMessage, Timestamp};
 
 const ONE_SEC: Duration = Duration::from_secs(1);
 
 pub struct Cluster {
-    uri: StreamerUri,
-    connect_options: Arc<RedisConnectOptions>,
     shards: Vec<ShardState>,
     consumer_options: Arc<RedisConsumerOptions>,
     messages: Sender<RedisResult<SharedMessage>>,
@@ -28,25 +26,20 @@ pub enum StatusMsg {
     },
 }
 
+// It's important to keep the messages small
 pub enum CtrlMsg {
-    AddShard(ShardState),
+    Init(Box<(NodeId, Connection)>),
+    AddShard(Box<ShardState>),
     Ack(StreamShard, MessageId, Timestamp),
 }
 
 impl Cluster {
     pub fn new(
-        uri: StreamerUri,
-        connect_options: Arc<RedisConnectOptions>,
         consumer_options: Arc<RedisConsumerOptions>,
         shards: Vec<ShardState>,
         messages: Sender<RedisResult<SharedMessage>>,
     ) -> RedisResult<Self> {
-        if uri.nodes().is_empty() {
-            return Err(StreamErr::StreamUrlErr(StreamUrlErr::ZeroNode));
-        }
         Ok(Cluster {
-            uri,
-            connect_options,
             consumer_options,
             shards,
             messages,
@@ -55,19 +48,33 @@ impl Cluster {
         })
     }
 
-    pub async fn run(mut self, response: Receiver<CtrlMsg>, status: Sender<StatusMsg>) {
+    pub async fn run(
+        mut self,
+        cluster: RedisCluster,
+        response: Receiver<CtrlMsg>,
+        status: Sender<StatusMsg>,
+    ) {
+        let RedisCluster {
+            cluster: cluster_uri,
+            options: connect_options,
+            conn: connections,
+            ..
+        } = cluster;
         let (sender, receiver) = bounded(128);
-        let uri = self.uri.clone();
-        for node_id in uri.nodes() {
-            self.add_node(node_id.clone(), sender.clone());
+        for (node_id, conn) in connections {
+            let node = self.add_node(node_id.clone(), sender.clone());
+            node.send_async(CtrlMsg::Init(Box::new((node_id, conn))))
+                .await
+                .unwrap();
         }
         {
             // we assign all shards to the first node, they will be moved later
-            let first = uri.nodes().first().unwrap();
-            let node = self.nodes.get(first).unwrap();
+            let (node_id, node) = self.nodes.iter().next().unwrap();
             for shard in std::mem::take(&mut self.shards) {
-                self.keys.insert(shard.key().to_owned(), first.to_owned());
-                node.send_async(CtrlMsg::AddShard(shard)).await.unwrap();
+                self.keys.insert(shard.key().to_owned(), node_id.to_owned());
+                node.send_async(CtrlMsg::AddShard(Box::new(shard)))
+                    .await
+                    .unwrap();
             }
         }
         let mut ready_count = 0;
@@ -86,6 +93,7 @@ impl Cluster {
                             }
                         }
                         CtrlMsg::AddShard(m) => panic!("Unexpected CtrlMsg {:?}", m),
+                        _ => panic!("Unexpected CtrlMsg"),
                     },
                     Err(TryRecvError::Disconnected) => {
                         // Consumer is dead
@@ -101,6 +109,7 @@ impl Cluster {
                         ready_count += 1;
                         if ready_count == self.nodes.len() {
                             status.send_async(StatusMsg::Ready).await.ok();
+                            log::debug!("Cluster {cluster_uri} ready");
                         }
                     }
                     StatusMsg::Moved { shard, from, to } => {
@@ -108,11 +117,22 @@ impl Cluster {
                         self.add_node(to.clone(), sender.clone());
                         let node = self.nodes.get(&to).unwrap();
                         if let Some(key) = self.keys.get_mut(shard.key()) {
-                            *key = to;
+                            *key = to.clone();
                         } else {
                             panic!("Unexpected shard `{}`", shard.key);
                         }
-                        if node.send_async(CtrlMsg::AddShard(shard)).await.is_err() {
+                        let conn =
+                            Connection::create_or_reconnect(to.clone(), connect_options.clone())
+                                .await
+                                .unwrap();
+                        node.send_async(CtrlMsg::Init(Box::new((to, conn))))
+                            .await
+                            .unwrap();
+                        if node
+                            .send_async(CtrlMsg::AddShard(Box::new(shard)))
+                            .await
+                            .is_err()
+                        {
                             // node is dead
                             break;
                         }
@@ -122,20 +142,20 @@ impl Cluster {
 
             sleep(ONE_SEC).await;
         }
-        log::debug!("Cluster {uri} exit");
+        log::debug!("Cluster {cluster_uri} exit");
     }
 
-    fn add_node(&mut self, node_id: NodeId, event_sender: Sender<StatusMsg>) {
+    fn add_node(&mut self, node_id: NodeId, event_sender: Sender<StatusMsg>) -> &Sender<CtrlMsg> {
         if self.nodes.get(&node_id).is_none() {
             let (ctrl_sender, receiver) = bounded(128);
             self.nodes.insert(node_id.clone(), ctrl_sender);
-            let node = Node::new(
-                node_id,
-                self.connect_options.clone(),
+            let node = Node::add(
+                node_id.to_owned(),
                 self.consumer_options.clone(),
                 self.messages.clone(),
             );
             spawn_task(node.run(receiver, event_sender));
         }
+        self.nodes.get(&node_id).unwrap()
     }
 }

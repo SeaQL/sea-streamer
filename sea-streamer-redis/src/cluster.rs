@@ -8,15 +8,18 @@ pub type NodeId = Url;
 #[derive(Debug)]
 /// A set of connections maintained to a Redis Cluster with moved-keys cache
 pub struct RedisCluster {
-    cluster: StreamerUri,
-    options: Arc<RedisConnectOptions>,
-    conn: HashMap<NodeId, Connection>,
-    keys: HashMap<String, NodeId>,
+    pub(crate) cluster: StreamerUri,
+    pub(crate) options: Arc<RedisConnectOptions>,
+    pub(crate) conn: HashMap<NodeId, Connection>,
+    pub(crate) keys: HashMap<String, NodeId>,
 }
 
 impl RedisCluster {
     /// Nothing happens until you call connect
     pub fn new(cluster: StreamerUri, options: Arc<RedisConnectOptions>) -> RedisResult<Self> {
+        if cluster.nodes().is_empty() {
+            return Err(StreamErr::StreamUrlErr(StreamUrlErr::ZeroNode));
+        }
         if cluster.protocol().is_none() {
             return Err(StreamErr::StreamUrlErr(StreamUrlErr::ProtocolRequired));
         }
@@ -124,9 +127,5 @@ impl RedisCluster {
             );
         }
         conn.get_mut(node).expect("Must exist").try_get()
-    }
-
-    pub fn into_config(self) -> (StreamerUri, Arc<RedisConnectOptions>) {
-        (self.cluster, self.options)
     }
 }

@@ -35,6 +35,7 @@ impl Connection {
     /// Create a connection; return error if failed.
     pub async fn create(node: NodeId, options: Arc<RedisConnectOptions>) -> RedisResult<Self> {
         let conn = create_connection(node.clone(), options.clone()).await?;
+        log::debug!("Opened connection to {node}");
         Ok(Self {
             node,
             options,
