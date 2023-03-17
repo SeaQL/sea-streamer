@@ -16,11 +16,13 @@ async fn main() -> anyhow::Result<()> {
 
     const TEST: &str = "realtime";
     env_logger::init();
-    test(false).await?;
-    test(true).await?;
+    test(false, 0).await?;
+    test(false, 2).await?;
+    test(true, 0).await?;
+    test(true, 2).await?;
 
-    async fn test(enable_cluster: bool) -> anyhow::Result<()> {
-        println!("Enable cluster = {enable_cluster} ...");
+    async fn test(enable_cluster: bool, extra_items: usize) -> anyhow::Result<()> {
+        println!("enable_cluster = {enable_cluster}; extra_items = {extra_items}...");
 
         let mut options = RedisConnectOptions::default();
         options.set_enable_cluster(enable_cluster);
@@ -63,7 +65,7 @@ async fn main() -> anyhow::Result<()> {
             .create_consumer(&[stream.clone()], options.clone())
             .await?;
 
-        for i in 5..10 {
+        for i in 5..10 + extra_items {
             let message = format!("{i}");
             producer.send(message)?;
         }

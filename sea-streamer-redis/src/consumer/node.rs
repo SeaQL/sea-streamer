@@ -28,6 +28,8 @@ pub struct Node {
     messages: Sender<RedisResult<SharedMessage>>,
     opts: StreamReadOptions,
     group: GroupState,
+    // in reverse order
+    buffer: Vec<SharedMessage>,
 }
 
 #[derive(Debug)]
@@ -129,6 +131,7 @@ impl Node {
                 first_read: true,
                 pending_state: true,
             },
+            buffer: Vec::new(),
         }
     }
 
@@ -196,41 +199,54 @@ impl Node {
                     break 'outer;
                 }
             }
-            match self.read_next(inner).await {
-                Ok(None) => (),
-                Ok(Some(events)) => {
-                    for event in events {
-                        if sender.send_async(event).await.is_err() {
-                            break 'outer;
+            if self.buffer.is_empty() {
+                match self.read_next(inner).await {
+                    Ok(None) => (),
+                    Ok(Some(events)) => {
+                        for event in events {
+                            if sender.send_async(event).await.is_err() {
+                                break 'outer;
+                            }
                         }
                     }
+                    Err(StreamErr::Backend(RedisErr::IoError(_))) => {
+                        conn.reconnect();
+                        continue;
+                    }
+                    Err(StreamErr::Backend(RedisErr::TryAgain(_))) => {
+                        sleep(ONE_SEC).await;
+                        continue;
+                    }
+                    Err(_) => {
+                        break;
+                    }
                 }
-                Err(StreamErr::Backend(RedisErr::IoError(_))) => {
-                    conn.reconnect();
-                    continue;
-                }
-                Err(StreamErr::Backend(RedisErr::TryAgain(_))) => {
-                    sleep(ONE_SEC).await;
-                    continue;
-                }
-                Err(_) => {
+            } else {
+                let msg = self.buffer.pop().unwrap();
+                let header = msg.header().to_owned();
+                if let Ok(()) = self.messages.send_async(Ok(msg)).await {
+                    // we keep track of messages read ourselves
+                    self.read_message(&header);
+                } else {
                     break;
                 }
             }
-            match self.commit_ack(inner).await {
-                Ok(_) => {
-                    ack_failure = 0;
-                }
-                Err(StreamErr::Backend(RedisErr::IoError(_))) => {
-                    conn.reconnect();
-                    continue;
-                }
-                Err(err) => {
-                    log::error!("{err}");
-                    ack_failure += 1;
-                    if ack_failure > 100 {
-                        log::error!("Failed to ACK messages for too many times: {ack_failure}");
-                        break;
+            if self.has_pending_ack() {
+                match self.commit_ack(inner).await {
+                    Ok(_) => {
+                        ack_failure = 0;
+                    }
+                    Err(StreamErr::Backend(RedisErr::IoError(_))) => {
+                        conn.reconnect();
+                        continue;
+                    }
+                    Err(err) => {
+                        log::error!("{err}");
+                        ack_failure += 1;
+                        if ack_failure > 100 {
+                            log::error!("Failed to ACK messages for too many times: {ack_failure}");
+                            break;
+                        }
                     }
                 }
             }
@@ -239,17 +255,26 @@ impl Node {
         log::debug!("Node {} exit", self.id);
     }
 
-    async fn commit_ack(&mut self, conn: &mut redis::aio::Connection) -> RedisResult<()> {
+    fn has_pending_ack(&self) -> bool {
         let mode = self.consumer_options.mode;
         if mode == ConsumerMode::RealTime {
-            return Ok(());
+            return false;
         }
         if self.consumer_options.auto_commit() == &AutoCommit::Immediate {
-            return Ok(());
+            return false;
         }
         if self.group.first_read {
-            return Ok(());
+            return false;
         }
+        for shard in self.shards.iter() {
+            if !shard.pending_ack.is_empty() {
+                return true;
+            }
+        }
+        false
+    }
+
+    async fn commit_ack(&mut self, conn: &mut redis::aio::Connection) -> RedisResult<()> {
         for shard in self.shards.iter_mut() {
             if !shard.pending_ack.is_empty() {
                 if self.consumer_options.auto_commit() == &AutoCommit::Disabled {
@@ -383,22 +408,15 @@ impl Node {
         }
         match conn.req_packed_command(&cmd).await {
             Ok(value) => match StreamReadReply::from_redis_value(value) {
-                Ok(res) => {
-                    log::trace!("Node {} read {} messages", self.id, res.0.len());
-                    if res.0.is_empty() {
+                Ok(StreamReadReply(mut mess)) => {
+                    log::trace!("Node {} read {} messages", self.id, mess.len());
+                    if mess.is_empty() {
                         // If we receive an empty reply, it means if we were reading the pending list
                         // then the list is now empty
                         self.group.pending_state = false;
                     }
-                    for msg in res.0 {
-                        let header = msg.header().to_owned();
-                        if let Ok(()) = self.messages.send_async(Ok(msg)).await {
-                            // we keep track of messages read ourselves
-                            self.read_message(&header);
-                        } else {
-                            return Err(StreamErr::Backend(RedisErr::ConsumerDied));
-                        }
-                    }
+                    mess.reverse();
+                    self.buffer = mess;
                     Ok(None)
                 }
                 Err(err) => self.send_error(err).await,

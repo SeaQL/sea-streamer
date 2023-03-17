@@ -21,7 +21,7 @@ async fn main() -> anyhow::Result<()> {
     test(AutoCommit::Immediate).await?;
     assert!(
         // This test case has a bit of timing element, especially on async-std
-        test(AutoCommit::Delayed).await.is_ok() || 
+        test(AutoCommit::Delayed).await.is_ok() ||
         // So let's try a second time
         test(AutoCommit::Delayed).await.is_ok()
     );

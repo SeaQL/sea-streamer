@@ -43,6 +43,7 @@ pub const DEFAULT_AUTO_COMMIT_DELAY: Duration = Duration::from_secs(5);
 pub const HEARTBEAT: Duration = Duration::from_secs(1);
 #[cfg(not(feature = "test"))]
 pub const HEARTBEAT: Duration = Duration::from_secs(10);
+/// Maximum number of messages to read from Redis in one operation
 pub const BATCH_SIZE: usize = 100;
 
 #[async_trait]
@@ -94,10 +95,14 @@ impl RedisConsumer {
         }
     }
 
+    /// End this consumer
     pub async fn end(self) -> RedisResult<()> {
-        let (sender, receiver) = bounded(1);
+        let (sender, notify) = bounded(1);
         if self.handle.send_async(CtrlMsg::Kill(sender)).await.is_ok() {
-            receiver.recv_async().await.ok();
+            let receiver = self.receiver;
+            // drain the channel
+            spawn_task(async move { while let Ok(_) = receiver.recv_async().await {} });
+            notify.recv_async().await.ok();
         }
         Ok(())
     }
