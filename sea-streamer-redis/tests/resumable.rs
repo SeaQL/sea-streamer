@@ -20,6 +20,7 @@ async fn immediate_and_delayed() -> anyhow::Result<()> {
 
     const TEST: &str = "resumable-1";
     INIT.call_once(env_logger::init);
+
     test(AutoCommit::Immediate).await?;
     test(AutoCommit::Delayed).await?;
 
@@ -86,8 +87,7 @@ async fn immediate_and_delayed() -> anyhow::Result<()> {
 
         producer.flush().await?;
 
-        // now end the consumer, before it consume any new messages
-        // commit and end
+        // now commit and end the consumer, before it consumes any new messages
         full.end().await?;
 
         let seq = consume(&mut half, 5).await;
@@ -97,10 +97,7 @@ async fn immediate_and_delayed() -> anyhow::Result<()> {
         // resume from last committed
         let mut full = streamer.create_consumer(&[stream.clone()], options).await?;
         let seq = consume(&mut full, 5).await;
-        assert_eq!(seq.len(), 5, "Should have at least 5 items");
-        assert_ne!(seq[0], 0, "Should start from anything other than 0");
-        println!("{seq:?}");
-        println!("Stream resume ... ok");
+        assert_eq!(seq, [5, 6, 7, 8, 9]);
 
         println!("End test case.");
         Ok(())
@@ -153,17 +150,9 @@ async fn rolling_and_disabled() -> anyhow::Result<()> {
             .await?;
 
         let mut options = RedisConsumerOptions::new(ConsumerMode::Resumable);
-        options.set_consumer_group(ConsumerGroup::new(format!("{}c", stream.name())))?;
-        options.set_auto_stream_reset(AutoStreamReset::Latest);
+        options.set_auto_stream_reset(AutoStreamReset::Earliest);
         options.set_auto_commit(auto_commit);
         options.set_auto_commit_interval(Duration::from_secs(0));
-
-        // just to create the stream
-        producer.send("-1")?.await?;
-
-        let mut consumer = streamer
-            .create_consumer(&[stream.clone()], options.clone())
-            .await?;
 
         for i in 0..5 {
             let message = format!("{i}");
@@ -172,6 +161,19 @@ async fn rolling_and_disabled() -> anyhow::Result<()> {
 
         producer.flush_once().await?;
 
+        options.set_consumer_group(ConsumerGroup::new(format!("{}c", stream.name())))?;
+        let mut consumer = streamer
+            .create_consumer(&[stream.clone()], options.clone())
+            .await?;
+
+        options.set_consumer_group(ConsumerGroup::new(format!("{}d", stream.name())))?;
+        let mut no_commit = streamer
+            .create_consumer(&[stream.clone()], options.clone())
+            .await?;
+
+        let seq = consume(&mut no_commit, 5).await;
+        assert_eq!(seq, [0, 1, 2, 3, 4]);
+
         // read 5
         let mess: Vec<_> = consumer.stream().take(5).collect().await;
 
@@ -179,10 +181,11 @@ async fn rolling_and_disabled() -> anyhow::Result<()> {
             let msg = msg?;
             let num: usize = msg.message().as_str()?.parse()?;
             assert_eq!(i, num);
-            // but commit only 4
+            // but ack only 4
             if i < 4 {
                 consumer.ack(&msg)?;
             }
+            no_commit.ack(&msg)?;
         }
         println!("Stream latest ... ok");
 
@@ -207,14 +210,25 @@ async fn rolling_and_disabled() -> anyhow::Result<()> {
 
         // no need to end properly
         std::mem::drop(consumer);
+        std::mem::drop(no_commit);
 
-        // new consumer
+        // new consumers
+        options.set_consumer_group(ConsumerGroup::new(format!("{}c", stream.name())))?;
         let mut consumer = streamer
+            .create_consumer(&[stream.clone()], options.clone())
+            .await?;
+
+        options.set_consumer_group(ConsumerGroup::new(format!("{}d", stream.name())))?;
+        let mut no_commit = streamer
             .create_consumer(&[stream.clone()], options.clone())
             .await?;
 
         let seq = consume(&mut consumer, 6).await;
         assert_eq!(seq, [4, 5, 6, 7, 8, 9]);
+
+        let seq = consume(&mut no_commit, 5).await;
+        assert_eq!(seq, [0, 1, 2, 3, 4]);
+
         println!("Stream resume ... ok");
 
         println!("End test case.");
