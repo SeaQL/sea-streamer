@@ -1,4 +1,4 @@
-use super::{AutoCommit, RedisConsumer};
+use super::RedisConsumer;
 use crate::{RedisErr, RedisResult};
 use flume::r#async::RecvFut;
 use sea_streamer_types::{
@@ -49,9 +49,7 @@ impl<'a> Future for NextFuture<'a> {
         match self.fut.poll_unpin(cx) {
             Ready(res) => match res {
                 Ok(Ok(msg)) => {
-                    if self.con.options.auto_commit() == &AutoCommit::Delayed
-                        && self.con.ack(&msg).is_err()
-                    {
+                    if self.con.config.auto_ack && self.con.ack_unchecked(&msg).is_err() {
                         return Ready(Err(StreamErr::Backend(RedisErr::ConsumerDied)));
                     }
                     Ready(Ok(msg))
@@ -59,7 +57,10 @@ impl<'a> Future for NextFuture<'a> {
                 Ok(Err(err)) => Ready(Err(err)),
                 Err(_) => Ready(Err(StreamErr::Backend(RedisErr::ConsumerDied))),
             },
-            Pending => Pending,
+            Pending => {
+                self.con.pending_read();
+                Pending
+            }
         }
     }
 }

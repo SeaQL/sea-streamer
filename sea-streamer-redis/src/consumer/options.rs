@@ -1,4 +1,6 @@
-use super::{RedisConsumerOptions, DEFAULT_AUTO_COMMIT_DELAY};
+use super::{
+    ConsumerConfig, RedisConsumerOptions, DEFAULT_AUTO_COMMIT_DELAY, DEFAULT_AUTO_COMMIT_INTERVAL,
+};
 use crate::{RedisErr, RedisResult};
 use sea_streamer_types::{ConsumerGroup, ConsumerMode, ConsumerOptions, StreamErr};
 use std::time::Duration;
@@ -14,16 +16,31 @@ pub enum AutoStreamReset {
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum AutoCommit {
     /// `XREAD` with `NOACK`. This acknowledges messages as soon as they are fetched.
+    /// In the event of service restart, this will likely result in messages being skipped.
     Immediate,
-    /// Auto commit, but only after `auto_commit_delay` has passed since messages are read.
+    /// Auto ack and commit, but only after `auto_commit_delay` has passed since messages are read.
     Delayed,
+    /// Do not auto ack, but continually commit acked messages to the server as new messages are read.
+    /// The consumer will not commit more often than `auto_commit_interval`.
+    /// You have to call [`RedisConsumer::ack`] manually.
+    Rolling,
     /// Never auto ack or commit.
+    /// You have to call [`RedisConsumer::ack`] and [`RedisConsumer::commit`] manually.
     Disabled,
 }
 
 impl Default for RedisConsumerOptions {
     fn default() -> Self {
         Self::new(ConsumerMode::RealTime)
+    }
+}
+
+impl From<&RedisConsumerOptions> for ConsumerConfig {
+    fn from(options: &RedisConsumerOptions) -> Self {
+        Self {
+            auto_ack: options.auto_commit() == &AutoCommit::Delayed,
+            pre_fetch: options.pre_fetch(),
+        }
     }
 }
 
@@ -39,6 +56,7 @@ impl ConsumerOptions for RedisConsumerOptions {
             auto_stream_reset: AutoStreamReset::Latest,
             auto_commit: AutoCommit::Delayed,
             auto_commit_delay: DEFAULT_AUTO_COMMIT_DELAY,
+            auto_commit_interval: DEFAULT_AUTO_COMMIT_INTERVAL,
         }
     }
 
@@ -120,7 +138,8 @@ impl RedisConsumerOptions {
         &self.auto_commit
     }
 
-    /// The interval for acks to be committed to the server.
+    /// The time needed for an ACK to realize.
+    /// It is timed from the moment `next` returns.
     /// This option is only relevant when `auto_commit` is `Delayed`.
     ///
     /// If unset, defaults to [`DEFAULT_AUTO_COMMIT_DELAY`].
@@ -130,5 +149,30 @@ impl RedisConsumerOptions {
     }
     pub fn auto_commit_delay(&self) -> &Duration {
         &self.auto_commit_delay
+    }
+
+    /// The minimum interval for acks to be committed to the server.
+    /// This option is only relevant when `auto_commit` is `Rolling`.
+    ///
+    /// If unset, defaults to [`DEFAULT_AUTO_COMMIT_INTERVAL`].
+    pub fn set_auto_commit_interval(&mut self, v: Duration) -> &mut Self {
+        self.auto_commit_interval = v;
+        self
+    }
+    pub fn auto_commit_interval(&self) -> &Duration {
+        &self.auto_commit_interval
+    }
+
+    /// Whether pre-fetch the next page as you are streaming. This results in less jitter.
+    /// This option is a side effects of consumer mode and auto_commit.
+    pub fn pre_fetch(&self) -> bool {
+        if self.mode == ConsumerMode::RealTime {
+            true
+        } else {
+            matches!(
+                self.auto_commit(),
+                AutoCommit::Delayed | AutoCommit::Rolling
+            )
+        }
     }
 }

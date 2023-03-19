@@ -22,7 +22,7 @@ use sea_streamer_types::{
 
 #[derive(Debug)]
 pub struct RedisConsumer {
-    options: Arc<RedisConsumerOptions>,
+    config: ConsumerConfig,
     receiver: Receiver<RedisResult<SharedMessage>>,
     handle: Sender<CtrlMsg>,
 }
@@ -36,9 +36,17 @@ pub struct RedisConsumerOptions {
     auto_stream_reset: AutoStreamReset,
     auto_commit: AutoCommit,
     auto_commit_delay: Duration,
+    auto_commit_interval: Duration,
+}
+
+#[derive(Debug)]
+struct ConsumerConfig {
+    auto_ack: bool,
+    pre_fetch: bool,
 }
 
 pub const DEFAULT_AUTO_COMMIT_DELAY: Duration = Duration::from_secs(5);
+pub const DEFAULT_AUTO_COMMIT_INTERVAL: Duration = Duration::from_secs(1);
 #[cfg(feature = "test")]
 pub const HEARTBEAT: Duration = Duration::from_secs(1);
 #[cfg(not(feature = "test"))]
@@ -78,7 +86,24 @@ impl Consumer for RedisConsumer {
 }
 
 impl RedisConsumer {
-    fn ack(&self, msg: &SharedMessage) -> RedisResult<()> {
+    fn pending_read(&self) {
+        if !self.config.pre_fetch {
+            self.handle.try_send(CtrlMsg::Read).ok();
+        }
+    }
+
+    #[inline]
+    /// Mark a message as read. The ACK will be queued for commit.
+    pub fn ack(&self, msg: &SharedMessage) -> RedisResult<()> {
+        if self.config.auto_ack {
+            return Err(StreamErr::Backend(RedisErr::InvalidClientConfig(
+                "Please do not set AutoCommit to Delayed.".to_owned(),
+            )));
+        }
+        self.ack_unchecked(msg)
+    }
+
+    fn ack_unchecked(&self, msg: &SharedMessage) -> RedisResult<()> {
         // unbounded, so never blocks
         if self
             .handle
@@ -95,13 +120,32 @@ impl RedisConsumer {
         }
     }
 
-    /// End this consumer
+    /// Commit all pending acks
+    pub async fn commit(&mut self) -> RedisResult<()> {
+        if self.config.pre_fetch {
+            return Err(StreamErr::Backend(RedisErr::InvalidClientConfig(
+                "Manual commit is not allowed. Please use another AutoCommit option.".to_owned(),
+            )));
+        }
+        let (sender, notify) = bounded(1);
+        if self
+            .handle
+            .send_async(CtrlMsg::Commit(sender))
+            .await
+            .is_ok()
+        {
+            notify.recv_async().await.ok();
+        }
+        Ok(())
+    }
+
+    /// Commit all pending acks and end the consumer
     pub async fn end(self) -> RedisResult<()> {
         let (sender, notify) = bounded(1);
         if self.handle.send_async(CtrlMsg::Kill(sender)).await.is_ok() {
             let receiver = self.receiver;
             // drain the channel
-            spawn_task(async move { while let Ok(_) = receiver.recv_async().await {} });
+            spawn_task(async move { while receiver.recv_async().await.is_ok() {} });
             notify.recv_async().await.ok();
         }
         Ok(())
@@ -122,7 +166,17 @@ pub(crate) async fn create_consumer(
 
     let dur = conn.options.timeout().unwrap_or(DEFAULT_TIMEOUT);
     let enable_cluster = conn.options.enable_cluster();
-    let (sender, receiver) = bounded(0);
+    let config: ConsumerConfig = options.as_ref().into();
+    let (sender, receiver) = if config.pre_fetch {
+        // with pre-fetch, it will only read more if the channel is free.
+        // Zero-capacity channels are always blocking. It means that *at the moment* the consumer
+        // consumes the last item in the buffer, it will proceed to fetch more.
+        // This number could be made configurable in the future.
+        bounded(0)
+    } else {
+        // without pre-fetch, it will only read if consumer reads
+        unbounded()
+    };
     let (handle, response) = unbounded();
     let (status, ready) = bounded(1);
 
@@ -142,7 +196,7 @@ pub(crate) async fn create_consumer(
 
     match timeout(dur, ready.recv_async()).await {
         Ok(Ok(StatusMsg::Ready)) => Ok(RedisConsumer {
-            options,
+            config,
             receiver,
             handle,
         }),

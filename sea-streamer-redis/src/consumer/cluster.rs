@@ -27,10 +27,13 @@ pub enum StatusMsg {
 }
 
 // It's important to keep the messages small
+#[derive(Debug)]
 pub enum CtrlMsg {
     Init(Box<(NodeId, Connection)>),
+    Read,
     AddShard(Box<ShardState>),
     Ack(StreamShard, MessageId, Timestamp),
+    Commit(Sender<RedisResult<()>>),
     Kill(Sender<()>),
 }
 
@@ -79,43 +82,72 @@ impl Cluster {
             }
         }
         let mut ready_count = 0;
-        'outer: loop {
-            loop {
-                match response.try_recv() {
-                    Ok(res) => match res {
-                        CtrlMsg::Ack(key, b, c) => {
-                            if let Some(at) = self.keys.get(&key) {
-                                let node = self.nodes.get(at).unwrap();
-                                if node.send_async(CtrlMsg::Ack(key, b, c)).await.is_err() {
-                                    break 'outer;
+        loop {
+            let mut nothing = 0;
+
+            match response.try_recv() {
+                Ok(res) => match res {
+                    CtrlMsg::Init(_) => panic!("Unexpected CtrlMsg {:?}", res),
+                    CtrlMsg::Read => {
+                        for node in self.nodes.values() {
+                            if node.send_async(CtrlMsg::Read).await.is_err() {
+                                break;
+                            }
+                        }
+                    }
+                    CtrlMsg::Ack(key, b, c) => {
+                        if let Some(at) = self.keys.get(&key) {
+                            let node = self.nodes.get(at).unwrap();
+                            if node.send_async(CtrlMsg::Ack(key, b, c)).await.is_err() {
+                                break;
+                            }
+                        } else {
+                            panic!("Unexpected shard `{:?}`", key);
+                        }
+                    }
+                    CtrlMsg::AddShard(m) => {
+                        panic!("Unexpected CtrlMsg CtrlMsg::AddShard({:?})", m)
+                    }
+                    CtrlMsg::Commit(finally) => {
+                        for node in self.nodes.values() {
+                            let (signal, result) = bounded(1);
+                            if node.send_async(CtrlMsg::Commit(signal)).await.is_ok() {
+                                match result.recv_async().await {
+                                    Ok(Ok(())) => (),
+                                    Ok(Err(err)) => {
+                                        finally.try_send(Err(err)).ok();
+                                        continue;
+                                    }
+                                    Err(_) => break,
                                 }
                             } else {
-                                panic!("Unexpected shard `{:?}`", key);
+                                break;
                             }
                         }
-                        CtrlMsg::AddShard(m) => panic!("Unexpected CtrlMsg {:?}", m),
-                        CtrlMsg::Kill(finally) => {
-                            for node in self.nodes.values() {
-                                let (signal, notify) = bounded(1);
-                                if node.send_async(CtrlMsg::Kill(signal)).await.is_ok() {
-                                    notify.recv_async().await.ok();
-                                }
-                            }
-                            finally.try_send(()).ok();
-                            break 'outer;
-                        }
-                        _ => panic!("Unexpected CtrlMsg"),
-                    },
-                    Err(TryRecvError::Disconnected) => {
-                        // Consumer is dead
-                        break 'outer;
+                        finally.try_send(Ok(())).ok();
                     }
-                    Err(TryRecvError::Empty) => break,
+                    CtrlMsg::Kill(finally) => {
+                        for node in self.nodes.values() {
+                            let (signal, notify) = bounded(1);
+                            if node.send_async(CtrlMsg::Kill(signal)).await.is_ok() {
+                                notify.recv_async().await.ok();
+                            }
+                        }
+                        finally.try_send(()).ok();
+                        break;
+                    }
+                },
+                Err(TryRecvError::Disconnected) => {
+                    // Consumer is dead
+                    break;
+                }
+                Err(TryRecvError::Empty) => {
+                    nothing += 1;
                 }
             }
 
-            if let Ok(event) = receiver.try_recv() {
-                match event {
+            match receiver.try_recv() {
+                Ok(event) => match event {
                     StatusMsg::Ready => {
                         ready_count += 1;
                         if ready_count == self.nodes.len() {
@@ -125,6 +157,18 @@ impl Cluster {
                     }
                     StatusMsg::Moved { shard, from, to } => {
                         log::info!("Shard {shard:?} moving from {from} to {to}");
+                        let conn = if self.nodes.get(&to).is_none() {
+                            Some(
+                                Connection::create_or_reconnect(
+                                    to.clone(),
+                                    connect_options.clone(),
+                                )
+                                .await
+                                .unwrap(),
+                            )
+                        } else {
+                            None
+                        };
                         self.add_node(to.clone(), sender.clone());
                         let node = self.nodes.get(&to).unwrap();
                         if let Some(key) = self.keys.get_mut(shard.key()) {
@@ -132,26 +176,32 @@ impl Cluster {
                         } else {
                             panic!("Unexpected shard `{}`", shard.key);
                         }
-                        let conn =
-                            Connection::create_or_reconnect(to.clone(), connect_options.clone())
+                        if let Some(conn) = conn {
+                            node.send_async(CtrlMsg::Init(Box::new((to, conn))))
                                 .await
                                 .unwrap();
-                        node.send_async(CtrlMsg::Init(Box::new((to, conn))))
-                            .await
-                            .unwrap();
+                        }
                         if node
                             .send_async(CtrlMsg::AddShard(Box::new(shard)))
                             .await
                             .is_err()
                         {
-                            // node is dead
                             break;
                         }
                     }
+                },
+                Err(TryRecvError::Disconnected) => {
+                    // node is dead
+                    break;
+                }
+                Err(TryRecvError::Empty) => {
+                    nothing += 1;
                 }
             }
 
-            sleep(ONE_SEC).await;
+            if nothing == 2 {
+                sleep(ONE_SEC).await;
+            }
         }
         log::debug!("Cluster {cluster_uri} exit");
     }

@@ -1,4 +1,4 @@
-use flume::{Receiver, Sender, TryRecvError};
+use flume::{Receiver, RecvError, Sender, TryRecvError};
 use redis::{
     aio::ConnectionLike, cmd as command, streams::StreamReadOptions, AsyncCommands, ErrorKind,
     RedisWrite, ToRedisArgs, Value,
@@ -37,6 +37,12 @@ struct GroupState {
     group_id: String,
     first_read: bool,
     pending_state: bool,
+    last_commit: Timestamp,
+}
+
+enum ReadResult {
+    Msg(usize),
+    Events(Vec<StatusMsg>),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -130,6 +136,7 @@ impl Node {
                 group_id,
                 first_read: true,
                 pending_state: true,
+                last_commit: Timestamp::now_utc(),
             },
             buffer: Vec::new(),
         }
@@ -155,30 +162,64 @@ impl Node {
         };
         let mut ack_failure = 0;
         let mut ready = false;
+        let mut read = false;
 
         'outer: loop {
             loop {
-                match receiver.try_recv() {
-                    Ok(ctrl) => match ctrl {
-                        CtrlMsg::Init(_) => panic!("Unexpected CtrlMsg"),
-                        CtrlMsg::AddShard(state) => {
-                            log::debug!("Node {id} add shard {state:?}", id = self.id);
-                            self.shards.push(unbox(state));
-                            self.group.first_read = true;
-                        }
-                        CtrlMsg::Ack(key, id, ts) => {
-                            self.ack_message(key, id, ts);
-                        }
-                        CtrlMsg::Kill(notify) => {
-                            notify.try_send(()).ok();
+                let ctrl = if self.consumer_options.pre_fetch() || !ready || read {
+                    match receiver.try_recv() {
+                        Ok(ctrl) => ctrl,
+                        Err(TryRecvError::Disconnected) => {
+                            // parent cluster is dead
                             break 'outer;
                         }
-                    },
-                    Err(TryRecvError::Disconnected) => {
-                        // parent cluster is dead
+                        Err(TryRecvError::Empty) => break,
+                    }
+                } else {
+                    match receiver.recv_async().await {
+                        Ok(ctrl) => ctrl,
+                        Err(RecvError::Disconnected) => {
+                            // parent cluster is dead
+                            break 'outer;
+                        }
+                    }
+                };
+                match ctrl {
+                    CtrlMsg::Init(_) => panic!("Unexpected CtrlMsg"),
+                    CtrlMsg::Read => {
+                        read = true;
+                        break;
+                    }
+                    CtrlMsg::AddShard(state) => {
+                        log::debug!("Node {id} add shard {state:?}", id = self.id);
+                        self.shards.push(unbox(state));
+                        self.group.first_read = true;
+                    }
+                    CtrlMsg::Ack(key, id, ts) => {
+                        self.ack_message(key, id, ts);
+                    }
+                    CtrlMsg::Commit(notify) => {
+                        if self.has_pending_ack() {
+                            match conn.try_get() {
+                                Ok(inner) => match self.commit_ack(inner).await {
+                                    Ok(_) => notify.try_send(Ok(())).ok(),
+                                    Err(err) => notify.try_send(Err(err)).ok(),
+                                },
+                                Err(err) => notify.try_send(Err(err)).ok(),
+                            };
+                        } else {
+                            notify.try_send(Ok(())).ok();
+                        }
+                    }
+                    CtrlMsg::Kill(notify) => {
+                        if self.has_pending_ack() {
+                            if let Ok(inner) = conn.try_get() {
+                                self.commit_ack(inner).await.ok();
+                            }
+                        }
+                        notify.try_send(()).ok();
                         break 'outer;
                     }
-                    Err(TryRecvError::Empty) => break,
                 }
             }
             if self.shards.is_empty() {
@@ -201,8 +242,12 @@ impl Node {
             }
             if self.buffer.is_empty() {
                 match self.read_next(inner).await {
-                    Ok(None) => (),
-                    Ok(Some(events)) => {
+                    Ok(ReadResult::Msg(num)) => {
+                        if num > 0 {
+                            read = false;
+                        }
+                    }
+                    Ok(ReadResult::Events(events)) => {
                         for event in events {
                             if sender.send_async(event).await.is_err() {
                                 break 'outer;
@@ -221,17 +266,21 @@ impl Node {
                         break;
                     }
                 }
-            } else {
+            }
+            while !self.buffer.is_empty() {
                 let msg = self.buffer.pop().unwrap();
                 let header = msg.header().to_owned();
                 if let Ok(()) = self.messages.send_async(Ok(msg)).await {
                     // we keep track of messages read ourselves
                     self.read_message(&header);
                 } else {
+                    break 'outer;
+                }
+                if self.consumer_options.pre_fetch() {
                     break;
                 }
             }
-            if self.has_pending_ack() {
+            if self.has_pending_ack() && self.can_commit_ack() {
                 match self.commit_ack(inner).await {
                     Ok(_) => {
                         ack_failure = 0;
@@ -274,49 +323,58 @@ impl Node {
         false
     }
 
+    fn can_commit_ack(&self) -> bool {
+        Timestamp::now_utc() - *self.consumer_options.auto_commit_interval()
+            > self.group.last_commit
+    }
+
     async fn commit_ack(&mut self, conn: &mut redis::aio::Connection) -> RedisResult<()> {
         for shard in self.shards.iter_mut() {
             if !shard.pending_ack.is_empty() {
-                if self.consumer_options.auto_commit() == &AutoCommit::Disabled {
-                    let to_ack = &shard.pending_ack;
-                    log::debug!("XACK {} {} {}", shard.key, self.group.group_id, ad(to_ack));
-                    match conn.xack(&shard.key, &self.group.group_id, to_ack).await {
-                        Ok(()) => {
-                            // success! so we clear our list
-                            if self.consumer_options.auto_commit() == &AutoCommit::Disabled {
+                match self.consumer_options.auto_commit() {
+                    AutoCommit::Rolling | AutoCommit::Disabled => {
+                        let to_ack = &shard.pending_ack;
+                        log::debug!("XACK {} {} {}", shard.key, self.group.group_id, ad(to_ack));
+                        match conn.xack(&shard.key, &self.group.group_id, to_ack).await {
+                            Ok(()) => {
+                                // success! so we clear our list
                                 shard.pending_ack.truncate(0);
+                                self.group.last_commit = Timestamp::now_utc();
+                            }
+                            Err(err) => {
+                                return Err(map_err(err));
                             }
                         }
-                        Err(err) => {
-                            return Err(map_err(err));
+                    }
+                    AutoCommit::Delayed => {
+                        let mut to_ack = Vec::new();
+                        let cut_off =
+                            Timestamp::now_utc() - *self.consumer_options.auto_commit_delay();
+                        shard.pending_ack.retain(|ack| {
+                            if ack.1 < cut_off {
+                                to_ack.push(*ack);
+                                false
+                            } else {
+                                true
+                            }
+                        });
+                        if to_ack.is_empty() {
+                            continue;
+                        }
+                        log::debug!("XACK {} {} {}", shard.key, self.group.group_id, ad(&to_ack));
+                        match conn.xack(&shard.key, &self.group.group_id, &to_ack).await {
+                            Ok(()) => {
+                                self.group.last_commit = Timestamp::now_utc();
+                            }
+                            Err(err) => {
+                                // error; we put back the items we have removed and try again later
+                                to_ack.append(&mut shard.pending_ack);
+                                shard.pending_ack = to_ack;
+                                return Err(map_err(err));
+                            }
                         }
                     }
-                } else if self.consumer_options.auto_commit() == &AutoCommit::Delayed {
-                    let mut to_ack = Vec::new();
-                    let cut_off = Timestamp::now_utc() - *self.consumer_options.auto_commit_delay();
-                    shard.pending_ack.retain(|ack| {
-                        if ack.1 < cut_off {
-                            to_ack.push(*ack);
-                            false
-                        } else {
-                            true
-                        }
-                    });
-                    if to_ack.is_empty() {
-                        continue;
-                    }
-                    log::debug!("XACK {} {} {}", shard.key, self.group.group_id, ad(&to_ack));
-                    match conn.xack(&shard.key, &self.group.group_id, &to_ack).await {
-                        Ok(()) => (),
-                        Err(err) => {
-                            // error; we put back the items we have removed and try again later
-                            to_ack.append(&mut shard.pending_ack);
-                            shard.pending_ack = to_ack;
-                            return Err(map_err(err));
-                        }
-                    }
-                } else {
-                    unreachable!()
+                    _ => unreachable!(),
                 }
             }
         }
@@ -328,10 +386,7 @@ impl Node {
         Ok(())
     }
 
-    async fn read_next(
-        &mut self,
-        conn: &mut redis::aio::Connection,
-    ) -> RedisResult<Option<Vec<StatusMsg>>> {
+    async fn read_next(&mut self, conn: &mut redis::aio::Connection) -> RedisResult<ReadResult> {
         let mode = self.consumer_options.mode;
         if mode == ConsumerMode::LoadBalanced {
             todo!()
@@ -417,7 +472,7 @@ impl Node {
                     }
                     mess.reverse();
                     self.buffer = mess;
-                    Ok(None)
+                    Ok(ReadResult::Msg(self.buffer.len()))
                 }
                 Err(err) => self.send_error(err).await,
             },
@@ -426,7 +481,7 @@ impl Node {
                 if kind == ErrorKind::Moved {
                     // we don't know which key is moved, so we have to try all
                     let events = self.move_shards(conn).await;
-                    Ok(Some(events))
+                    Ok(ReadResult::Events(events))
                 } else if kind == ErrorKind::IoError {
                     Err(StreamErr::Backend(RedisErr::IoError(err.to_string())))
                 } else if matches!(
@@ -500,7 +555,7 @@ impl Node {
         panic!("Unknown shard {:?}", key);
     }
 
-    async fn send_error(&self, err: StreamErr<RedisErr>) -> RedisResult<Option<Vec<StatusMsg>>> {
+    async fn send_error(&self, err: StreamErr<RedisErr>) -> RedisResult<ReadResult> {
         if let StreamErr::Backend(err) = err {
             self.messages
                 .send_async(Err(StreamErr::Backend(err.clone())))

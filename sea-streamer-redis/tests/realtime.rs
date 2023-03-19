@@ -16,13 +16,11 @@ async fn main() -> anyhow::Result<()> {
 
     const TEST: &str = "realtime";
     env_logger::init();
-    test(false, 0).await?;
-    test(false, 2).await?;
-    test(true, 0).await?;
-    test(true, 2).await?;
+    test(false).await?;
+    test(true).await?;
 
-    async fn test(enable_cluster: bool, extra_items: usize) -> anyhow::Result<()> {
-        println!("enable_cluster = {enable_cluster}; extra_items = {extra_items}...");
+    async fn test(enable_cluster: bool) -> anyhow::Result<()> {
+        println!("Enable Cluster = {enable_cluster} ...");
 
         let mut options = RedisConnectOptions::default();
         options.set_enable_cluster(enable_cluster);
@@ -65,12 +63,12 @@ async fn main() -> anyhow::Result<()> {
             .create_consumer(&[stream.clone()], options.clone())
             .await?;
 
-        for i in 5..10 + extra_items {
+        for i in 5..10 {
             let message = format!("{i}");
             producer.send(message)?;
         }
 
-        producer.flush().await?;
+        producer.flush_once().await?;
 
         options.set_auto_stream_reset(AutoStreamReset::Earliest);
         let mut full = streamer.create_consumer(&[stream.clone()], options).await?;
@@ -82,6 +80,29 @@ async fn main() -> anyhow::Result<()> {
         let seq = consume(&mut full, 10).await;
         assert_eq!(seq, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
         println!("Stream history ... ok");
+
+        for i in 10..13 {
+            let message = format!("{i}");
+            producer.send(message)?;
+        }
+
+        producer.flush_once().await?;
+        half.end().await?;
+
+        let seq = consume(&mut full, 2).await;
+        assert_eq!(seq, [10, 11]);
+
+        for i in 13..15 {
+            let message = format!("{i}");
+            producer.send(message)?;
+        }
+
+        producer.flush().await?;
+
+        let seq = consume(&mut full, 3).await;
+        assert_eq!(seq, [12, 13, 14]);
+
+        println!("Stream realtime ... ok");
 
         full.end().await?;
 
