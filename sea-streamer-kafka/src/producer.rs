@@ -98,7 +98,12 @@ impl Producer for KafkaProducer {
     }
 
     #[inline]
-    async fn flush(self) -> KafkaResult<()> {
+    async fn end(mut self) -> KafkaResult<()> {
+        self.flush().await
+    }
+
+    #[inline]
+    async fn flush(&mut self) -> KafkaResult<()> {
         self.flush_with_timeout(DEFAULT_TIMEOUT).await
     }
 
@@ -239,10 +244,13 @@ impl KafkaProducer {
     }
 
     /// Flush pending messages with a timeout.
-    pub async fn flush_with_timeout(self, timeout: Duration) -> KafkaResult<()> {
-        spawn_blocking(move || self.flush_sync(timeout))
-            .await
-            .map_err(runtime_error)?
+    ///
+    /// # Warning
+    ///
+    /// This async method is not cancel safe. You must await this future,
+    /// and this Producer will be unusable for any operations until it finishes.
+    pub async fn flush_with_timeout(&mut self, timeout: Duration) -> KafkaResult<()> {
+        self.transaction(move |s| s.flush(timeout)).await
     }
 }
 

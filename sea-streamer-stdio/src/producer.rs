@@ -207,8 +207,17 @@ impl ProducerTrait for StdioProducer {
     }
 
     #[inline]
-    async fn flush(self) -> StdioResult<()> {
-        self.flush_once().await
+    async fn end(mut self) -> StdioResult<()> {
+        self.flush().await
+    }
+
+    #[inline]
+    async fn flush(&mut self) -> StdioResult<()> {
+        // the trick here is to send an empty message (that will be dropped) to the stdout thread
+        // and wait for the receipt. By the time it returns a receipt, everything before should
+        // have already been sent
+        self.send_to(&StreamKey::new(BROADCAST)?, "")?.await?;
+        Ok(())
     }
 
     fn anchor(&mut self, stream: StreamKey) -> StdioResult<()> {
@@ -246,14 +255,5 @@ impl StdioProducer {
             request,
             loopback,
         }
-    }
-
-    /// Like [`ProducerTrait::flush`], but does not destroy one self.
-    pub async fn flush_once(&self) -> StdioResult<()> {
-        // the trick here is to send an empty message (that will be dropped) to the stdout thread
-        // and wait for the receipt. By the time it returns a receipt, everything before should
-        // have already been sent
-        self.send_to(&StreamKey::new(BROADCAST)?, "")?.await?;
-        Ok(())
     }
 }

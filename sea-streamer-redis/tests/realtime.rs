@@ -41,7 +41,7 @@ async fn main() -> anyhow::Result<()> {
         ))?;
         let zero = ShardId::new(0);
 
-        let producer = streamer
+        let mut producer = streamer
             .create_producer(stream.clone(), Default::default())
             .await?;
 
@@ -68,7 +68,7 @@ async fn main() -> anyhow::Result<()> {
             producer.send(message)?;
         }
 
-        producer.flush_once().await?;
+        producer.flush().await?;
 
         options.set_auto_stream_reset(AutoStreamReset::Earliest);
         let mut full = streamer.create_consumer(&[stream.clone()], options).await?;
@@ -86,7 +86,7 @@ async fn main() -> anyhow::Result<()> {
             producer.send(message)?;
         }
 
-        producer.flush_once().await?;
+        producer.flush().await?;
         half.end().await?;
 
         let seq = consume(&mut full, 2).await;
@@ -97,7 +97,7 @@ async fn main() -> anyhow::Result<()> {
             producer.send(message)?;
         }
 
-        producer.flush().await?;
+        producer.end().await?;
 
         let seq = consume(&mut full, 3).await;
         assert_eq!(seq, [12, 13, 14]);

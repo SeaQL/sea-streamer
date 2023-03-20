@@ -42,7 +42,7 @@ async fn main() -> anyhow::Result<()> {
             now.millisecond()
         ))?;
 
-        let producer = streamer
+        let mut producer = streamer
             .create_producer(stream.clone(), Default::default())
             .await?;
 

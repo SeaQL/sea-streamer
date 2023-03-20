@@ -91,7 +91,7 @@ async fn immediate_and_delayed() -> anyhow::Result<()> {
             producer.send(message)?;
         }
 
-        producer.flush().await?;
+        producer.end().await?;
 
         // now commit and end the consumer, before it consumes any new messages
         full.end().await?;
@@ -155,7 +155,7 @@ async fn rolling_and_disabled() -> anyhow::Result<()> {
             now.millisecond()
         ))?;
 
-        let producer = streamer
+        let mut producer = streamer
             .create_producer(stream.clone(), Default::default())
             .await?;
 
@@ -169,7 +169,7 @@ async fn rolling_and_disabled() -> anyhow::Result<()> {
             producer.send(message)?;
         }
 
-        producer.flush_once().await?;
+        producer.flush().await?;
 
         options.set_consumer_group(ConsumerGroup::new(format!("{}c", stream.name())))?;
         options.set_consumer_id(ConsumerId::new(format!("{}c", stream.name())));
@@ -206,7 +206,7 @@ async fn rolling_and_disabled() -> anyhow::Result<()> {
             producer.send(message)?;
         }
 
-        producer.flush().await?;
+        producer.end().await?;
 
         if auto_commit == AutoCommit::Rolling {
             // should not allow

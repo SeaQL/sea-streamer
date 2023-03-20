@@ -42,7 +42,7 @@ async fn main() -> anyhow::Result<()> {
         producer.send(message)?;
     }
 
-    producer.flush().await?;
+    producer.end().await?;
 
     let mut options = KafkaConsumerOptions::new(ConsumerMode::RealTime);
     options.set_auto_offset_reset(AutoOffsetReset::Earliest);

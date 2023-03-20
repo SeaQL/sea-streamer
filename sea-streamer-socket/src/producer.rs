@@ -87,8 +87,15 @@ impl Producer for SeaProducer {
         })
     }
 
-    async fn flush(self) -> SeaResult<()> {
+    async fn end(self) -> SeaResult<()> {
         match self.backend {
+            SeaProducerBackend::Kafka(i) => i.end().await.map_err(map_err),
+            SeaProducerBackend::Stdio(i) => i.end().await.map_err(map_err),
+        }
+    }
+
+    async fn flush(&mut self) -> SeaResult<()> {
+        match &mut self.backend {
             SeaProducerBackend::Kafka(i) => i.flush().await.map_err(map_err),
             SeaProducerBackend::Stdio(i) => i.flush().await.map_err(map_err),
         }

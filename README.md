@@ -93,7 +93,7 @@ async fn main() -> Result<()> {
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
 
-    producer.flush(Duration::from_secs(10)).await?;
+    producer.end().await?; // flush
 
     Ok(())
 }

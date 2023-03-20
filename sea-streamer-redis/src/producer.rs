@@ -99,8 +99,18 @@ impl Producer for RedisProducer {
     }
 
     #[inline]
-    async fn flush(self) -> RedisResult<()> {
-        self.flush_once().await
+    async fn end(mut self) -> RedisResult<()> {
+        self.flush().await
+    }
+
+    #[inline]
+    async fn flush(&mut self) -> RedisResult<()> {
+        // The trick here is to send a signal message and wait for the receipt.
+        // By the time it returns a receipt, everything before should have already been sent.
+        let null = [];
+        self.send_to(&StreamKey::new(SEA_STREAMER_INTERNAL)?, null.as_slice())?
+            .await?;
+        Ok(())
     }
 
     fn anchor(&mut self, stream: StreamKey) -> RedisResult<()> {
@@ -118,18 +128,6 @@ impl Producer for RedisProducer {
         } else {
             Err(StreamErr::NotAnchored)
         }
-    }
-}
-
-impl RedisProducer {
-    /// Like [`ProducerTrait::flush`], but does not destroy one self.
-    pub async fn flush_once(&self) -> RedisResult<()> {
-        // The trick here is to send a signal message and wait for the receipt.
-        // By the time it returns a receipt, everything before should have already been sent.
-        let null = [];
-        self.send_to(&StreamKey::new(SEA_STREAMER_INTERNAL)?, null.as_slice())?
-            .await?;
-        Ok(())
     }
 }
 
