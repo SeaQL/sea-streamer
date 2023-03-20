@@ -25,6 +25,12 @@ pub struct ConsumerGroup {
     name: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// Used to identify a consumer within a group.
+pub struct ConsumerId {
+    id: String,
+}
+
 /// Common options of a Consumer.
 pub trait ConsumerOptions: Default + Clone + Send {
     type Error: std::error::Error;
@@ -90,5 +96,15 @@ impl ConsumerGroup {
 
     pub fn name(&self) -> &str {
         &self.name
+    }
+}
+
+impl ConsumerId {
+    pub fn new<S: Into<String>>(id: S) -> Self {
+        Self { id: id.into() }
+    }
+
+    pub fn id(&self) -> &str {
+        &self.id
     }
 }

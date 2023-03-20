@@ -5,11 +5,9 @@ use redis::{
 };
 use std::{fmt::Display, sync::Arc, time::Duration};
 
-use super::{
-    AutoCommit, AutoStreamReset, CtrlMsg, ShardState, StatusMsg, StreamShard, BATCH_SIZE, HEARTBEAT,
-};
+use super::{AutoCommit, AutoStreamReset, CtrlMsg, ShardState, StatusMsg, StreamShard, HEARTBEAT};
 use crate::{
-    host_id, map_err, MessageId, NodeId, RedisCluster, RedisConsumerOptions, RedisErr, RedisResult,
+    map_err, MessageId, NodeId, RedisCluster, RedisConsumerOptions, RedisErr, RedisResult,
     StreamReadReply,
 };
 use sea_streamer_runtime::sleep;
@@ -101,26 +99,15 @@ impl Node {
         messages: Sender<RedisResult<SharedMessage>>,
     ) -> Self {
         let mut opts = StreamReadOptions::default()
-            .count(BATCH_SIZE)
+            .count(*consumer_options.batch_size())
             .block(HEARTBEAT.as_secs() as usize * 1000);
 
         let mode = consumer_options.mode;
-        let suffix = match mode {
-            ConsumerMode::RealTime => "!",
-            ConsumerMode::Resumable => "r",
-            ConsumerMode::LoadBalanced => "s",
-        };
-        let group_id = if let Ok(group_id) = consumer_options.consumer_group() {
-            group_id.name().to_owned()
-        } else {
-            format!("{}:{}", host_id(), suffix)
-        };
-        let consumer_id = match mode {
-            ConsumerMode::RealTime | ConsumerMode::Resumable => group_id.clone(),
-            ConsumerMode::LoadBalanced => format!("{}:{}", consumer_id(), suffix),
-        };
+        let mut group_id = Default::default();
         if matches!(mode, ConsumerMode::Resumable | ConsumerMode::LoadBalanced) {
-            opts = opts.group(&group_id, consumer_id);
+            group_id = consumer_options.consumer_group().unwrap().name().to_owned();
+            let consumer_id = consumer_options.consumer_id().unwrap();
+            opts = opts.group(&group_id, consumer_id.id());
             if consumer_options.auto_commit() == &AutoCommit::Immediate {
                 opts = opts.noack();
             }
@@ -388,9 +375,6 @@ impl Node {
 
     async fn read_next(&mut self, conn: &mut redis::aio::Connection) -> RedisResult<ReadResult> {
         let mode = self.consumer_options.mode;
-        if mode == ConsumerMode::LoadBalanced {
-            todo!()
-        }
         if matches!(mode, ConsumerMode::Resumable | ConsumerMode::LoadBalanced)
             && self.group.first_read
         {
@@ -566,15 +550,6 @@ impl Node {
             unreachable!()
         }
     }
-}
-
-pub fn consumer_id() -> String {
-    format!(
-        "{}:{}:{}",
-        host_id(),
-        std::process::id(),
-        (Timestamp::now_utc().unix_timestamp_nanos() / 1_000_000) % 1_000_000
-    )
 }
 
 #[allow(clippy::boxed_local)]

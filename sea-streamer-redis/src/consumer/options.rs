@@ -1,8 +1,8 @@
 use super::{
     ConsumerConfig, RedisConsumerOptions, DEFAULT_AUTO_COMMIT_DELAY, DEFAULT_AUTO_COMMIT_INTERVAL,
 };
-use crate::{RedisErr, RedisResult};
-use sea_streamer_types::{ConsumerGroup, ConsumerMode, ConsumerOptions, StreamErr};
+use crate::{RedisErr, RedisResult, DEFAULT_BATCH_SIZE, DEFAULT_LOAD_BALANCED_BATCH_SIZE};
+use sea_streamer_types::{ConsumerGroup, ConsumerId, ConsumerMode, ConsumerOptions, StreamErr};
 use std::time::Duration;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -29,6 +29,14 @@ pub enum AutoCommit {
     Disabled,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum SharedShard {
+    /// Consumers in the same group share the same shard
+    Shared,
+    /// Consumers claim ownership of a shard
+    Owned,
+}
+
 impl Default for RedisConsumerOptions {
     fn default() -> Self {
         Self::new(ConsumerMode::RealTime)
@@ -38,6 +46,8 @@ impl Default for RedisConsumerOptions {
 impl From<&RedisConsumerOptions> for ConsumerConfig {
     fn from(options: &RedisConsumerOptions) -> Self {
         Self {
+            group_id: options.consumer_group().ok().cloned(),
+            consumer_id: options.consumer_id().cloned(),
             auto_ack: options.auto_commit() == &AutoCommit::Delayed,
             pre_fetch: options.pre_fetch(),
         }
@@ -50,13 +60,19 @@ impl ConsumerOptions for RedisConsumerOptions {
     fn new(mode: ConsumerMode) -> Self {
         Self {
             mode,
-            group: None,
-            shared_shard: true,
+            group_id: None,
+            consumer_id: None,
             consumer_timeout: None,
             auto_stream_reset: AutoStreamReset::Latest,
             auto_commit: AutoCommit::Delayed,
             auto_commit_delay: DEFAULT_AUTO_COMMIT_DELAY,
             auto_commit_interval: DEFAULT_AUTO_COMMIT_INTERVAL,
+            batch_size: if mode == ConsumerMode::LoadBalanced {
+                DEFAULT_LOAD_BALANCED_BATCH_SIZE
+            } else {
+                DEFAULT_BATCH_SIZE
+            },
+            shared_shard: SharedShard::Shared,
         }
     }
 
@@ -64,12 +80,8 @@ impl ConsumerOptions for RedisConsumerOptions {
         Ok(&self.mode)
     }
 
-    /// ### Consumer ID
-    ///
-    /// Unlike Kafka, Redis requires consumers to self-assign consumer IDs.
-    /// SeaStreamer uses a combination of `host id` + `process id` + `timestamp` when made is `LoadBalanced`.
     fn consumer_group(&self) -> RedisResult<&ConsumerGroup> {
-        self.group.as_ref().ok_or(StreamErr::ConsumerGroupNotSet)
+        self.group_id.as_ref().ok_or(StreamErr::ConsumerGroupNotSet)
     }
 
     /// SeaStreamer Redis offers two load-balancing mechanisms:
@@ -79,6 +91,8 @@ impl ConsumerOptions for RedisConsumerOptions {
     /// Multiple consumers in the same group can share the same shard.
     /// This is load-balanced in a first-ask-first-served manner, according to the Redis documentation.
     /// This can be considered dynamic load-balancing: faster consumers will consume more messages.
+    ///
+    /// This is the vanilla Redis consumer group behaviour.
     ///
     /// ### (Coarse) Owned shard
     ///
@@ -91,19 +105,20 @@ impl ConsumerOptions for RedisConsumerOptions {
     ///
     /// This is reconciled among consumers via a probabilistic contention avoidance mechanism,
     /// which should be fine with < 100 consumers in the same group.
-    fn set_consumer_group(&mut self, group: ConsumerGroup) -> RedisResult<&mut Self> {
-        self.group = Some(group);
+    fn set_consumer_group(&mut self, group_id: ConsumerGroup) -> RedisResult<&mut Self> {
+        self.group_id = Some(group_id);
         Ok(self)
     }
 }
 
 impl RedisConsumerOptions {
-    /// Default is true.
-    pub fn shared_shard(&self) -> bool {
-        self.shared_shard
+    /// Unlike Kafka, Redis requires consumers to self-assign consumer IDs.
+    /// If unset, SeaStreamer uses a combination of `host id` + `process id` + `thread id` + `timestamp`.
+    pub fn consumer_id(&self) -> Option<&ConsumerId> {
+        self.consumer_id.as_ref()
     }
-    pub fn set_shared_shard(&mut self, shared_shard: bool) -> &mut Self {
-        self.shared_shard = shared_shard;
+    pub fn set_consumer_id(&mut self, consumer_id: ConsumerId) -> &mut Self {
+        self.consumer_id = Some(consumer_id);
         self
     }
 
@@ -161,6 +176,33 @@ impl RedisConsumerOptions {
     }
     pub fn auto_commit_interval(&self) -> &Duration {
         &self.auto_commit_interval
+    }
+
+    /// Maximum number of messages to read from Redis in one request.
+    /// Usually, a larger N would reduce the number of roundtrips.
+    /// However, this also prevent messages from being chunked properly to load balance
+    /// among consumers.
+    ///
+    /// Choose this number by considering the throughput of the stream, number of consumers
+    /// in one group, and the time required to process each message.
+    ///
+    /// If unset: if mode is `LoadBalanced`, defaults to [`DEFAULT_LOAD_BALANCED_BATCH_SIZE`].
+    /// Otherwise, defaults to [`DEFAULT_BATCH_SIZE`].
+    pub fn set_batch_size(&mut self, v: usize) -> &mut Self {
+        self.batch_size = v;
+        self
+    }
+    pub fn batch_size(&self) -> &usize {
+        &self.batch_size
+    }
+
+    /// Default is [`Shared`].
+    pub fn shared_shard(&self) -> &SharedShard {
+        &self.shared_shard
+    }
+    pub fn set_shared_shard(&mut self, shared_shard: SharedShard) -> &mut Self {
+        self.shared_shard = shared_shard;
+        self
     }
 
     /// Whether pre-fetch the next page as you are streaming. This results in less jitter.

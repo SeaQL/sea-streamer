@@ -13,11 +13,11 @@ use shard::*;
 use flume::{bounded, unbounded, Receiver, Sender};
 use std::{fmt::Debug, sync::Arc, time::Duration};
 
-use crate::{get_message_id, RedisCluster, RedisErr, RedisResult, DEFAULT_TIMEOUT};
+use crate::{get_message_id, host_id, RedisCluster, RedisErr, RedisResult, DEFAULT_TIMEOUT};
 use sea_streamer_runtime::{spawn_task, timeout};
 use sea_streamer_types::{
-    export::async_trait, ConnectOptions, Consumer, ConsumerGroup, ConsumerMode, Message, SeqPos,
-    ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
+    export::async_trait, ConnectOptions, Consumer, ConsumerGroup, ConsumerId, ConsumerMode,
+    ConsumerOptions, Message, SeqPos, ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
 };
 
 #[derive(Debug)]
@@ -30,29 +30,33 @@ pub struct RedisConsumer {
 #[derive(Debug, Clone)]
 pub struct RedisConsumerOptions {
     mode: ConsumerMode,
-    group: Option<ConsumerGroup>,
-    shared_shard: bool,
+    group_id: Option<ConsumerGroup>,
+    consumer_id: Option<ConsumerId>,
     consumer_timeout: Option<Duration>,
     auto_stream_reset: AutoStreamReset,
     auto_commit: AutoCommit,
     auto_commit_delay: Duration,
     auto_commit_interval: Duration,
+    batch_size: usize,
+    shared_shard: SharedShard,
 }
 
 #[derive(Debug)]
 struct ConsumerConfig {
+    group_id: Option<ConsumerGroup>,
+    consumer_id: Option<ConsumerId>,
     auto_ack: bool,
     pre_fetch: bool,
 }
 
 pub const DEFAULT_AUTO_COMMIT_DELAY: Duration = Duration::from_secs(5);
 pub const DEFAULT_AUTO_COMMIT_INTERVAL: Duration = Duration::from_secs(1);
+pub const DEFAULT_BATCH_SIZE: usize = 100;
+pub const DEFAULT_LOAD_BALANCED_BATCH_SIZE: usize = 10;
 #[cfg(feature = "test")]
 pub const HEARTBEAT: Duration = Duration::from_secs(1);
 #[cfg(not(feature = "test"))]
 pub const HEARTBEAT: Duration = Duration::from_secs(10);
-/// Maximum number of messages to read from Redis in one operation
-pub const BATCH_SIZE: usize = 100;
 
 #[async_trait]
 impl Consumer for RedisConsumer {
@@ -90,6 +94,14 @@ impl RedisConsumer {
         if !self.config.pre_fetch {
             self.handle.try_send(CtrlMsg::Read).ok();
         }
+    }
+
+    pub fn group_id(&self) -> Option<&ConsumerGroup> {
+        self.config.group_id.as_ref()
+    }
+
+    pub fn consumer_id(&self) -> Option<&ConsumerId> {
+        self.config.consumer_id.as_ref()
     }
 
     #[inline]
@@ -154,9 +166,23 @@ impl RedisConsumer {
 
 pub(crate) async fn create_consumer(
     mut conn: RedisCluster,
-    options: RedisConsumerOptions,
+    mut options: RedisConsumerOptions,
     streams: Vec<StreamKey>,
 ) -> RedisResult<RedisConsumer> {
+    let mode = *options.mode()?;
+    if mode != ConsumerMode::RealTime {
+        if options.consumer_group().is_err() {
+            options.set_consumer_group(group_id(&mode))?;
+        }
+        if options.consumer_id().is_none() {
+            options.set_consumer_id(match mode {
+                ConsumerMode::Resumable => ConsumerId::new(options.consumer_group()?.name()),
+                ConsumerMode::LoadBalanced => consumer_id(),
+                _ => unreachable!(),
+            });
+        }
+    }
+
     let options = Arc::new(options);
     conn.reconnect_all().await?;
     let mut shards = Vec::new();
@@ -205,4 +231,32 @@ pub(crate) async fn create_consumer(
             if enable_cluster { "cluster" } else { "node" }
         ))),
     }
+}
+
+pub fn group_id(mode: &ConsumerMode) -> ConsumerGroup {
+    let id = format!(
+        "{}:{}",
+        host_id(),
+        match mode {
+            ConsumerMode::RealTime => "!",
+            ConsumerMode::Resumable => "r",
+            ConsumerMode::LoadBalanced => "s",
+        }
+    );
+    ConsumerGroup::new(id)
+}
+
+pub fn consumer_id() -> ConsumerId {
+    let thread_id = format!("{:?}", std::thread::current().id());
+    let thread_id = thread_id
+        .trim_start_matches("ThreadId(")
+        .trim_end_matches(')');
+    let id = format!(
+        "{}:{}:{}:{}",
+        host_id(),
+        std::process::id(),
+        thread_id,
+        Timestamp::now_utc().unix_timestamp_nanos(),
+    );
+    ConsumerId::new(id)
 }

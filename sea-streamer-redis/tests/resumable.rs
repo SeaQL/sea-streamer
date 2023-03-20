@@ -13,19 +13,23 @@ async fn immediate_and_delayed() -> anyhow::Result<()> {
         AutoCommit, AutoStreamReset, RedisConnectOptions, RedisConsumerOptions, RedisStreamer,
     };
     use sea_streamer_types::{
-        ConsumerGroup, ConsumerMode, ConsumerOptions, Producer, ShardId, StreamKey, Streamer,
-        Timestamp,
+        ConsumerGroup, ConsumerId, ConsumerMode, ConsumerOptions, Producer, ShardId, StreamKey,
+        Streamer, Timestamp,
     };
     use std::time::Duration;
 
     const TEST: &str = "resumable-1";
     INIT.call_once(env_logger::init);
 
-    test(AutoCommit::Immediate).await?;
-    test(AutoCommit::Delayed).await?;
+    test(AutoCommit::Immediate, ConsumerMode::Resumable).await?;
+    test(AutoCommit::Delayed, ConsumerMode::Resumable).await?;
 
-    async fn test(auto_commit: AutoCommit) -> anyhow::Result<()> {
-        println!("AutoCommit = {auto_commit:?} ...");
+    // LoadBalanced with only one consumer in the group is equivalent to Resumable
+    test(AutoCommit::Immediate, ConsumerMode::LoadBalanced).await?;
+    test(AutoCommit::Delayed, ConsumerMode::LoadBalanced).await?;
+
+    async fn test(auto_commit: AutoCommit, consumer_mode: ConsumerMode) -> anyhow::Result<()> {
+        println!("AutoCommit = {auto_commit:?}, ConsumerMode = {consumer_mode:?}...");
 
         let options = RedisConnectOptions::default();
         let streamer = RedisStreamer::connect(
@@ -59,8 +63,9 @@ async fn immediate_and_delayed() -> anyhow::Result<()> {
             assert_eq!(receipt.shard_id(), &zero);
         }
 
-        let mut options = RedisConsumerOptions::new(ConsumerMode::Resumable);
+        let mut options = RedisConsumerOptions::new(consumer_mode);
         options.set_consumer_group(ConsumerGroup::new(format!("{}a", stream.name())))?;
+        options.set_consumer_id(ConsumerId::new(format!("{}a", stream.name())));
         options.set_auto_stream_reset(AutoStreamReset::Latest);
         options.set_auto_commit(auto_commit);
         // zero delay
@@ -71,6 +76,7 @@ async fn immediate_and_delayed() -> anyhow::Result<()> {
             .await?;
 
         options.set_consumer_group(ConsumerGroup::new(format!("{}b", stream.name())))?;
+        options.set_consumer_id(ConsumerId::new(format!("{}b", stream.name())));
         options.set_auto_stream_reset(AutoStreamReset::Earliest);
         let mut full = streamer
             .create_consumer(&[stream.clone()], options.clone())
@@ -114,19 +120,23 @@ async fn rolling_and_disabled() -> anyhow::Result<()> {
         AutoCommit, AutoStreamReset, RedisConnectOptions, RedisConsumerOptions, RedisStreamer,
     };
     use sea_streamer_types::{
-        export::futures::StreamExt, Buffer, Consumer, ConsumerGroup, ConsumerMode, ConsumerOptions,
-        Message, Producer, StreamKey, Streamer, Timestamp,
+        export::futures::StreamExt, Buffer, Consumer, ConsumerGroup, ConsumerId, ConsumerMode,
+        ConsumerOptions, Message, Producer, StreamKey, Streamer, Timestamp,
     };
     use std::time::Duration;
 
     const TEST: &str = "resumable-2";
     INIT.call_once(env_logger::init);
 
-    test(AutoCommit::Rolling).await?;
-    test(AutoCommit::Disabled).await?;
+    test(AutoCommit::Rolling, ConsumerMode::Resumable).await?;
+    test(AutoCommit::Disabled, ConsumerMode::Resumable).await?;
 
-    async fn test(auto_commit: AutoCommit) -> anyhow::Result<()> {
-        println!("AutoCommit = {auto_commit:?} ...");
+    // LoadBalanced with only one consumer in the group is equivalent to Resumable
+    test(AutoCommit::Rolling, ConsumerMode::LoadBalanced).await?;
+    test(AutoCommit::Disabled, ConsumerMode::LoadBalanced).await?;
+
+    async fn test(auto_commit: AutoCommit, consumer_mode: ConsumerMode) -> anyhow::Result<()> {
+        println!("AutoCommit = {auto_commit:?}, ConsumerMode = {consumer_mode:?}...");
 
         let options = RedisConnectOptions::default();
         let streamer = RedisStreamer::connect(
@@ -149,7 +159,7 @@ async fn rolling_and_disabled() -> anyhow::Result<()> {
             .create_producer(stream.clone(), Default::default())
             .await?;
 
-        let mut options = RedisConsumerOptions::new(ConsumerMode::Resumable);
+        let mut options = RedisConsumerOptions::new(consumer_mode);
         options.set_auto_stream_reset(AutoStreamReset::Earliest);
         options.set_auto_commit(auto_commit);
         options.set_auto_commit_interval(Duration::from_secs(0));
@@ -162,11 +172,13 @@ async fn rolling_and_disabled() -> anyhow::Result<()> {
         producer.flush_once().await?;
 
         options.set_consumer_group(ConsumerGroup::new(format!("{}c", stream.name())))?;
+        options.set_consumer_id(ConsumerId::new(format!("{}c", stream.name())));
         let mut consumer = streamer
             .create_consumer(&[stream.clone()], options.clone())
             .await?;
 
         options.set_consumer_group(ConsumerGroup::new(format!("{}d", stream.name())))?;
+        options.set_consumer_id(ConsumerId::new(format!("{}d", stream.name())));
         let mut no_commit = streamer
             .create_consumer(&[stream.clone()], options.clone())
             .await?;
@@ -214,11 +226,13 @@ async fn rolling_and_disabled() -> anyhow::Result<()> {
 
         // new consumers
         options.set_consumer_group(ConsumerGroup::new(format!("{}c", stream.name())))?;
+        options.set_consumer_id(ConsumerId::new(format!("{}c", stream.name())));
         let mut consumer = streamer
             .create_consumer(&[stream.clone()], options.clone())
             .await?;
 
         options.set_consumer_group(ConsumerGroup::new(format!("{}d", stream.name())))?;
+        options.set_consumer_id(ConsumerId::new(format!("{}d", stream.name())));
         let mut no_commit = streamer
             .create_consumer(&[stream.clone()], options.clone())
             .await?;
