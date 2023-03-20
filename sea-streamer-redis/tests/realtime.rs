@@ -10,9 +10,11 @@ async fn main() -> anyhow::Result<()> {
     use sea_streamer_redis::{
         AutoStreamReset, RedisConnectOptions, RedisConsumerOptions, RedisStreamer,
     };
+    use sea_streamer_runtime::sleep;
     use sea_streamer_types::{
         ConsumerMode, ConsumerOptions, Producer, ShardId, StreamKey, Streamer, Timestamp,
     };
+    use std::time::Duration;
 
     const TEST: &str = "realtime";
     env_logger::init();
@@ -32,12 +34,13 @@ async fn main() -> anyhow::Result<()> {
             options,
         )
         .await?;
+        println!("Connect Streamer ... ok");
+
         let now = Timestamp::now_utc();
         let stream = StreamKey::new(format!(
-            "{}-{}-{}",
+            "{}-{}",
             TEST,
-            now.unix_timestamp(),
-            now.millisecond()
+            now.unix_timestamp_nanos() / 1_000_000
         ))?;
         let zero = ShardId::new(0);
 
@@ -62,6 +65,8 @@ async fn main() -> anyhow::Result<()> {
         let mut half = streamer
             .create_consumer(&[stream.clone()], options.clone())
             .await?;
+
+        sleep(Duration::from_millis(5)).await;
 
         for i in 5..10 {
             let message = format!("{i}");

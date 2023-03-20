@@ -226,6 +226,7 @@ impl Node {
                 if sender.send_async(StatusMsg::Ready).await.is_err() {
                     break 'outer;
                 }
+                continue;
             }
             if self.buffer.is_empty() {
                 match self.read_next(inner).await {

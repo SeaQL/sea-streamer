@@ -36,10 +36,9 @@ async fn main() -> anyhow::Result<()> {
         .await?;
         let now = Timestamp::now_utc();
         let stream = StreamKey::new(format!(
-            "{}-{}-{}",
+            "{}-{}",
             TEST,
-            now.unix_timestamp(),
-            now.millisecond()
+            now.unix_timestamp_nanos() / 1_000_000
         ))?;
 
         let mut producer = streamer
