@@ -522,7 +522,7 @@ impl Node {
 
     fn read_message(&mut self, header: &MessageHeader) {
         for shard in self.shards.iter_mut() {
-            if shard.key == header.stream_key().name() {
+            if &shard.stream.0 == header.stream_key() && &shard.stream.1 == header.shard_id() {
                 shard.update(header);
                 return;
             }

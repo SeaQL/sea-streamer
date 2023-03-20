@@ -45,7 +45,7 @@ pub async fn discover_shards(
             pending_ack: Default::default(),
         }]
     } else {
-        shard_keys
+        let mut shards: Vec<_> = shard_keys
             .into_iter()
             .filter_map(|key| match key.split_once(':') {
                 Some((_, tail)) => {
@@ -64,6 +64,8 @@ pub async fn discover_shards(
                 }
                 None => unreachable!(),
             })
-            .collect()
+            .collect();
+        shards.sort_by_key(|s| s.stream.1);
+        shards
     })
 }

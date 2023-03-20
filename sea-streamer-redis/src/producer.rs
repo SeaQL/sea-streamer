@@ -65,15 +65,22 @@ pub trait Sharder: Send {
     /// Mutex, atomic or anything that can create contention will be disastrous.
     ///
     /// It will then be sent to the stream with key `STREAM_KEY:SHARD`.
-    /// The Redis Cluster will allocate this shard to a particular node as the cluster scales.
+    /// The Redis Cluster will assign this shard to a particular node as the cluster scales.
     /// Different shards may or may not end up in the same slot, and thus may or may not end up in the same node.
     fn shard(&mut self, stream_key: &StreamKey, bytes: &[u8]) -> u64;
 }
 
-#[derive(Debug)]
-/// Shard streams pseudo-randomly but fairly. Basically a `rand() / num_shards`.
+#[derive(Debug, Clone)]
+/// Shard streams pseudo-randomly but fairly. Basically a `rand() % num_shards`.
 pub struct PseudoRandomSharder {
     num_shards: u64,
+}
+
+#[derive(Debug, Clone)]
+/// Shard streams by round-robin.
+pub struct RoundRobinSharder {
+    num_shards: u32,
+    state: u32,
 }
 
 #[async_trait]
@@ -132,6 +139,24 @@ impl Producer for RedisProducer {
 }
 
 impl ProducerOptions for RedisProducerOptions {}
+
+impl RedisProducerOptions {
+    /// Sharding simply means splitting a stream into multiple keys.
+    /// These keys can then be handled by different nodes in a cluster.
+    /// Since shards (keys) can be moved across nodes on the fly,
+    /// it is recommended to over-shard for better key distribution.
+    pub fn set_sharder<S: SharderConfig + 'static>(&mut self, v: S) -> &mut Self {
+        self.sharder = Some(Arc::new(v));
+        self
+    }
+    pub fn clear_sharder(&mut self) -> &mut Self {
+        self.sharder = None;
+        self
+    }
+    pub fn sharder(&self) -> Option<&dyn SharderConfig> {
+        self.sharder.as_deref()
+    }
+}
 
 impl Future for SendFuture {
     type Output = RedisResult<MessageHeader>;
@@ -268,22 +293,42 @@ pub(crate) async fn create_producer(
 }
 
 impl PseudoRandomSharder {
-    pub fn new_config(num_shards: u64) -> Arc<dyn SharderConfig> {
-        Arc::new(Self { num_shards })
+    pub fn new(num_shards: u64) -> Self {
+        Self { num_shards }
     }
 }
 
 impl SharderConfig for PseudoRandomSharder {
     fn init(&self) -> Box<dyn Sharder> {
-        let new = Self {
-            num_shards: self.num_shards,
-        };
-        Box::new(new)
+        Box::new(self.clone())
     }
 }
 
 impl Sharder for PseudoRandomSharder {
     fn shard(&mut self, _: &StreamKey, _: &[u8]) -> u64 {
         Timestamp::now_utc().millisecond() as u64 % self.num_shards
+    }
+}
+
+impl RoundRobinSharder {
+    pub fn new(num_shards: u32) -> Self {
+        Self {
+            num_shards,
+            state: 0,
+        }
+    }
+}
+
+impl SharderConfig for RoundRobinSharder {
+    fn init(&self) -> Box<dyn Sharder> {
+        Box::new(self.clone())
+    }
+}
+
+impl Sharder for RoundRobinSharder {
+    fn shard(&mut self, _: &StreamKey, _: &[u8]) -> u64 {
+        let r = self.state % self.num_shards;
+        self.state = self.state.wrapping_add(1);
+        r as u64
     }
 }
