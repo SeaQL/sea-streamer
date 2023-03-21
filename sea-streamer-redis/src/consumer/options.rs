@@ -32,6 +32,8 @@ pub enum ShardOwnership {
     /// Consumers in the same group share the same shard
     Shared,
     /// Consumers claim ownership of a shard
+    ///
+    /// > This feature is still WIP
     Owned,
 }
 
@@ -96,15 +98,20 @@ impl ConsumerOptions for RedisConsumerOptions {
     ///
     /// ### (Coarse) Owned shard
     ///
+    /// > This feature is still WIP
+    ///
     /// Multiple consumers within the same group do not share a shard.
     /// Each consumer will attempt to claim ownership of a shard, and other consumers will not step in.
-    /// However, if a consumer has been idle for too long (defined by `consumer_timeout`),
-    /// another consumer will step in and kick the other consumer out of the group.
+    /// However, if a consumer has been idle for too long (defined by `auto_claim_idle`),
+    /// another consumer will step in and claim ownership of the shard.
+    ///
+    /// As new consumers join the group, if the shard distribution is not in a 'fair state' (at most 1 shard
+    /// per consumer), ownership of a shard may be transferred among consumers.
     ///
     /// This mimicks Kafka's consumer group behaviour.
     ///
-    /// This is reconciled among consumers via a probabilistic contention avoidance mechanism,
-    /// which should be fine with < 100 consumers in the same group.
+    /// This is implemented via a dedicated key (for each stream) in the same Redis db,
+    /// and managed co-operatively among consumers.
     fn set_consumer_group(&mut self, group_id: ConsumerGroup) -> RedisResult<&mut Self> {
         self.group_id = Some(group_id);
         Ok(self)
@@ -203,7 +210,7 @@ impl RedisConsumerOptions {
     }
 
     /// Maximum number of messages to read from Redis in one request.
-    /// Usually, a larger N would reduce the number of roundtrips.
+    /// A larger N would reduce the number of roundtrips.
     /// However, this also prevent messages from being chunked properly to load balance
     /// among consumers.
     ///
@@ -230,8 +237,11 @@ impl RedisConsumerOptions {
         self
     }
 
-    /// Whether pre-fetch the next page as you are streaming. This results in less jitter.
-    /// This option is a side effects of consumer mode and auto_commit.
+    /// Whether to pre-fetch the next page as the consumer is streaming. This results in less jitter.
+    ///
+    /// If false, it only fetches when [`Consumer::next`] is called, aka. on demand.
+    ///
+    /// This option is a side effect of consumer mode and auto commit.
     pub fn pre_fetch(&self) -> bool {
         if self.mode == ConsumerMode::RealTime {
             true

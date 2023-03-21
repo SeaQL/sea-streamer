@@ -682,7 +682,11 @@ impl Node {
 fn is_cluster_error(kind: redis::ErrorKind) -> bool {
     matches!(
         kind,
-        ErrorKind::Ask | ErrorKind::TryAgain | ErrorKind::ClusterDown | ErrorKind::MasterDown
+        ErrorKind::Ask
+            | ErrorKind::Moved
+            | ErrorKind::TryAgain
+            | ErrorKind::ClusterDown
+            | ErrorKind::MasterDown
     )
 }
 

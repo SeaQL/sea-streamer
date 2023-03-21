@@ -192,7 +192,7 @@ pub(crate) async fn create_consumer(
     }
 
     if options.shard_ownership() == &ShardOwnership::Owned {
-        todo!();
+        todo!("Hopefully this will come out in the next release.");
     }
 
     let options = Arc::new(options);
@@ -206,13 +206,13 @@ pub(crate) async fn create_consumer(
     let enable_cluster = conn.options.enable_cluster();
     let config: ConsumerConfig = options.as_ref().into();
     let (sender, receiver) = if config.pre_fetch {
-        // with pre-fetch, it will only read more if the channel is free.
+        // With pre-fetch, it will only read more if the channel is free.
         // Zero-capacity channels are always blocking. It means that *at the moment* the consumer
         // consumes the last item in the buffer, it will proceed to fetch more.
         // This number could be made configurable in the future.
         bounded(0)
     } else {
-        // without pre-fetch, it will only read if consumer reads
+        // Without pre-fetch, it only fetches when next is called, aka. on demand.
         unbounded()
     };
     let (handle, response) = unbounded();
