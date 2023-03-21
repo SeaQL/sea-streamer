@@ -8,6 +8,7 @@ static INIT: std::sync::Once = std::sync::Once::new();
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
+/// Auto Ack & auto Commit
 async fn immediate_and_delayed() -> anyhow::Result<()> {
     use sea_streamer_redis::{
         AutoCommit, AutoStreamReset, RedisConnectOptions, RedisConsumerOptions, RedisStreamer,
@@ -75,8 +76,9 @@ async fn immediate_and_delayed() -> anyhow::Result<()> {
             .create_consumer(&[stream.clone()], options.clone())
             .await?;
 
+        // Immediate does not pre-fetch
         let consume_half = spawn_task(async move {
-            // kick start the stream from now
+            // so we need to kick start the stream
             consume(&mut half, 5).await
         });
 
@@ -120,6 +122,7 @@ async fn immediate_and_delayed() -> anyhow::Result<()> {
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
+/// Manual Ack, auto / manual Commit
 async fn rolling_and_disabled() -> anyhow::Result<()> {
     use sea_streamer_redis::{
         AutoCommit, AutoStreamReset, RedisConnectOptions, RedisConsumerOptions, RedisStreamer,
