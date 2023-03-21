@@ -37,8 +37,10 @@ pub struct RedisConsumerOptions {
     auto_commit: AutoCommit,
     auto_commit_delay: Duration,
     auto_commit_interval: Duration,
+    auto_claim_interval: Option<Duration>,
+    auto_claim_idle: Duration,
     batch_size: usize,
-    shared_shard: SharedShard,
+    shard_ownership: ShardOwnership,
 }
 
 #[derive(Debug)]
@@ -49,14 +51,20 @@ struct ConsumerConfig {
     pre_fetch: bool,
 }
 
-pub const DEFAULT_AUTO_COMMIT_DELAY: Duration = Duration::from_secs(5);
-pub const DEFAULT_AUTO_COMMIT_INTERVAL: Duration = Duration::from_secs(1);
-pub const DEFAULT_BATCH_SIZE: usize = 100;
-pub const DEFAULT_LOAD_BALANCED_BATCH_SIZE: usize = 10;
-#[cfg(feature = "test")]
-pub const HEARTBEAT: Duration = Duration::from_secs(1);
-#[cfg(not(feature = "test"))]
-pub const HEARTBEAT: Duration = Duration::from_secs(10);
+pub mod constants {
+    use std::time::Duration;
+
+    pub const DEFAULT_AUTO_COMMIT_DELAY: Duration = Duration::from_secs(5);
+    pub const DEFAULT_AUTO_COMMIT_INTERVAL: Duration = Duration::from_secs(1);
+    pub const DEFAULT_AUTO_CLAIM_INTERVAL: Duration = Duration::from_secs(30);
+    pub const DEFAULT_AUTO_CLAIM_IDLE: Duration = Duration::from_secs(60);
+    pub const DEFAULT_BATCH_SIZE: usize = 100;
+    pub const DEFAULT_LOAD_BALANCED_BATCH_SIZE: usize = 10;
+    #[cfg(feature = "test")]
+    pub const HEARTBEAT: Duration = Duration::from_secs(1);
+    #[cfg(not(feature = "test"))]
+    pub const HEARTBEAT: Duration = Duration::from_secs(10);
+}
 
 #[async_trait]
 impl Consumer for RedisConsumer {
@@ -181,6 +189,10 @@ pub(crate) async fn create_consumer(
                 _ => unreachable!(),
             });
         }
+    }
+
+    if options.shard_ownership() == &ShardOwnership::Owned {
+        todo!();
     }
 
     let options = Arc::new(options);

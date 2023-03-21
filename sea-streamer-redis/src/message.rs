@@ -10,6 +10,10 @@ pub type MessageId = (u64, u16);
 #[repr(transparent)]
 pub(crate) struct StreamReadReply(pub(crate) Vec<SharedMessage>);
 
+#[derive(Debug)]
+#[repr(transparent)]
+pub(crate) struct AutoClaimReply(pub(crate) Vec<SharedMessage>);
+
 /// The Redis message id comprises two 64 bit integers. In order to fit it into 64 bit,
 /// we only allocate 48 bit to the timestamp, and the remaining 16 bit to the sub-sequence number.
 ///
@@ -53,8 +57,6 @@ impl StreamReadReply {
     pub(crate) fn from_redis_value(value: Value) -> RedisResult<Self> {
         let mut messages = Vec::new();
 
-        let err = |value| StreamErr::Backend(RedisErr::StreamReadReply(format!("{value:?}")));
-
         if let Value::Bulk(values) = value {
             for value in values {
                 if let Value::Bulk(values) = value {
@@ -80,50 +82,83 @@ impl StreamReadReply {
                         };
                     let stream_key = StreamKey::new(stream_key)?;
                     if let Value::Bulk(values) = value_1 {
-                        for value in values {
-                            if let Value::Bulk(values) = value {
-                                if values.len() != 2 {
-                                    return Err(err(values));
-                                }
-                                let mut values = values.into_iter();
-                                let value_0 = values.next().unwrap();
-                                let value_1 = values.next().unwrap();
-                                let id = string_from_redis_value(value_0)?;
-                                let (timestamp, sequence) = parse_message_id(&id)?;
-                                if let Value::Bulk(values) = value_1 {
-                                    assert!(values.len() % 2 == 0);
-                                    let pairs = values.len() / 2;
-                                    let mut values = values.into_iter();
-                                    for _ in 0..pairs {
-                                        let field = values.next().unwrap();
-                                        let field = string_from_redis_value(field)?;
-                                        let value = values.next().unwrap();
-                                        if field == MSG {
-                                            let bytes = bytes_from_redis_value(value)?;
-                                            let length = bytes.len();
-                                            messages.push(SharedMessage::new(
-                                                MessageHeader::new(
-                                                    stream_key.clone(),
-                                                    shard,
-                                                    sequence,
-                                                    timestamp,
-                                                ),
-                                                bytes,
-                                                0,
-                                                length,
-                                            ));
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        parse_messages(values, stream_key, shard, &mut messages)?;
                     }
                 }
             }
         }
 
-        Ok(StreamReadReply(messages))
+        Ok(Self(messages))
     }
+}
+
+impl AutoClaimReply {
+    pub(crate) fn from_redis_value(
+        value: Value,
+        stream_key: StreamKey,
+        shard: ShardId,
+    ) -> RedisResult<Self> {
+        let mut messages = Vec::new();
+        if let Value::Bulk(values) = value {
+            if values.len() != 3 {
+                return Err(err(values));
+            }
+            let mut values = values.into_iter();
+            _ = values.next().unwrap();
+            let value = values.next().unwrap();
+            if let Value::Bulk(values) = value {
+                parse_messages(values, stream_key, shard, &mut messages)?;
+            } else {
+                return Err(err(value));
+            }
+        }
+        Ok(Self(messages))
+    }
+}
+
+fn parse_messages(
+    values: Vec<Value>,
+    stream: StreamKey,
+    shard: ShardId,
+    messages: &mut Vec<SharedMessage>,
+) -> RedisResult<()> {
+    for value in values {
+        if let Value::Bulk(values) = value {
+            if values.len() != 2 {
+                return Err(err(values));
+            }
+            let mut values = values.into_iter();
+            let value_0 = values.next().unwrap();
+            let value_1 = values.next().unwrap();
+            let id = string_from_redis_value(value_0)?;
+            let (timestamp, sequence) = parse_message_id(&id)?;
+            if let Value::Bulk(values) = value_1 {
+                assert!(values.len() % 2 == 0);
+                let pairs = values.len() / 2;
+                let mut values = values.into_iter();
+                for _ in 0..pairs {
+                    let field = values.next().unwrap();
+                    let field = string_from_redis_value(field)?;
+                    let value = values.next().unwrap();
+                    if field == MSG {
+                        let bytes = bytes_from_redis_value(value)?;
+                        let length = bytes.len();
+                        messages.push(SharedMessage::new(
+                            MessageHeader::new(stream.clone(), shard, sequence, timestamp),
+                            bytes,
+                            0,
+                            length,
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn err<D: std::fmt::Debug>(d: D) -> StreamErr<RedisErr> {
+    StreamErr::Backend(RedisErr::StreamReadReply(format!("{d:?}")))
 }
 
 pub(crate) fn string_from_redis_value(v: Value) -> RedisResult<String> {

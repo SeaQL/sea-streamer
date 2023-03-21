@@ -1,14 +1,18 @@
 use flume::{Receiver, RecvError, Sender, TryRecvError};
 use redis::{
-    aio::ConnectionLike, cmd as command, streams::StreamReadOptions, AsyncCommands, ErrorKind,
-    RedisWrite, ToRedisArgs, Value,
+    aio::ConnectionLike,
+    cmd as command,
+    streams::{StreamInfoConsumersReply, StreamReadOptions},
+    AsyncCommands, ErrorKind, RedisWrite, ToRedisArgs, Value,
 };
 use std::{fmt::Display, sync::Arc, time::Duration};
 
-use super::{AutoCommit, AutoStreamReset, CtrlMsg, ShardState, StatusMsg, StreamShard, HEARTBEAT};
+use super::{
+    constants::HEARTBEAT, AutoCommit, AutoStreamReset, CtrlMsg, ShardState, StatusMsg, StreamShard,
+};
 use crate::{
-    map_err, MessageId, NodeId, RedisCluster, RedisConsumerOptions, RedisErr, RedisResult,
-    StreamReadReply,
+    map_err, AutoClaimReply, MessageId, NodeId, RedisCluster, RedisConsumerOptions, RedisErr,
+    RedisResult, StreamReadReply,
 };
 use sea_streamer_runtime::sleep;
 use sea_streamer_types::{
@@ -21,7 +25,7 @@ const ONE_SEC: Duration = Duration::from_secs(1);
 
 pub struct Node {
     id: NodeId,
-    consumer_options: Arc<RedisConsumerOptions>,
+    options: Arc<RedisConsumerOptions>,
     shards: Vec<ShardState>,
     messages: Sender<RedisResult<SharedMessage>>,
     opts: StreamReadOptions,
@@ -30,12 +34,19 @@ pub struct Node {
     buffer: Vec<SharedMessage>,
 }
 
-#[derive(Debug)]
 struct GroupState {
     group_id: String,
     first_read: bool,
     pending_state: bool,
     last_commit: Timestamp,
+    last_check: Timestamp,
+    claiming: Option<ClaimState>,
+}
+
+struct ClaimState {
+    stream: StreamShard,
+    key: String,
+    consumer: String,
 }
 
 enum ReadResult {
@@ -95,27 +106,27 @@ impl Node {
     /// Create a node that is managed by a cluster
     pub fn add(
         id: NodeId,
-        consumer_options: Arc<RedisConsumerOptions>,
+        options: Arc<RedisConsumerOptions>,
         messages: Sender<RedisResult<SharedMessage>>,
     ) -> Self {
         let mut opts = StreamReadOptions::default()
-            .count(*consumer_options.batch_size())
+            .count(*options.batch_size())
             .block(HEARTBEAT.as_secs() as usize * 1000);
 
-        let mode = consumer_options.mode;
+        let mode = options.mode;
         let mut group_id = Default::default();
         if matches!(mode, ConsumerMode::Resumable | ConsumerMode::LoadBalanced) {
-            group_id = consumer_options.consumer_group().unwrap().name().to_owned();
-            let consumer_id = consumer_options.consumer_id().unwrap();
+            group_id = options.consumer_group().unwrap().name().to_owned();
+            let consumer_id = options.consumer_id().unwrap();
             opts = opts.group(&group_id, consumer_id.id());
-            if consumer_options.auto_commit() == &AutoCommit::Immediate {
+            if options.auto_commit() == &AutoCommit::Immediate {
                 opts = opts.noack();
             }
         }
 
         Self {
             id,
-            consumer_options,
+            options,
             shards: Vec::new(),
             messages,
             opts,
@@ -124,6 +135,8 @@ impl Node {
                 first_read: true,
                 pending_state: true,
                 last_commit: Timestamp::now_utc(),
+                last_check: Timestamp::now_utc(),
+                claiming: None,
             },
             buffer: Vec::new(),
         }
@@ -153,7 +166,7 @@ impl Node {
 
         'outer: loop {
             loop {
-                let ctrl = if self.consumer_options.pre_fetch() || !ready || read {
+                let ctrl = if self.options.pre_fetch() || !ready || read {
                     match receiver.try_recv() {
                         Ok(ctrl) => ctrl,
                         Err(TryRecvError::Disconnected) => {
@@ -264,11 +277,11 @@ impl Node {
                 } else {
                     break 'outer;
                 }
-                if self.consumer_options.pre_fetch() {
+                if self.options.pre_fetch() {
                     break;
                 }
             }
-            if self.has_pending_ack() && self.can_commit_ack() {
+            if self.has_pending_ack() && self.can_auto_commit() {
                 match self.commit_ack(inner).await {
                     Ok(_) => {
                         ack_failure = 0;
@@ -293,11 +306,11 @@ impl Node {
     }
 
     fn has_pending_ack(&self) -> bool {
-        let mode = self.consumer_options.mode;
+        let mode = self.options.mode;
         if mode == ConsumerMode::RealTime {
             return false;
         }
-        if self.consumer_options.auto_commit() == &AutoCommit::Immediate {
+        if self.options.auto_commit() == &AutoCommit::Immediate {
             return false;
         }
         if self.group.first_read {
@@ -311,15 +324,15 @@ impl Node {
         false
     }
 
-    fn can_commit_ack(&self) -> bool {
-        Timestamp::now_utc() - *self.consumer_options.auto_commit_interval()
-            > self.group.last_commit
+    fn can_auto_commit(&self) -> bool {
+        self.options.auto_commit() != &AutoCommit::Disabled
+            && Timestamp::now_utc() - *self.options.auto_commit_interval() > self.group.last_commit
     }
 
     async fn commit_ack(&mut self, conn: &mut redis::aio::Connection) -> RedisResult<()> {
         for shard in self.shards.iter_mut() {
             if !shard.pending_ack.is_empty() {
-                match self.consumer_options.auto_commit() {
+                match self.options.auto_commit() {
                     AutoCommit::Rolling | AutoCommit::Disabled => {
                         let to_ack = &shard.pending_ack;
                         log::debug!("XACK {} {} {}", shard.key, self.group.group_id, ad(to_ack));
@@ -336,8 +349,7 @@ impl Node {
                     }
                     AutoCommit::Delayed => {
                         let mut to_ack = Vec::new();
-                        let cut_off =
-                            Timestamp::now_utc() - *self.consumer_options.auto_commit_delay();
+                        let cut_off = Timestamp::now_utc() - *self.options.auto_commit_delay();
                         shard.pending_ack.retain(|ack| {
                             if ack.1 < cut_off {
                                 to_ack.push(*ack);
@@ -375,7 +387,7 @@ impl Node {
     }
 
     async fn read_next(&mut self, conn: &mut redis::aio::Connection) -> RedisResult<ReadResult> {
-        let mode = self.consumer_options.mode;
+        let mode = self.options.mode;
         if matches!(mode, ConsumerMode::Resumable | ConsumerMode::LoadBalanced)
             && self.group.first_read
         {
@@ -386,7 +398,7 @@ impl Node {
                     .xgroup_create(
                         &shard.key,
                         &self.group.group_id,
-                        match self.consumer_options.auto_stream_reset() {
+                        match self.options.auto_stream_reset() {
                             AutoStreamReset::Earliest => "0",
                             AutoStreamReset::Latest => "$",
                         },
@@ -400,6 +412,22 @@ impl Node {
                         } else {
                             return self.send_error(map_err(err)).await;
                         }
+                    }
+                }
+            }
+        }
+
+        if mode == ConsumerMode::LoadBalanced {
+            if self.group.claiming.is_some() {
+                match self.auto_claim(conn).await {
+                    Ok(ReadResult::Msg(0)) => (),
+                    res => return res,
+                }
+            } else if let Some(interval) = self.options.auto_claim_interval() {
+                if Timestamp::now_utc() - *interval > self.group.last_check {
+                    match self.auto_claim(conn).await {
+                        Ok(ReadResult::Msg(0)) => (),
+                        res => return res,
                     }
                 }
             }
@@ -420,7 +448,7 @@ impl Node {
                     if let Some((a, b)) = shard.id {
                         cmd.arg(format!("{a}-{b}"));
                     } else {
-                        match self.consumer_options.auto_stream_reset() {
+                        match self.options.auto_stream_reset() {
                             AutoStreamReset::Earliest => cmd.arg("0-0"),
                             AutoStreamReset::Latest => cmd.arg(DOLLAR),
                         };
@@ -428,11 +456,10 @@ impl Node {
                 }
                 ConsumerMode::Resumable | ConsumerMode::LoadBalanced => {
                     if self.group.pending_state {
-                        if let Some((a, b)) = shard.id {
-                            cmd.arg(format!("{a}-{b}"));
-                        } else {
-                            cmd.arg("0-0");
-                        }
+                        match shard.id {
+                            Some((a, b)) => cmd.arg(format!("{a}-{b}")),
+                            None => cmd.arg("0-0"),
+                        };
                     } else {
                         cmd.arg(DIRECT);
                     }
@@ -446,10 +473,12 @@ impl Node {
                 std::str::from_utf8(cmd.get_packed_command().as_slice()).unwrap()
             );
         }
+        log::trace!("XREAD ...");
+        assert!(self.buffer.is_empty());
         match conn.req_packed_command(&cmd).await {
             Ok(value) => match StreamReadReply::from_redis_value(value) {
                 Ok(StreamReadReply(mut mess)) => {
-                    log::trace!("Node {} read {} messages", self.id, mess.len());
+                    log::trace!("Read {} messages", mess.len());
                     if mess.is_empty() {
                         // If we receive an empty reply, it means if we were reading the pending list
                         // then the list is now empty
@@ -469,14 +498,102 @@ impl Node {
                     Ok(ReadResult::Events(events))
                 } else if kind == ErrorKind::IoError {
                     Err(StreamErr::Backend(RedisErr::IoError(err.to_string())))
-                } else if matches!(
-                    kind,
-                    ErrorKind::Ask
-                        | ErrorKind::TryAgain
-                        | ErrorKind::ClusterDown
-                        | ErrorKind::MasterDown
-                ) {
+                } else if is_cluster_error(kind) {
                     // cluster is temporarily unavailable
+                    Err(StreamErr::Backend(RedisErr::TryAgain(err.to_string())))
+                } else {
+                    self.send_error(map_err(err)).await
+                }
+            }
+        }
+    }
+
+    async fn auto_claim(&mut self, conn: &mut redis::aio::Connection) -> RedisResult<ReadResult> {
+        self.group.last_check = Timestamp::now_utc();
+        let change = self.group.claiming.is_none();
+        if self.group.claiming.is_none() {
+            for shard in self.shards.iter() {
+                let result: Result<StreamInfoConsumersReply, _> =
+                    conn.xinfo_consumers(&shard.key, &self.group.group_id).await;
+                match result {
+                    Ok(res) => {
+                        for consumer in res.consumers {
+                            if consumer.name != self.options.consumer_id().as_ref().unwrap().id()
+                                && consumer.pending > 0
+                                && consumer.idle
+                                    > self.options.auto_claim_idle().as_millis() as usize
+                            {
+                                self.group.claiming = Some(ClaimState {
+                                    stream: shard.stream.clone(),
+                                    key: shard.key.clone(),
+                                    consumer: consumer.name,
+                                });
+                                break;
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        log::warn!("{err}");
+                    }
+                }
+            }
+        }
+
+        if self.group.claiming.is_none() {
+            return Ok(ReadResult::Msg(0));
+        }
+
+        let claiming = self.group.claiming.as_ref().unwrap();
+
+        let mut cmd = command("XAUTOCLAIM");
+        cmd.arg(&claiming.key)
+            .arg(&self.group.group_id)
+            .arg(&claiming.consumer);
+        let idle: u64 = self
+            .options
+            .auto_claim_idle()
+            .as_millis()
+            .try_into()
+            .unwrap();
+        cmd.arg(idle);
+        match (change, self.get_shard_state(&claiming.key).id) {
+            (true, _) => cmd.arg("0-0"),
+            (_, Some((a, b))) => cmd.arg(format!("{a}-{b}")),
+            (false, None) => unreachable!("Should have read state"),
+        };
+        cmd.arg("COUNT").arg(self.options.batch_size());
+
+        log::trace!("XCLAIM ...");
+        match conn.req_packed_command(&cmd).await {
+            Ok(value) => match AutoClaimReply::from_redis_value(
+                value,
+                claiming.stream.0.clone(),
+                claiming.stream.1,
+            ) {
+                Ok(AutoClaimReply(mut mess)) => {
+                    log::trace!(
+                        "Consumer {} claimed {} messages from {}",
+                        self.options.consumer_id().unwrap().id(),
+                        mess.len(),
+                        claiming.consumer,
+                    );
+                    if !mess.is_empty() {
+                        mess.reverse();
+                        assert!(self.buffer.is_empty());
+                        self.buffer = mess;
+                        Ok(ReadResult::Msg(self.buffer.len()))
+                    } else {
+                        self.group.claiming = None;
+                        Ok(ReadResult::Msg(0))
+                    }
+                }
+                Err(err) => self.send_error(err).await,
+            },
+            Err(err) => {
+                let kind = err.kind();
+                if kind == ErrorKind::IoError {
+                    Err(StreamErr::Backend(RedisErr::IoError(err.to_string())))
+                } else if is_cluster_error(kind) {
                     Err(StreamErr::Backend(RedisErr::TryAgain(err.to_string())))
                 } else {
                     self.send_error(map_err(err)).await
@@ -530,6 +647,15 @@ impl Node {
         panic!("Unknown shard {}", header.stream_key().name());
     }
 
+    fn get_shard_state(&self, key: &str) -> &ShardState {
+        for shard in self.shards.iter() {
+            if shard.key == key {
+                return shard;
+            }
+        }
+        panic!("Unknown shard {}", key);
+    }
+
     fn ack_message(&mut self, key: StreamShard, id: MessageId, ts: Timestamp) {
         for shard in self.shards.iter_mut() {
             if shard.key() == &key {
@@ -551,6 +677,13 @@ impl Node {
             unreachable!()
         }
     }
+}
+
+fn is_cluster_error(kind: redis::ErrorKind) -> bool {
+    matches!(
+        kind,
+        ErrorKind::Ask | ErrorKind::TryAgain | ErrorKind::ClusterDown | ErrorKind::MasterDown
+    )
 }
 
 #[allow(clippy::boxed_local)]

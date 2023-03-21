@@ -1,3 +1,6 @@
+mod util;
+use util::*;
+
 static INIT: std::sync::Once = std::sync::Once::new();
 
 // cargo test --test load-balanced --features=test,runtime-tokio -- --nocapture
@@ -5,7 +8,7 @@ static INIT: std::sync::Once = std::sync::Once::new();
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
-async fn main() -> anyhow::Result<()> {
+async fn load_balance() -> anyhow::Result<()> {
     use flume::unbounded;
     use sea_streamer_redis::{
         AutoCommit, AutoStreamReset, RedisConnectOptions, RedisConsumerOptions, RedisStreamer,
@@ -17,7 +20,7 @@ async fn main() -> anyhow::Result<()> {
     };
     use std::time::Duration;
 
-    const TEST: &str = "load-balanced";
+    const TEST: &str = "balanced-1";
     INIT.call_once(env_logger::init);
 
     test(AutoCommit::Disabled).await?;
@@ -125,7 +128,7 @@ async fn main() -> anyhow::Result<()> {
             }
             let num = msg.message().as_str().unwrap().parse::<usize>().unwrap();
             numbers.push(num);
-            println!("[{who}] {num}");
+            log::debug!("[{who}] {num}");
         }
 
         numbers.sort();
@@ -144,6 +147,126 @@ async fn main() -> anyhow::Result<()> {
         // [b] 7
         // [a] 8
         // [b] 9
+
+        println!("End test case.");
+        Ok(())
+    }
+
+    Ok(())
+}
+
+// cargo test --test load-balanced --features=test,runtime-tokio -- --nocapture
+// cargo test --test load-balanced --features=test,runtime-async-std -- --nocapture
+#[cfg(feature = "test")]
+#[cfg_attr(feature = "runtime-tokio", tokio::test)]
+#[cfg_attr(feature = "runtime-async-std", async_std::test)]
+async fn failover() -> anyhow::Result<()> {
+    use sea_streamer_redis::{
+        AutoCommit, AutoStreamReset, RedisConnectOptions, RedisConsumerOptions, RedisStreamer,
+    };
+    use sea_streamer_types::{
+        ConsumerGroup, ConsumerMode, ConsumerOptions, Producer, StreamKey, Streamer, Timestamp,
+    };
+    use std::time::Duration;
+
+    const TEST: &str = "balanced-2";
+    INIT.call_once(env_logger::init);
+
+    test(AutoCommit::Disabled).await?;
+
+    async fn test(auto_commit: AutoCommit) -> anyhow::Result<()> {
+        println!("AutoCommit = {auto_commit:?} ...");
+
+        let options = RedisConnectOptions::default();
+        let streamer = RedisStreamer::connect(
+            std::env::var("BROKERS_URL")
+                .unwrap_or_else(|_| "redis://localhost".to_owned())
+                .parse()
+                .unwrap(),
+            options,
+        )
+        .await?;
+        let now = Timestamp::now_utc();
+        let stream = StreamKey::new(format!(
+            "{}-{}",
+            TEST,
+            now.unix_timestamp_nanos() / 1_000_000
+        ))?;
+
+        let mut producer = streamer
+            .create_producer(stream.clone(), Default::default())
+            .await?;
+
+        let mut options = RedisConsumerOptions::new(ConsumerMode::LoadBalanced);
+        options.set_consumer_group(ConsumerGroup::new(stream.name()))?;
+        options.set_auto_stream_reset(AutoStreamReset::Earliest);
+        options.set_auto_commit(auto_commit);
+        options.set_auto_commit_interval(Duration::from_secs(0));
+        options.set_auto_claim_idle(Duration::from_secs(1));
+        options.set_auto_claim_interval(Some(Duration::from_secs(1)));
+        options.set_batch_size(1);
+
+        let mut alpha = streamer
+            .create_consumer(&[stream.clone()], options.clone())
+            .await?;
+        let alpha_id = alpha.consumer_id().unwrap().to_owned();
+
+        for i in 0..5 {
+            let message = format!("{i}");
+            producer.send(message)?;
+        }
+
+        producer.flush().await?;
+
+        let seq = consume(&mut alpha, 5).await;
+        assert_eq!(seq, [0, 1, 2, 3, 4]);
+        println!("Stream alpha ... ok");
+
+        let mut beta = streamer
+            .create_consumer(&[stream.clone()], options.clone())
+            .await?;
+
+        assert!(beta.consumer_id().is_some());
+        assert_ne!(alpha.consumer_id(), beta.consumer_id());
+
+        for i in 5..10 {
+            let message = format!("{i}");
+            producer.send(message)?;
+        }
+
+        producer.flush().await?;
+
+        let seq = consume_and_ack(&mut beta, 5).await;
+        assert_eq!(seq, [5, 6, 7, 8, 9]);
+        println!("Stream beta ... ok");
+
+        beta.commit().await?;
+        alpha.end().await?;
+
+        let seq = consume_and_ack(&mut beta, 5).await;
+        assert_eq!(seq, [0, 1, 2, 3, 4]);
+        println!("Stream claim ... ok");
+
+        for i in 10..15 {
+            let message = format!("{i}");
+            producer.send(message)?;
+        }
+
+        producer.flush().await?;
+        beta.commit().await?;
+
+        options.set_consumer_id(alpha_id);
+        let mut alpha = streamer
+            .create_consumer(&[stream.clone()], options.clone())
+            .await?;
+
+        let seq = consume(&mut alpha, 2).await;
+        assert_eq!(seq, [10, 11]);
+        println!("Resume alpha ... ok");
+
+        let seq = consume(&mut beta, 3).await;
+        assert_eq!(seq, [12, 13, 14]);
+        println!("Resume beta ... ok");
 
         println!("End test case.");
         Ok(())

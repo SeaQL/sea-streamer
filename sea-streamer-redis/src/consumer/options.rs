@@ -1,7 +1,5 @@
-use super::{
-    ConsumerConfig, RedisConsumerOptions, DEFAULT_AUTO_COMMIT_DELAY, DEFAULT_AUTO_COMMIT_INTERVAL,
-};
-use crate::{RedisErr, RedisResult, DEFAULT_BATCH_SIZE, DEFAULT_LOAD_BALANCED_BATCH_SIZE};
+use super::{constants::*, ConsumerConfig, RedisConsumerOptions};
+use crate::{RedisErr, RedisResult};
 use sea_streamer_types::{ConsumerGroup, ConsumerId, ConsumerMode, ConsumerOptions, StreamErr};
 use std::time::Duration;
 
@@ -30,7 +28,7 @@ pub enum AutoCommit {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum SharedShard {
+pub enum ShardOwnership {
     /// Consumers in the same group share the same shard
     Shared,
     /// Consumers claim ownership of a shard
@@ -67,12 +65,14 @@ impl ConsumerOptions for RedisConsumerOptions {
             auto_commit: AutoCommit::Delayed,
             auto_commit_delay: DEFAULT_AUTO_COMMIT_DELAY,
             auto_commit_interval: DEFAULT_AUTO_COMMIT_INTERVAL,
+            auto_claim_interval: Some(DEFAULT_AUTO_CLAIM_INTERVAL),
+            auto_claim_idle: DEFAULT_AUTO_CLAIM_IDLE,
             batch_size: if mode == ConsumerMode::LoadBalanced {
                 DEFAULT_LOAD_BALANCED_BATCH_SIZE
             } else {
                 DEFAULT_BATCH_SIZE
             },
-            shared_shard: SharedShard::Shared,
+            shard_ownership: ShardOwnership::Shared,
         }
     }
 
@@ -178,6 +178,30 @@ impl RedisConsumerOptions {
         &self.auto_commit_interval
     }
 
+    /// The minimum interval for checking the XPENDING of others in the group.
+    /// This option is only relevant when `mode` is `LoadBalanced`.
+    ///
+    /// Defaults to [`DEFAULT_AUTO_CLAIM_INTERVAL`]. None means never.
+    pub fn set_auto_claim_interval(&mut self, v: Option<Duration>) -> &mut Self {
+        self.auto_claim_interval = v;
+        self
+    }
+    pub fn auto_claim_interval(&self) -> Option<&Duration> {
+        self.auto_claim_interval.as_ref()
+    }
+
+    /// The idle time for a consumer considered dead and to XCLAIM its messages.
+    /// This option is only relevant when `mode` is `LoadBalanced`.
+    ///
+    /// Defaults to [`DEFAULT_AUTO_CLAIM_IDLE`]. None means never.
+    pub fn set_auto_claim_idle(&mut self, v: Duration) -> &mut Self {
+        self.auto_claim_idle = v;
+        self
+    }
+    pub fn auto_claim_idle(&self) -> &Duration {
+        &self.auto_claim_idle
+    }
+
     /// Maximum number of messages to read from Redis in one request.
     /// Usually, a larger N would reduce the number of roundtrips.
     /// However, this also prevent messages from being chunked properly to load balance
@@ -186,9 +210,10 @@ impl RedisConsumerOptions {
     /// Choose this number by considering the throughput of the stream, number of consumers
     /// in one group, and the time required to process each message.
     ///
-    /// If unset: if mode is `LoadBalanced`, defaults to [`DEFAULT_LOAD_BALANCED_BATCH_SIZE`].
+    /// Cannot be `0`. If unset: if mode is `LoadBalanced`, defaults to [`DEFAULT_LOAD_BALANCED_BATCH_SIZE`].
     /// Otherwise, defaults to [`DEFAULT_BATCH_SIZE`].
     pub fn set_batch_size(&mut self, v: usize) -> &mut Self {
+        assert_ne!(v, 0);
         self.batch_size = v;
         self
     }
@@ -197,11 +222,11 @@ impl RedisConsumerOptions {
     }
 
     /// Default is [`Shared`].
-    pub fn shared_shard(&self) -> &SharedShard {
-        &self.shared_shard
+    pub fn shard_ownership(&self) -> &ShardOwnership {
+        &self.shard_ownership
     }
-    pub fn set_shared_shard(&mut self, shared_shard: SharedShard) -> &mut Self {
-        self.shared_shard = shared_shard;
+    pub fn set_shard_ownership(&mut self, shard_ownership: ShardOwnership) -> &mut Self {
+        self.shard_ownership = shard_ownership;
         self
     }
 
