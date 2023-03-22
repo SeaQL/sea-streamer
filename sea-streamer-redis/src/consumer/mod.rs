@@ -86,10 +86,10 @@ impl Consumer for RedisConsumer {
     }
 
     fn next(&self) -> NextFuture<'_> {
-        self.poll_read();
         NextFuture {
             con: self,
             fut: self.receiver.recv_async(),
+            read: false,
         }
     }
 
@@ -99,13 +99,6 @@ impl Consumer for RedisConsumer {
 }
 
 impl RedisConsumer {
-    #[inline]
-    fn poll_read(&self) {
-        if !self.config.pre_fetch {
-            self.handle.try_send(CtrlMsg::Read).ok();
-        }
-    }
-
     pub fn group_id(&self) -> Option<&ConsumerGroup> {
         self.config.group_id.as_ref()
     }
@@ -122,10 +115,10 @@ impl RedisConsumer {
                 "Please do not set AutoCommit to Delayed.".to_owned(),
             )));
         }
-        self.ack_unchecked(msg)
+        self.auto_ack(msg)
     }
 
-    fn ack_unchecked(&self, msg: &SharedMessage) -> RedisResult<()> {
+    fn auto_ack(&self, msg: &SharedMessage) -> RedisResult<()> {
         // unbounded, so never blocks
         if self
             .handle

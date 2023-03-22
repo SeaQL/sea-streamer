@@ -189,6 +189,9 @@ impl Node {
                     CtrlMsg::Read => {
                         read += 1;
                     }
+                    CtrlMsg::Unread => {
+                        read -= 1;
+                    }
                     CtrlMsg::AddShard(state) => {
                         log::debug!("Node {id} add shard {state:?}", id = self.id);
                         self.shards.push(unbox(state));

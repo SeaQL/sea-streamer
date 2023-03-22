@@ -1,5 +1,5 @@
 use super::RedisConsumer;
-use crate::{RedisErr, RedisResult};
+use crate::{consumer::cluster::CtrlMsg, RedisErr, RedisResult};
 use flume::r#async::RecvFut;
 use sea_streamer_types::{
     export::futures::{FutureExt, Stream},
@@ -10,6 +10,7 @@ use std::{fmt::Debug, future::Future};
 pub struct NextFuture<'a> {
     pub(super) con: &'a RedisConsumer,
     pub(super) fut: RecvFut<'a, RedisResult<SharedMessage>>,
+    pub(super) read: bool,
 }
 
 impl<'a> Debug for NextFuture<'a> {
@@ -29,15 +30,6 @@ impl<'a> Debug for StreamFuture<'a> {
     }
 }
 
-/// To avoid boxing the Future, this is a hand-unrolled version of the following:
-///
-/// ```ignore
-/// let msg = self.receiver.recv_async().await?;
-/// if self.auto_commit() {
-///     self.handle.send_async()?;
-/// }
-/// Ok(msg)
-/// ```
 impl<'a> Future for NextFuture<'a> {
     type Output = RedisResult<SharedMessage>;
 
@@ -46,18 +38,31 @@ impl<'a> Future for NextFuture<'a> {
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
         use std::task::Poll::{Pending, Ready};
+        if !self.read && !self.con.config.pre_fetch {
+            self.read = true;
+            self.con.handle.try_send(CtrlMsg::Read).ok();
+        }
         match self.fut.poll_unpin(cx) {
             Ready(res) => match res {
                 Ok(Ok(msg)) => {
-                    if self.con.config.auto_ack && self.con.ack_unchecked(&msg).is_err() {
+                    if self.con.config.auto_ack && self.con.auto_ack(&msg).is_err() {
                         return Ready(Err(StreamErr::Backend(RedisErr::ConsumerDied)));
                     }
+                    self.read = false;
                     Ready(Ok(msg))
                 }
                 Ok(Err(err)) => Ready(Err(err)),
                 Err(_) => Ready(Err(StreamErr::Backend(RedisErr::ConsumerDied))),
             },
             Pending => Pending,
+        }
+    }
+}
+
+impl<'a> Drop for NextFuture<'a> {
+    fn drop(&mut self) {
+        if self.read {
+            self.con.handle.try_send(CtrlMsg::Unread).ok();
         }
     }
 }

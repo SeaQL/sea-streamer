@@ -31,6 +31,7 @@ pub enum StatusMsg {
 pub enum CtrlMsg {
     Init(Box<(NodeId, Connection)>),
     Read,
+    Unread,
     AddShard(Box<ShardState>),
     Ack(StreamShard, MessageId, Timestamp),
     Commit(Sender<RedisResult<()>>),
@@ -88,12 +89,8 @@ impl Cluster {
             match response.try_recv() {
                 Ok(res) => match res {
                     CtrlMsg::Init(_) => panic!("Unexpected CtrlMsg {:?}", res),
-                    CtrlMsg::Read => {
-                        for node in self.nodes.values() {
-                            if node.send_async(CtrlMsg::Read).await.is_err() {
-                                break;
-                            }
-                        }
+                    CtrlMsg::Read | CtrlMsg::Unread => {
+                        todo!("We should keep track of the reads on each node and load balance among them");
                     }
                     CtrlMsg::Ack(key, b, c) => {
                         if let Some(at) = self.keys.get(&key) {
