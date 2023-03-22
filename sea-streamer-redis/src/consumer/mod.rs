@@ -86,6 +86,7 @@ impl Consumer for RedisConsumer {
     }
 
     fn next(&self) -> NextFuture<'_> {
+        self.poll_read();
         NextFuture {
             con: self,
             fut: self.receiver.recv_async(),
@@ -98,7 +99,8 @@ impl Consumer for RedisConsumer {
 }
 
 impl RedisConsumer {
-    fn pending_read(&self) {
+    #[inline]
+    fn poll_read(&self) {
         if !self.config.pre_fetch {
             self.handle.try_send(CtrlMsg::Read).ok();
         }

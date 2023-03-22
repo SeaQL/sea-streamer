@@ -162,11 +162,11 @@ impl Node {
         };
         let mut ack_failure = 0;
         let mut ready = false;
-        let mut read = false;
+        let mut read: i64 = 0;
 
         'outer: loop {
             loop {
-                let ctrl = if self.options.pre_fetch() || !ready || read {
+                let ctrl = if self.options.pre_fetch() || !ready || read > 0 {
                     match receiver.try_recv() {
                         Ok(ctrl) => ctrl,
                         Err(TryRecvError::Disconnected) => {
@@ -187,8 +187,7 @@ impl Node {
                 match ctrl {
                     CtrlMsg::Init(_) => panic!("Unexpected CtrlMsg"),
                     CtrlMsg::Read => {
-                        read = true;
-                        break;
+                        read += 1;
                     }
                     CtrlMsg::AddShard(state) => {
                         log::debug!("Node {id} add shard {state:?}", id = self.id);
@@ -244,9 +243,7 @@ impl Node {
             if self.buffer.is_empty() {
                 match self.read_next(inner).await {
                     Ok(ReadResult::Msg(num)) => {
-                        if num > 0 {
-                            read = false;
-                        }
+                        read -= num as i64;
                     }
                     Ok(ReadResult::Events(events)) => {
                         for event in events {

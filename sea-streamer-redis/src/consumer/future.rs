@@ -57,10 +57,7 @@ impl<'a> Future for NextFuture<'a> {
                 Ok(Err(err)) => Ready(Err(err)),
                 Err(_) => Ready(Err(StreamErr::Backend(RedisErr::ConsumerDied))),
             },
-            Pending => {
-                self.con.pending_read();
-                Pending
-            }
+            Pending => Pending,
         }
     }
 }

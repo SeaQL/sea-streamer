@@ -4,7 +4,7 @@ use util::*;
 static INIT: std::sync::Once = std::sync::Once::new();
 
 // cargo test --test resumable --features=test,runtime-tokio -- --nocapture
-// cargo test --test resumable --features=test,runtime-async-std -- --nocapture
+// cargo test --test resumable --no-default-features --features=test,runtime-async-std -- --nocapture
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
@@ -13,10 +13,10 @@ async fn immediate_and_delayed() -> anyhow::Result<()> {
     use sea_streamer_redis::{
         AutoCommit, AutoStreamReset, RedisConnectOptions, RedisConsumerOptions, RedisStreamer,
     };
-    use sea_streamer_runtime::spawn_task;
+    use sea_streamer_runtime::timeout;
     use sea_streamer_types::{
-        ConsumerGroup, ConsumerId, ConsumerMode, ConsumerOptions, Producer, ShardId, StreamKey,
-        Streamer, Timestamp,
+        Consumer, ConsumerGroup, ConsumerId, ConsumerMode, ConsumerOptions, Producer, ShardId,
+        StreamKey, Streamer, Timestamp,
     };
     use std::time::Duration;
 
@@ -76,11 +76,8 @@ async fn immediate_and_delayed() -> anyhow::Result<()> {
             .create_consumer(&[stream.clone()], options.clone())
             .await?;
 
-        // Immediate does not pre-fetch
-        let consume_half = spawn_task(async move {
-            // so we need to kick start the stream
-            consume(&mut half, 5).await
-        });
+        // Immediate does not pre-fetch, so we start the stream but cancel the future
+        timeout(Duration::from_millis(1), half.next()).await.ok();
 
         options.set_consumer_group(ConsumerGroup::new(format!("{}b", stream.name())))?;
         options.set_consumer_id(ConsumerId::new(format!("{}b", stream.name())));
@@ -103,7 +100,7 @@ async fn immediate_and_delayed() -> anyhow::Result<()> {
         // now commit and end the consumer, before it consumes any new messages
         full.end().await?;
 
-        let seq = consume_half.await?;
+        let seq = consume(&mut half, 5).await;
         assert_eq!(seq, [5, 6, 7, 8, 9]);
         println!("Stream latest ... ok");
 
