@@ -26,8 +26,6 @@ jobs:
   test:
     name: Unit Test, Clippy & Fmt
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@master
@@ -90,3 +88,23 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: docker run -d -p 9092:9092 -p 9644:9644 redpandadata/redpanda:${{ matrix.redpanda_version }} redpanda start --overprovisioned --smp 1 --memory 1G --reserve-memory 0M --node-id 0 --check=false
       - run: cargo test --package sea-streamer-kafka --features test,runtime-${{ matrix.runtime }} -- --nocapture
+
+  redis:
+    name: Redis
+    runs-on: ubuntu-latest
+    env:
+      HOST_ID: DUMMY_HOST_ID
+    strategy:
+      fail-fast: false
+      matrix:
+        redis_version: [latest]
+        runtime: [async-std, tokio]
+    services:
+      redis:
+        image: redis:${{ matrix.redis_version }}
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --package sea-streamer-redis --no-default-features --features test,runtime-${{ matrix.runtime }} -- --nocapture
