@@ -5,7 +5,7 @@ use rdkafka::{
     Message as KafkaMessageTrait, Offset, TopicPartitionList,
 };
 use sea_streamer_runtime::spawn_blocking;
-use std::{collections::HashSet, fmt::Debug, time::Duration};
+use std::{fmt::Debug, time::Duration};
 
 use sea_streamer_types::{
     export::{
@@ -28,7 +28,7 @@ use crate::{
 pub struct KafkaConsumer {
     mode: ConsumerMode,
     inner: Option<RawConsumer>,
-    shards: HashSet<ShardId>,
+    shards: Vec<ShardId>,
     streams: Vec<StreamKey>,
 }
 
@@ -258,8 +258,7 @@ impl ConsumerTrait for KafkaConsumer {
     type NextFuture<'a> = NextFuture<'a>;
     type Stream<'a> = KafkaMessageStream<'a>;
 
-    /// Seek all streams to the given point in time, across all assigned partitions.
-    /// Call [`Consumer::assign`] to assign a partition beforehand.
+    /// Seek all streams to the given point in time, with all partitions assigned.
     ///
     /// # Warning
     ///
@@ -270,8 +269,9 @@ impl ConsumerTrait for KafkaConsumer {
         self.seek_with_timeout(timestamp, DEFAULT_TIMEOUT).await
     }
 
-    /// Note: this rewind all streams across all assigned partitions.
-    /// Call [`Consumer::assign`] to assign a partition beforehand.
+    /// Rewind all streams across all assigned partitions.
+    /// Call [`Consumer::assign`] to assign a partition beforehand,
+    /// or [`KafkaConsumer::reassign_partitions`] to assign all partitions.
     fn rewind(&mut self, offset: SeqPos) -> KafkaResult<()> {
         let mut tpl = TopicPartitionList::new();
 
@@ -297,11 +297,24 @@ impl ConsumerTrait for KafkaConsumer {
         Ok(())
     }
 
-    /// Always succeed. This operation is additive. You can assign a consumer to multiple shards (aka partition).
-    /// There is also a [`KafkaConsumer::unassign`] method.
-    fn assign(&mut self, shard: ShardId) -> KafkaResult<()> {
-        self.shards.insert(shard);
+    fn assign(&mut self, s: ShardId) -> KafkaResult<()> {
+        if !self.shards.iter().any(|t| &s == t) {
+            self.shards.push(s);
+        }
         Ok(())
+    }
+
+    fn unassign(&mut self, s: ShardId) -> KafkaResult<()> {
+        if let Some((i, _)) = self.shards.iter().enumerate().find(|(_, t)| &s == *t) {
+            self.shards.remove(i);
+            if self.shards.is_empty() {
+                Err(StreamErr::ConsumerShardEmpty)
+            } else {
+                Ok(())
+            }
+        } else {
+            Err(StreamErr::ConsumerNotAssigned)
+        }
     }
 
     fn next(&self) -> Self::NextFuture<'_> {
@@ -338,27 +351,84 @@ impl KafkaConsumer {
         }
     }
 
-    /// Shards this consumer has been assigned to. Assume ZERO if never assigned.
-    pub fn shards(&self) -> Vec<ShardId> {
-        let mut shards: Vec<ShardId> = self.shards.iter().cloned().collect();
-        if shards.is_empty() {
-            shards.push(Default::default());
-        }
-        shards
+    /// Shards this consumer has been assigned to. ZERO is assigned by default.
+    pub fn shards(&self) -> &[ShardId] {
+        &self.shards
     }
 
-    /// Unassign a shard. Returns `ConsumerNotAssigned` if this consumer has not been assigned to this shard.
-    pub fn unassign(&mut self, shard: ShardId) -> KafkaResult<()> {
-        if self.shards.remove(&shard) {
-            Ok(())
-        } else {
-            Err(StreamErr::ConsumerNotAssigned)
+    #[inline]
+    async fn async_func<
+        T: Send + 'static,
+        F: FnOnce(&RawConsumer) -> Result<T, KafkaErr> + Send + 'static,
+    >(
+        &mut self,
+        func: F,
+    ) -> KafkaResult<T> {
+        if self.inner.is_none() {
+            panic!("An async operation is still in progress.");
+        }
+
+        // Sadly, `commit` is a sync function, but we want an async API
+        // to await when transaction finishes. To avoid Client being dropped while
+        // committing, we transfer the ownership into the handler thread,
+        // and we take back the ownership after it finishes.
+        // Meanwhile, any Client operation will panic.
+        // This constraint should be held by the `&mut` signature of this method,
+        // but if someone ignores or discards this future, this Consumer will be broken.
+        let client = self.inner.take().unwrap();
+        let inner = spawn_blocking(move || match func(&client) {
+            Ok(res) => Ok((res, client)),
+            Err(err) => Err((err, client)),
+        })
+        .await
+        .map_err(runtime_error)?;
+
+        match inner {
+            Ok((res, inner)) => {
+                self.inner = Some(inner);
+                Ok(res)
+            }
+            Err((err, inner)) => {
+                self.inner = Some(inner);
+                Err(stream_err(err))
+            }
         }
     }
 
-    /// Seek all streams to the given point in time.
-    /// This is an async operation which you can set a timeout.
-    /// Call [`Consumer::assign`] to assign a partition beforehand.
+    /// Fetch the partition list of subscribed topics and assign all partitions.
+    pub async fn reassign_partitions(&mut self) -> KafkaResult<()> {
+        let topics: Vec<String> = self.streams.iter().map(|s| s.name().to_owned()).collect();
+        let mut current = None;
+        for topic in topics {
+            let raw = self
+                .async_func(move |c| c.fetch_metadata(Some(&topic), DEFAULT_TIMEOUT))
+                .await?;
+            let partitions: Vec<u64> = raw
+                .topics()
+                .first()
+                .unwrap()
+                .partitions()
+                .iter()
+                .map(|p| p.id() as u64)
+                .collect();
+            if current.is_none() {
+                current = Some(partitions);
+            } else if current.as_ref().unwrap() != &partitions {
+                return Err(StreamErr::Backend(KafkaErr::Subscription(
+                    "Topics have different partition IDs.".to_owned(),
+                )));
+            }
+        }
+        if current.is_none() {
+            return Err(StreamErr::Backend(KafkaErr::Subscription(
+                "No partitions found.".to_owned(),
+            )));
+        }
+        self.shards = current.unwrap().into_iter().map(ShardId::new).collect();
+        Ok(())
+    }
+
+    /// Seek all streams to the given point in time, with all partitions assigned.
     ///
     /// # Warning
     ///
@@ -369,6 +439,8 @@ impl KafkaConsumer {
         timestamp: Timestamp,
         timeout: Duration,
     ) -> KafkaResult<()> {
+        self.reassign_partitions().await?;
+
         let mut tpl = TopicPartitionList::new();
 
         for stream in self.streams.iter() {
@@ -386,29 +458,17 @@ impl KafkaConsumer {
             }
         }
 
-        let client = self.inner.take().unwrap();
-        let inner = spawn_blocking(move || match client.offsets_for_times(tpl, timeout) {
-            Ok(tpl) => Ok((tpl, client)),
-            Err(err) => Err((err, client)),
-        })
-        .await
-        .map_err(runtime_error)?;
+        let tpl = self
+            .async_func(move |c| c.offsets_for_times(tpl, timeout))
+            .await?;
 
-        match inner {
-            Ok((tpl, inner)) => {
-                self.inner = Some(inner);
-                self.inner
-                    .as_mut()
-                    .unwrap()
-                    .assign(&tpl)
-                    .map_err(stream_err)?;
-                Ok(())
-            }
-            Err((err, inner)) => {
-                self.inner = Some(inner);
-                Err(stream_err(err))
-            }
-        }
+        self.inner
+            .as_mut()
+            .unwrap()
+            .assign(&tpl)
+            .map_err(stream_err)?;
+
+        Ok(())
     }
 
     /// Commit an "ack" to broker for having processed this message.
@@ -450,9 +510,6 @@ impl KafkaConsumer {
         if self.mode == ConsumerMode::RealTime {
             return Err(StreamErr::CommitNotAllowed);
         }
-        if self.inner.is_none() {
-            panic!("You can't commit while an async operation is in progress");
-        }
         let mut tpl = TopicPartitionList::new();
         tpl.add_partition_offset(
             stream.name(),
@@ -461,31 +518,8 @@ impl KafkaConsumer {
         )
         .map_err(stream_err)?;
 
-        // Sadly, `commit` is a sync function, but we want an async API
-        // to await when transaction finishes. To avoid Client being dropped while
-        // committing, we transfer the ownership into the handler thread,
-        // and we take back the ownership after it finishes.
-        // Meanwhile, any Client operation will panic.
-        // This constraint should be held by the `&mut` signature of this method,
-        // but if someone ignores or discards this future, this Consumer will be broken.
-        let client = self.inner.take().unwrap();
-        let inner = spawn_blocking(move || match client.commit(&tpl, CommitMode::Sync) {
-            Ok(()) => Ok(client),
-            Err(err) => Err((err, client)),
-        })
-        .await
-        .map_err(runtime_error)?;
-
-        match inner {
-            Ok(inner) => {
-                self.inner = Some(inner);
-                Ok(())
-            }
-            Err((err, inner)) => {
-                self.inner = Some(inner);
-                Err(stream_err(err))
-            }
-        }
+        self.async_func(move |c| c.commit(&tpl, CommitMode::Sync))
+            .await
     }
 
     /// Store the offset so that it will be committed.
@@ -626,7 +660,7 @@ pub(crate) fn create_consumer(
     Ok(KafkaConsumer {
         mode: options.mode,
         inner: Some(consumer),
-        shards: Default::default(),
+        shards: vec![ShardId::new(0)],
         streams,
     })
 }
