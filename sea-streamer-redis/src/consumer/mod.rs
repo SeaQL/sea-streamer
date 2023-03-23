@@ -23,6 +23,7 @@ use sea_streamer_types::{
 #[derive(Debug)]
 pub struct RedisConsumer {
     config: ConsumerConfig,
+    streams: Vec<(StreamKey, ShardId)>,
     receiver: Receiver<RedisResult<SharedMessage>>,
     handle: Sender<CtrlMsg>,
 }
@@ -81,8 +82,31 @@ impl Consumer for RedisConsumer {
         todo!()
     }
 
-    fn assign(&mut self, _: ShardId) -> RedisResult<()> {
-        todo!()
+    fn assign(&mut self, (stream, shard): (StreamKey, ShardId)) -> RedisResult<()> {
+        if !self.streams.iter().any(|(s, _)| s == &stream) {
+            return Err(StreamErr::StreamKeyNotFound);
+        }
+        if !self
+            .streams
+            .iter()
+            .any(|(s, t)| (s, t) == (&stream, &shard))
+        {
+            self.streams.push((stream, shard));
+        }
+        Ok(())
+    }
+
+    fn unassign(&mut self, s: (StreamKey, ShardId)) -> RedisResult<()> {
+        if let Some((i, _)) = self.streams.iter().enumerate().find(|(_, t)| &s == *t) {
+            self.streams.remove(i);
+            if self.streams.is_empty() {
+                Err(StreamErr::StreamKeyEmpty)
+            } else {
+                Ok(())
+            }
+        } else {
+            Err(StreamErr::StreamKeyNotFound)
+        }
     }
 
     fn next(&self) -> NextFuture<'_> {
@@ -105,6 +129,12 @@ impl RedisConsumer {
 
     pub fn consumer_id(&self) -> Option<&ConsumerId> {
         self.config.consumer_id.as_ref()
+    }
+
+    /// Return the stream-shards this consumer has been assigned.
+    /// On create, it will self-assign all shards.
+    pub fn stream_shards(&self) -> &[(StreamKey, ShardId)] {
+        &self.streams
     }
 
     #[inline]
@@ -196,6 +226,7 @@ pub(crate) async fn create_consumer(
     for stream in streams {
         shards.extend(discover_shards(&mut conn, stream).await?);
     }
+    let stream_shards = shards.iter().map(|s| s.stream.clone()).collect();
 
     let dur = conn.options.timeout().unwrap_or(DEFAULT_TIMEOUT);
     let enable_cluster = conn.options.enable_cluster();
@@ -230,6 +261,7 @@ pub(crate) async fn create_consumer(
     match timeout(dur, ready.recv_async()).await {
         Ok(Ok(StatusMsg::Ready)) => Ok(RedisConsumer {
             config,
+            streams: stream_shards,
             receiver,
             handle,
         }),

@@ -5,7 +5,7 @@ use rdkafka::{
     Message as KafkaMessageTrait, Offset, TopicPartitionList,
 };
 use sea_streamer_runtime::spawn_blocking;
-use std::{fmt::Debug, time::Duration};
+use std::{collections::HashSet, fmt::Debug, time::Duration};
 
 use sea_streamer_types::{
     export::{
@@ -28,8 +28,7 @@ use crate::{
 pub struct KafkaConsumer {
     mode: ConsumerMode,
     inner: Option<RawConsumer>,
-    shards: Vec<ShardId>,
-    streams: Vec<StreamKey>,
+    streams: Vec<(StreamKey, ShardId)>,
 }
 
 /// rdkafka's StreamConsumer type
@@ -40,6 +39,8 @@ pub type RawConsumer = rdkafka::consumer::StreamConsumer<
 
 #[repr(transparent)]
 pub struct KafkaMessage<'a>(RawMessage<'a>);
+
+const ZERO: ShardId = ShardId::new(0);
 
 #[derive(Debug, Default, Clone)]
 pub struct KafkaConsumerOptions {
@@ -275,45 +276,47 @@ impl ConsumerTrait for KafkaConsumer {
     fn rewind(&mut self, offset: SeqPos) -> KafkaResult<()> {
         let mut tpl = TopicPartitionList::new();
 
-        for stream in self.streams.iter() {
-            for shard in self.shards() {
-                tpl.add_partition_offset(
-                    stream.name(),
-                    shard.id() as i32,
-                    match offset {
-                        SeqPos::Beginning => Offset::Beginning,
-                        SeqPos::End => Offset::End,
-                        SeqPos::At(seq) => {
-                            Offset::Offset(seq.try_into().expect("u64 out of range"))
-                        }
-                    },
-                )
-                .map_err(stream_err)?;
-            }
+        for (stream, shard) in self.streams.iter() {
+            tpl.add_partition_offset(
+                stream.name(),
+                shard.id() as i32,
+                match offset {
+                    SeqPos::Beginning => Offset::Beginning,
+                    SeqPos::End => Offset::End,
+                    SeqPos::At(seq) => Offset::Offset(seq.try_into().expect("u64 out of range")),
+                },
+            )
+            .map_err(stream_err)?;
         }
 
         self.get().assign(&tpl).map_err(stream_err)?;
-
         Ok(())
     }
 
-    fn assign(&mut self, s: ShardId) -> KafkaResult<()> {
-        if !self.shards.iter().any(|t| &s == t) {
-            self.shards.push(s);
+    fn assign(&mut self, (stream, shard): (StreamKey, ShardId)) -> KafkaResult<()> {
+        if !self.streams.iter().any(|(s, _)| s == &stream) {
+            return Err(StreamErr::StreamKeyNotFound);
+        }
+        if !self
+            .streams
+            .iter()
+            .any(|(s, t)| (s, t) == (&stream, &shard))
+        {
+            self.streams.push((stream, shard));
         }
         Ok(())
     }
 
-    fn unassign(&mut self, s: ShardId) -> KafkaResult<()> {
-        if let Some((i, _)) = self.shards.iter().enumerate().find(|(_, t)| &s == *t) {
-            self.shards.remove(i);
-            if self.shards.is_empty() {
-                Err(StreamErr::ConsumerShardEmpty)
+    fn unassign(&mut self, s: (StreamKey, ShardId)) -> KafkaResult<()> {
+        if let Some((i, _)) = self.streams.iter().enumerate().find(|(_, t)| &s == *t) {
+            self.streams.remove(i);
+            if self.streams.is_empty() {
+                Err(StreamErr::StreamKeyEmpty)
             } else {
                 Ok(())
             }
         } else {
-            Err(StreamErr::ConsumerNotAssigned)
+            Err(StreamErr::StreamKeyNotFound)
         }
     }
 
@@ -351,9 +354,11 @@ impl KafkaConsumer {
         }
     }
 
-    /// Shards this consumer has been assigned to. ZERO is assigned by default.
-    pub fn shards(&self) -> &[ShardId] {
-        &self.shards
+    /// Stream-shards this consumer has been (manually) assigned to.
+    /// Note that since this can be changing due to load-balancing,
+    /// only ZERO is assigned by default.
+    pub fn stream_shards(&self) -> &[(StreamKey, ShardId)] {
+        &self.streams
     }
 
     #[inline]
@@ -397,34 +402,30 @@ impl KafkaConsumer {
 
     /// Fetch the partition list of subscribed topics and assign all partitions.
     pub async fn reassign_partitions(&mut self) -> KafkaResult<()> {
-        let topics: Vec<String> = self.streams.iter().map(|s| s.name().to_owned()).collect();
-        let mut current = None;
-        for topic in topics {
+        let current: HashSet<StreamKey> = self.streams.iter().map(|(s, _)| s.clone()).collect();
+        let mut streams = Vec::new();
+        for stream_key in current {
+            let s = stream_key.clone();
             let raw = self
-                .async_func(move |c| c.fetch_metadata(Some(&topic), DEFAULT_TIMEOUT))
+                .async_func(move |c| c.fetch_metadata(Some(s.name()), DEFAULT_TIMEOUT))
                 .await?;
-            let partitions: Vec<u64> = raw
+            let partitions = raw
                 .topics()
                 .first()
                 .unwrap()
                 .partitions()
                 .iter()
-                .map(|p| p.id() as u64)
-                .collect();
-            if current.is_none() {
-                current = Some(partitions);
-            } else if current.as_ref().unwrap() != &partitions {
-                return Err(StreamErr::Backend(KafkaErr::Subscription(
-                    "Topics have different partition IDs.".to_owned(),
-                )));
+                .map(|p| p.id() as u64);
+            for p in partitions {
+                streams.push((stream_key.clone(), ShardId::new(p)));
             }
         }
-        if current.is_none() {
+        if streams.is_empty() {
             return Err(StreamErr::Backend(KafkaErr::Subscription(
                 "No partitions found.".to_owned(),
             )));
         }
-        self.shards = current.unwrap().into_iter().map(ShardId::new).collect();
+        self.streams = streams;
         Ok(())
     }
 
@@ -443,19 +444,17 @@ impl KafkaConsumer {
 
         let mut tpl = TopicPartitionList::new();
 
-        for stream in self.streams.iter() {
-            for shard in self.shards() {
-                tpl.add_partition_offset(
-                    stream.name(),
-                    shard.id() as i32,
-                    Offset::Offset(
-                        (timestamp.unix_timestamp_nanos() / 1_000_000)
-                            .try_into()
-                            .expect("KafkaConsumer::seek: timestamp out of range"),
-                    ),
-                )
-                .map_err(stream_err)?;
-            }
+        for (stream, shard) in self.streams.iter() {
+            tpl.add_partition_offset(
+                stream.name(),
+                shard.id() as i32,
+                Offset::Offset(
+                    (timestamp.unix_timestamp_nanos() / 1_000_000)
+                        .try_into()
+                        .expect("KafkaConsumer::seek: timestamp out of range"),
+                ),
+            )
+            .map_err(stream_err)?;
         }
 
         let tpl = self
@@ -660,7 +659,6 @@ pub(crate) fn create_consumer(
     Ok(KafkaConsumer {
         mode: options.mode,
         inner: Some(consumer),
-        shards: vec![ShardId::new(0)],
-        streams,
+        streams: streams.into_iter().map(|s| (s, ZERO)).collect(),
     })
 }

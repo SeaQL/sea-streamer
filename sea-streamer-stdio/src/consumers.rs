@@ -47,6 +47,7 @@ struct ConsumerRelay {
 #[derive(Debug)]
 pub struct StdioConsumer {
     id: Cid,
+    streams: Vec<StreamKey>,
     receiver: Receiver<SharedMessage>,
 }
 
@@ -61,7 +62,7 @@ impl Consumers {
     fn add(&mut self, group: Option<ConsumerGroup>, streams: Vec<StreamKey>) -> StdioConsumer {
         let id = self.max_id;
         self.max_id += 1;
-        let (con, sender) = StdioConsumer::new(id);
+        let (con, sender) = StdioConsumer::new(id, streams.clone());
         self.consumers.insert(
             id,
             ConsumerRelay {
@@ -202,9 +203,16 @@ pub(crate) fn dispatch(meta: PartialMeta, bytes: Vec<u8>, offset: usize) {
 }
 
 impl StdioConsumer {
-    fn new(id: Cid) -> (Self, Sender<SharedMessage>) {
+    fn new(id: Cid, streams: Vec<StreamKey>) -> (Self, Sender<SharedMessage>) {
         let (sender, receiver) = unbounded();
-        (Self { id, receiver }, sender)
+        (
+            Self {
+                id,
+                streams,
+                receiver,
+            },
+            sender,
+        )
     }
 }
 
@@ -231,9 +239,19 @@ impl ConsumerTrait for StdioConsumer {
         Err(StreamErr::Unsupported("StdioConsumer::rewind".to_owned()))
     }
 
-    // Always succeed. There is only shard ZERO anyway.
-    fn assign(&mut self, _: ShardId) -> StdioResult<()> {
-        Ok(())
+    /// Always succeed if the stream exists. There is only shard ZERO anyway.
+    fn assign(&mut self, (s, _): (StreamKey, ShardId)) -> StdioResult<()> {
+        for stream in self.streams.iter() {
+            if &s == stream {
+                return Ok(());
+            }
+        }
+        Err(StreamErr::StreamKeyNotFound)
+    }
+
+    /// Always fail. There is only shard ZERO anyway.
+    fn unassign(&mut self, _: (StreamKey, ShardId)) -> StdioResult<()> {
+        Err(StreamErr::StreamKeyNotFound)
     }
 
     fn next(&self) -> Self::NextFuture<'_> {

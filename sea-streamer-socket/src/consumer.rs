@@ -7,7 +7,7 @@ use sea_streamer_types::{
         async_trait,
         futures::{FutureExt, Stream},
     },
-    Consumer, SeqPos, ShardId, StreamResult, Timestamp,
+    Consumer, SeqPos, ShardId, StreamKey, StreamResult, Timestamp,
 };
 
 use crate::{map_err, Backend, BackendErr, SeaMessage, SeaResult, SeaStreamerBackend};
@@ -117,10 +117,17 @@ impl Consumer for SeaConsumer {
         }
     }
 
-    fn assign(&mut self, shard: ShardId) -> SeaResult<()> {
+    fn assign(&mut self, ss: (StreamKey, ShardId)) -> SeaResult<()> {
         match &mut self.backend {
-            SeaConsumerBackend::Kafka(i) => i.assign(shard).map_err(map_err),
-            SeaConsumerBackend::Stdio(i) => i.assign(shard).map_err(map_err),
+            SeaConsumerBackend::Kafka(i) => i.assign(ss).map_err(map_err),
+            SeaConsumerBackend::Stdio(i) => i.assign(ss).map_err(map_err),
+        }
+    }
+
+    fn unassign(&mut self, ss: (StreamKey, ShardId)) -> SeaResult<()> {
+        match &mut self.backend {
+            SeaConsumerBackend::Kafka(i) => i.unassign(ss).map_err(map_err),
+            SeaConsumerBackend::Stdio(i) => i.unassign(ss).map_err(map_err),
         }
     }
 

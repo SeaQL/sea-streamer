@@ -1,4 +1,4 @@
-use crate::{Message, SeqPos, ShardId, StreamResult, Timestamp};
+use crate::{Message, SeqPos, ShardId, StreamKey, StreamResult, Timestamp};
 use async_trait::async_trait;
 use futures::{Future, Stream};
 
@@ -76,10 +76,14 @@ pub trait Consumer: Sized + Send + Sync {
     /// If the consumer is not already assigned, shard ZERO will be used.
     fn rewind(&mut self, offset: SeqPos) -> StreamResult<(), Self::Error>;
 
-    /// Assign this consumer to a particular shard.
+    /// Assign this consumer to a particular shard. Can be called multiple times to assign
+    /// to multiple shards. You cannot assign streams that has not been subscribed.
     ///
     /// It will only take effect on the next [`Consumer::seek`] or [`Consumer::rewind`].
-    fn assign(&mut self, shard: ShardId) -> StreamResult<(), Self::Error>;
+    fn assign(&mut self, ss: (StreamKey, ShardId)) -> StreamResult<(), Self::Error>;
+
+    /// Unassign a shard. Returns `ConsumerNotAssigned` if this consumer has not been assigned to this stream or shard.
+    fn unassign(&mut self, ss: (StreamKey, ShardId)) -> StreamResult<(), Self::Error>;
 
     /// Poll and receive one message: it awaits until there are new messages
     fn next(&self) -> Self::NextFuture<'_>;
