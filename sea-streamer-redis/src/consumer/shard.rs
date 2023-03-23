@@ -27,6 +27,10 @@ impl ShardState {
     }
 }
 
+pub fn format_stream_shard((a, b): &StreamShard) -> String {
+    format!("{a}:{b}")
+}
+
 pub async fn discover_shards(
     cluster: &mut RedisCluster,
     stream: StreamKey,

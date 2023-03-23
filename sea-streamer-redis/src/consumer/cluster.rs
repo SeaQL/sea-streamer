@@ -34,8 +34,18 @@ pub enum CtrlMsg {
     Unread,
     AddShard(Box<ShardState>),
     Ack(StreamShard, MessageId, Timestamp),
+    Rewind(Vec<StreamShard>, MessageId),
     Commit(Sender<RedisResult<()>>),
     Kill(Sender<()>),
+}
+
+#[cfg(test)]
+#[test]
+fn test_size_of_ctrl_msg() {
+    assert!(
+        std::mem::size_of::<CtrlMsg>()
+            <= 8 + std::mem::size_of::<(StreamShard, MessageId, Timestamp)>()
+    );
 }
 
 impl Cluster {
@@ -101,6 +111,9 @@ impl Cluster {
                         } else {
                             panic!("Unexpected shard `{:?}`", key);
                         }
+                    }
+                    CtrlMsg::Rewind(_, _) => {
+                        todo!("For existing shards, we send a Rewind msg to the node. For new shards, we'd add them to the first node.");
                     }
                     CtrlMsg::AddShard(m) => {
                         panic!("Unexpected CtrlMsg CtrlMsg::AddShard({:?})", m)

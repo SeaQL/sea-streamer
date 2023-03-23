@@ -2,7 +2,7 @@ mod util;
 use util::*;
 
 // cargo test --test realtime --features=test,runtime-tokio -- --nocapture
-// cargo test --test realtime --features=test,runtime-async-std -- --nocapture
+// cargo test --test realtime --no-default-features --features=test,runtime-async-std -- --nocapture
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]

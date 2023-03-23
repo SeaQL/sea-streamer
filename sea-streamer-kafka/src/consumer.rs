@@ -273,7 +273,7 @@ impl ConsumerTrait for KafkaConsumer {
     /// Rewind all streams across all assigned partitions.
     /// Call [`Consumer::assign`] to assign a partition beforehand,
     /// or [`KafkaConsumer::reassign_partitions`] to assign all partitions.
-    fn rewind(&mut self, offset: SeqPos) -> KafkaResult<()> {
+    async fn rewind(&mut self, offset: SeqPos) -> KafkaResult<()> {
         let mut tpl = TopicPartitionList::new();
 
         for (stream, shard) in self.streams.iter() {

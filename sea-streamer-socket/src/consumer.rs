@@ -110,10 +110,10 @@ impl Consumer for SeaConsumer {
         }
     }
 
-    fn rewind(&mut self, offset: SeqPos) -> SeaResult<()> {
+    async fn rewind(&mut self, pos: SeqPos) -> SeaResult<()> {
         match &mut self.backend {
-            SeaConsumerBackend::Kafka(i) => i.rewind(offset).map_err(map_err),
-            SeaConsumerBackend::Stdio(i) => i.rewind(offset).map_err(map_err),
+            SeaConsumerBackend::Kafka(i) => i.rewind(pos).await.map_err(map_err),
+            SeaConsumerBackend::Stdio(i) => i.rewind(pos).await.map_err(map_err),
         }
     }
 

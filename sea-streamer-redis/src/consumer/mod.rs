@@ -13,17 +13,20 @@ use shard::*;
 use flume::{bounded, unbounded, Receiver, Sender};
 use std::{fmt::Debug, sync::Arc, time::Duration};
 
-use crate::{get_message_id, host_id, RedisCluster, RedisErr, RedisResult, DEFAULT_TIMEOUT};
+use crate::{
+    from_seq_no, get_message_id, host_id, MessageId, RedisCluster, RedisErr, RedisResult,
+    DEFAULT_TIMEOUT, MAX_MSG_ID, SEA_STREAMER_INTERNAL,
+};
 use sea_streamer_runtime::{spawn_task, timeout};
 use sea_streamer_types::{
-    export::async_trait, ConnectOptions, Consumer, ConsumerGroup, ConsumerId, ConsumerMode,
-    ConsumerOptions, Message, SeqPos, ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
+    export::async_trait, Buffer, ConnectOptions, Consumer, ConsumerGroup, ConsumerId, ConsumerMode,
+    ConsumerOptions, Message, SeqPos, SharedMessage, StreamErr, StreamKey, Timestamp,
 };
 
 #[derive(Debug)]
 pub struct RedisConsumer {
     config: ConsumerConfig,
-    streams: Vec<(StreamKey, ShardId)>,
+    streams: Vec<StreamShard>,
     receiver: Receiver<RedisResult<SharedMessage>>,
     handle: Sender<CtrlMsg>,
 }
@@ -74,15 +77,23 @@ impl Consumer for RedisConsumer {
     type NextFuture<'a> = NextFuture<'a>;
     type Stream<'a> = StreamFuture<'a>;
 
-    async fn seek(&mut self, _: Timestamp) -> RedisResult<()> {
-        todo!()
+    #[inline]
+    async fn seek(&mut self, ts: Timestamp) -> RedisResult<()> {
+        self.seek_to(((ts.unix_timestamp_nanos() / 1_000_000) as u64, u16::MAX))
+            .await
     }
 
-    fn rewind(&mut self, _: SeqPos) -> RedisResult<()> {
-        todo!()
+    #[inline]
+    async fn rewind(&mut self, pos: SeqPos) -> RedisResult<()> {
+        self.seek_to(match pos {
+            SeqPos::Beginning => (0, 0),
+            SeqPos::End => MAX_MSG_ID,
+            SeqPos::At(no) => from_seq_no(no),
+        })
+        .await
     }
 
-    fn assign(&mut self, (stream, shard): (StreamKey, ShardId)) -> RedisResult<()> {
+    fn assign(&mut self, (stream, shard): StreamShard) -> RedisResult<()> {
         if !self.streams.iter().any(|(s, _)| s == &stream) {
             return Err(StreamErr::StreamKeyNotFound);
         }
@@ -96,7 +107,7 @@ impl Consumer for RedisConsumer {
         Ok(())
     }
 
-    fn unassign(&mut self, s: (StreamKey, ShardId)) -> RedisResult<()> {
+    fn unassign(&mut self, s: StreamShard) -> RedisResult<()> {
         if let Some((i, _)) = self.streams.iter().enumerate().find(|(_, t)| &s == *t) {
             self.streams.remove(i);
             if self.streams.is_empty() {
@@ -133,8 +144,25 @@ impl RedisConsumer {
 
     /// Return the stream-shards this consumer has been assigned.
     /// On create, it will self-assign all shards.
-    pub fn stream_shards(&self) -> &[(StreamKey, ShardId)] {
+    pub fn stream_shards(&self) -> &[StreamShard] {
         &self.streams
+    }
+
+    pub async fn seek_to(&mut self, id: MessageId) -> RedisResult<()> {
+        if self
+            .handle
+            .try_send(CtrlMsg::Rewind(self.streams.clone(), id))
+            .is_ok()
+        {
+            // we drain all messages until hitting the latch
+            while let Ok(msg) = self.receiver.recv_async().await {
+                let msg = msg?;
+                if msg.stream_key().name() == SEA_STREAMER_INTERNAL && msg.message().size() == 0 {
+                    return Ok(());
+                }
+            }
+        }
+        Err(StreamErr::Backend(RedisErr::ConsumerDied))
     }
 
     #[inline]

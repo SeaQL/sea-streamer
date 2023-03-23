@@ -13,7 +13,8 @@ use sea_streamer_types::{
     Timestamp,
 };
 
-const SEA_STREAMER_INTERNAL: &str = "SEA_STREAMER_INTERNAL";
+/// Avoid using this StreamKey
+pub const SEA_STREAMER_INTERNAL: &str = "SEA_STREAMER_INTERNAL";
 const MAX_RETRY: usize = 100;
 
 #[derive(Debug, Clone)]

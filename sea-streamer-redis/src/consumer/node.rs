@@ -8,19 +8,21 @@ use redis::{
 use std::{fmt::Display, sync::Arc, time::Duration};
 
 use super::{
-    constants::HEARTBEAT, AutoCommit, AutoStreamReset, CtrlMsg, ShardState, StatusMsg, StreamShard,
+    constants::HEARTBEAT, format_stream_shard, AutoCommit, AutoStreamReset, CtrlMsg, ShardState,
+    StatusMsg, StreamShard,
 };
 use crate::{
     map_err, AutoClaimReply, MessageId, NodeId, RedisCluster, RedisConsumerOptions, RedisErr,
-    RedisResult, StreamReadReply,
+    RedisResult, StreamReadReply, MAX_MSG_ID, SEA_STREAMER_INTERNAL, ZERO,
 };
 use sea_streamer_runtime::sleep;
 use sea_streamer_types::{
-    ConsumerMode, ConsumerOptions, MessageHeader, SharedMessage, StreamErr, Timestamp,
+    ConsumerMode, ConsumerOptions, MessageHeader, SharedMessage, StreamErr, StreamKey, Timestamp,
 };
 
 const DOLLAR: &str = "$";
 const DIRECT: &str = ">";
+const ZERO_ZERO: &str = "0-0";
 const ONE_SEC: Duration = Duration::from_secs(1);
 
 pub struct Node {
@@ -32,6 +34,7 @@ pub struct Node {
     group: GroupState,
     // in reverse order
     buffer: Vec<SharedMessage>,
+    rewinding: bool,
 }
 
 struct GroupState {
@@ -109,20 +112,11 @@ impl Node {
         options: Arc<RedisConsumerOptions>,
         messages: Sender<RedisResult<SharedMessage>>,
     ) -> Self {
-        let mut opts = StreamReadOptions::default()
-            .count(*options.batch_size())
-            .block(HEARTBEAT.as_secs() as usize * 1000);
-
-        let mode = options.mode;
-        let mut group_id = Default::default();
-        if matches!(mode, ConsumerMode::Resumable | ConsumerMode::LoadBalanced) {
-            group_id = options.consumer_group().unwrap().name().to_owned();
-            let consumer_id = options.consumer_id().unwrap();
-            opts = opts.group(&group_id, consumer_id.id());
-            if options.auto_commit() == &AutoCommit::Immediate {
-                opts = opts.noack();
-            }
-        }
+        let opts = Self::read_options(options.mode, &options);
+        let group_id = options
+            .consumer_group()
+            .map(|s| s.name().to_owned())
+            .unwrap_or_default();
 
         Self {
             id,
@@ -139,7 +133,26 @@ impl Node {
                 claiming: None,
             },
             buffer: Vec::new(),
+            rewinding: false,
         }
+    }
+
+    fn read_options(mode: ConsumerMode, options: &RedisConsumerOptions) -> StreamReadOptions {
+        let mut opts = StreamReadOptions::default()
+            .count(*options.batch_size())
+            .block(HEARTBEAT.as_secs() as usize * 1000);
+
+        if matches!(mode, ConsumerMode::Resumable | ConsumerMode::LoadBalanced) {
+            opts = opts.group(
+                options.consumer_group().unwrap().name(),
+                options.consumer_id().unwrap().id(),
+            );
+            if options.auto_commit() == &AutoCommit::Immediate {
+                opts = opts.noack();
+            }
+        }
+
+        opts
     }
 
     pub async fn run(mut self, receiver: Receiver<CtrlMsg>, sender: Sender<StatusMsg>) {
@@ -166,7 +179,7 @@ impl Node {
 
         'outer: loop {
             loop {
-                let ctrl = if self.options.pre_fetch() || !ready || read > 0 {
+                let ctrl = if self.pre_fetch() || !ready || read > 0 {
                     match receiver.try_recv() {
                         Ok(ctrl) => ctrl,
                         Err(TryRecvError::Disconnected) => {
@@ -199,6 +212,29 @@ impl Node {
                     }
                     CtrlMsg::Ack(key, id, ts) => {
                         self.ack_message(key, id, ts);
+                    }
+                    CtrlMsg::Rewind(shards, pos) => {
+                        self.rewind_stream(shards, pos);
+                        read = 0;
+                        self.buffer.truncate(0);
+                        if self
+                            .messages
+                            .send_async(Ok(SharedMessage::new(
+                                MessageHeader::new(
+                                    StreamKey::new(SEA_STREAMER_INTERNAL).unwrap(),
+                                    ZERO,
+                                    0,
+                                    Timestamp::now_utc(),
+                                ),
+                                vec![],
+                                0,
+                                0,
+                            )))
+                            .await
+                            .is_err()
+                        {
+                            break 'outer;
+                        }
                     }
                     CtrlMsg::Commit(notify) => {
                         if self.has_pending_ack() {
@@ -277,7 +313,7 @@ impl Node {
                 } else {
                     break 'outer;
                 }
-                if self.options.pre_fetch() {
+                if self.pre_fetch() {
                     break;
                 }
             }
@@ -386,8 +422,24 @@ impl Node {
         Ok(())
     }
 
+    fn running_mode(&self) -> ConsumerMode {
+        if self.rewinding {
+            ConsumerMode::RealTime
+        } else {
+            self.options.mode
+        }
+    }
+
+    fn pre_fetch(&self) -> bool {
+        if self.rewinding {
+            true
+        } else {
+            self.options.pre_fetch()
+        }
+    }
+
     async fn read_next(&mut self, conn: &mut redis::aio::Connection) -> RedisResult<ReadResult> {
-        let mode = self.options.mode;
+        let mode = self.running_mode();
         if matches!(mode, ConsumerMode::Resumable | ConsumerMode::LoadBalanced)
             && self.group.first_read
         {
@@ -446,19 +498,22 @@ impl Node {
             match mode {
                 ConsumerMode::RealTime => {
                     if let Some((a, b)) = shard.id {
-                        cmd.arg(format!("{a}-{b}"));
-                    } else {
-                        match self.options.auto_stream_reset() {
-                            AutoStreamReset::Earliest => cmd.arg("0-0"),
-                            AutoStreamReset::Latest => cmd.arg(DOLLAR),
+                        match (a, b) {
+                            MAX_MSG_ID => cmd.arg(DOLLAR),
+                            _ => cmd.arg(format!("{a}-{b}")),
                         };
+                    } else {
+                        cmd.arg(match self.options.auto_stream_reset() {
+                            AutoStreamReset::Earliest => ZERO_ZERO,
+                            AutoStreamReset::Latest => DOLLAR,
+                        });
                     }
                 }
                 ConsumerMode::Resumable | ConsumerMode::LoadBalanced => {
                     if self.group.pending_state {
                         match shard.id {
                             Some((a, b)) => cmd.arg(format!("{a}-{b}")),
-                            None => cmd.arg("0-0"),
+                            None => cmd.arg(ZERO_ZERO),
                         };
                     } else {
                         cmd.arg(DIRECT);
@@ -505,6 +560,41 @@ impl Node {
                     self.send_error(map_err(err)).await
                 }
             }
+        }
+    }
+
+    fn rewind_stream(&mut self, shards: Vec<StreamShard>, to: MessageId) {
+        self.rewinding = true;
+        self.opts = Self::read_options(self.running_mode(), &self.options);
+        let mut leftover = Vec::new();
+        let mut deleted = Vec::new();
+        for owned in self.shards.iter() {
+            if !shards.iter().any(|s| &owned.stream == s) {
+                deleted.push(owned.stream.clone());
+            }
+        }
+        for shard in shards {
+            if let Some(found) = self.shards.iter_mut().find(|s| s.stream == shard) {
+                found.id = Some(to);
+            } else {
+                leftover.push(shard);
+            }
+        }
+        for shard in leftover {
+            let key = format_stream_shard(&shard);
+            self.shards.push(ShardState {
+                stream: shard,
+                key,
+                id: Some(to),
+                pending_ack: Default::default(),
+            });
+        }
+        if !deleted.is_empty() {
+            let removing = std::mem::take(&mut self.shards);
+            self.shards = removing
+                .into_iter()
+                .filter(|s| !deleted.iter().any(|d| d == &s.stream))
+                .collect();
         }
     }
 
@@ -557,7 +647,7 @@ impl Node {
             .unwrap();
         cmd.arg(idle);
         match (change, self.get_shard_state(&claiming.key).id) {
-            (true, _) => cmd.arg("0-0"),
+            (true, _) => cmd.arg(ZERO_ZERO),
             (_, Some((a, b))) => cmd.arg(format!("{a}-{b}")),
             (false, None) => unreachable!("Should have read state"),
         };

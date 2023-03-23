@@ -74,7 +74,7 @@ pub trait Consumer: Sized + Send + Sync {
     /// Rewind all streams to a particular sequence number.
     ///
     /// If the consumer is not already assigned, shard ZERO will be used.
-    fn rewind(&mut self, offset: SeqPos) -> StreamResult<(), Self::Error>;
+    async fn rewind(&mut self, offset: SeqPos) -> StreamResult<(), Self::Error>;
 
     /// Assign this consumer to a particular shard. Can be called multiple times to assign
     /// to multiple shards. You cannot assign streams that has not been subscribed.

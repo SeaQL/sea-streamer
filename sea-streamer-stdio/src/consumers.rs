@@ -235,7 +235,7 @@ impl ConsumerTrait for StdioConsumer {
         Err(StreamErr::Unsupported("StdioConsumer::seek".to_owned()))
     }
 
-    fn rewind(&mut self, _: SeqPos) -> StdioResult<()> {
+    async fn rewind(&mut self, _: SeqPos) -> StdioResult<()> {
         Err(StreamErr::Unsupported("StdioConsumer::rewind".to_owned()))
     }
 

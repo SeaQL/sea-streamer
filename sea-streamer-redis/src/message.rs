@@ -6,6 +6,8 @@ use sea_streamer_types::{
 
 pub type MessageId = (u64, u16);
 
+pub const MAX_MSG_ID: MessageId = (u64::MAX, u16::MAX);
+
 #[derive(Debug)]
 #[repr(transparent)]
 pub(crate) struct StreamReadReply(pub(crate) Vec<SharedMessage>);
@@ -28,9 +30,13 @@ pub fn parse_message_id(id: &str) -> RedisResult<(Timestamp, SeqNo)> {
                         "Sequence number out of range: {seq_no}"
                     ))));
                 }
+                if timestamp > 0xFFFFFFFFFFFF {
+                    return Err(StreamErr::Backend(RedisErr::MessageId(format!(
+                        "Timestamp out of range: {timestamp}"
+                    ))));
+                }
                 return Ok((
-                    Timestamp::from_unix_timestamp_nanos(timestamp as i128 * 1_000_000)
-                        .expect("from_unix_timestamp_nanos"),
+                    Timestamp::from_unix_timestamp_nanos(timestamp as i128 * 1_000_000).unwrap(),
                     timestamp << 16 | seq_no,
                 ));
             }
@@ -39,7 +45,7 @@ pub fn parse_message_id(id: &str) -> RedisResult<(Timestamp, SeqNo)> {
     Err(StreamErr::Backend(RedisErr::MessageId(id.to_owned())))
 }
 
-pub fn get_message_id(header: &MessageHeader) -> MessageId {
+pub(crate) fn get_message_id(header: &MessageHeader) -> MessageId {
     (
         (header.timestamp().unix_timestamp_nanos() / 1_000_000)
             .try_into()
@@ -48,6 +54,24 @@ pub fn get_message_id(header: &MessageHeader) -> MessageId {
             .try_into()
             .expect("Never fails"),
     )
+}
+
+pub(crate) fn from_seq_no(seq_no: SeqNo) -> MessageId {
+    (
+        (seq_no >> 16),
+        (seq_no & 0xFFFF).try_into().expect("Never fails"),
+    )
+}
+
+pub trait RedisMessage {
+    /// Get the Redis MessageId in form of (timestamp,seq) tuple from the message
+    fn message_id(&self) -> MessageId;
+}
+
+impl RedisMessage for SharedMessage {
+    fn message_id(&self) -> MessageId {
+        get_message_id(self.header())
+    }
 }
 
 // bulk(bulk(string-data('"my_stream_1"'), bulk(bulk(string-data('"1678280595282-0"'), bulk(string-data('"msg"'), string-data('"hi 0"'), field, value, ...)), ...)))
