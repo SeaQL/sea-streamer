@@ -220,6 +220,17 @@ impl RedisConsumer {
         }
     }
 
+    /// Push a Commit request to the command queue, will be executed on the next cycle
+    pub fn commit_asap(&mut self) -> RedisResult<()> {
+        let (sender, _) = bounded(1);
+        // unbounded, so never blocks
+        if self.handle.try_send(CtrlMsg::Commit(sender)).is_ok() {
+            Ok(())
+        } else {
+            Err(StreamErr::Backend(RedisErr::ConsumerDied))
+        }
+    }
+
     /// Commit all pending acks and end the consumer.
     pub async fn end(self) -> RedisResult<()> {
         let (sender, notify) = bounded(1);

@@ -219,6 +219,8 @@ async fn rolling_and_disabled() -> anyhow::Result<()> {
             consumer.next().await?;
             // tick, should commit
             consumer.next().await?;
+            // one more, just to be sure
+            consumer.next().await?;
         } else {
             // manually commit
             consumer.commit()?.await?;
