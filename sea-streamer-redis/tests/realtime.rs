@@ -37,22 +37,25 @@ async fn main() -> anyhow::Result<()> {
         println!("Connect Streamer ... ok");
 
         let now = Timestamp::now_utc();
-        let stream = StreamKey::new(format!(
-            "{}-{}",
+        let stream_a = StreamKey::new(format!(
+            "{}-{}a",
+            TEST,
+            now.unix_timestamp_nanos() / 1_000_000
+        ))?;
+        let stream_b = StreamKey::new(format!(
+            "{}-{}b",
             TEST,
             now.unix_timestamp_nanos() / 1_000_000
         ))?;
         let zero = ShardId::new(0);
 
-        let mut producer = streamer
-            .create_producer(stream.clone(), Default::default())
-            .await?;
+        let mut producer = streamer.create_generic_producer(Default::default()).await?;
 
         let mut sequence = 0;
         for i in 0..5 {
             let message = format!("{i}");
-            let receipt = producer.send(message)?.await?;
-            assert_eq!(receipt.stream_key(), &stream);
+            let receipt = producer.send_to(&stream_a, message)?.await?;
+            assert_eq!(receipt.stream_key(), &stream_a);
             // should always increase
             assert!(receipt.sequence() > &sequence);
             sequence = *receipt.sequence();
@@ -63,20 +66,22 @@ async fn main() -> anyhow::Result<()> {
         options.set_auto_stream_reset(AutoStreamReset::Latest);
 
         let mut half = streamer
-            .create_consumer(&[stream.clone()], options.clone())
+            .create_consumer(&[stream_a.clone()], options.clone())
             .await?;
 
         sleep(Duration::from_millis(5)).await;
 
         for i in 5..10 {
             let message = format!("{i}");
-            producer.send(message)?;
+            producer.send_to(&stream_a, message)?;
         }
 
         producer.flush().await?;
 
         options.set_auto_stream_reset(AutoStreamReset::Earliest);
-        let mut full = streamer.create_consumer(&[stream.clone()], options).await?;
+        let mut full = streamer
+            .create_consumer(&[stream_a.clone(), stream_b.clone()], options)
+            .await?;
 
         let seq = consume(&mut half, 5).await;
         assert_eq!(seq, [5, 6, 7, 8, 9]);
@@ -88,7 +93,7 @@ async fn main() -> anyhow::Result<()> {
 
         for i in 10..13 {
             let message = format!("{i}");
-            producer.send(message)?;
+            producer.send_to(&stream_a, message)?;
         }
 
         producer.flush().await?;
@@ -99,13 +104,21 @@ async fn main() -> anyhow::Result<()> {
 
         for i in 13..15 {
             let message = format!("{i}");
-            producer.send(message)?;
+            producer.send_to(&stream_a, message)?;
+        }
+
+        for i in 15..20 {
+            let message = format!("{i}");
+            producer.send_to(&stream_b, message)?;
         }
 
         producer.end().await?;
 
         let seq = consume(&mut full, 3).await;
         assert_eq!(seq, [12, 13, 14]);
+
+        let seq = consume(&mut full, 5).await;
+        assert_eq!(seq, [15, 16, 17, 18, 19]);
 
         println!("Stream realtime ... ok");
 
