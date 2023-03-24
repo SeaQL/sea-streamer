@@ -38,6 +38,8 @@ fn init() -> String {
     mac.to_owned()
 }
 
+/// Get the host id. Inside Docker, it's the container ID. Otherwise it's the MAC address.
+/// You can override it via the `HOST_ID` env var.
 pub fn host_id() -> &'static str {
     &HOST_ID
 }

@@ -8,7 +8,7 @@ use sea_streamer_runtime::{sleep, timeout};
 use sea_streamer_types::{ConnectOptions, StreamErr};
 
 #[derive(Debug)]
-/// A wrapped [`redis::aio::Connection`] that can auto-reconnect
+/// A wrapped [`redis::aio::Connection`] that can auto-reconnect.
 pub struct Connection {
     node: NodeId,
     options: Arc<RedisConnectOptions>,

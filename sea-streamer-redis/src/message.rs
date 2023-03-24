@@ -4,8 +4,10 @@ use sea_streamer_types::{
     MessageHeader, SeqNo, ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
 };
 
+/// ID of a message in the form of (timestamp, sequence).
 pub type MessageId = (u64, u16);
 
+/// To indicate `$`, aka latest.
 pub const MAX_MSG_ID: MessageId = (u64::MAX, u16::MAX);
 
 #[derive(Debug)]
@@ -63,6 +65,7 @@ pub(crate) fn from_seq_no(seq_no: SeqNo) -> MessageId {
     )
 }
 
+/// A trait that adds some methods to [`SharedMessage`].
 pub trait RedisMessage {
     /// Get the Redis MessageId in form of (timestamp,seq) tuple from the message
     fn message_id(&self) -> MessageId;

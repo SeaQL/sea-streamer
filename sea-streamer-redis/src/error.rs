@@ -3,6 +3,7 @@ use sea_streamer_types::{StreamErr, StreamResult};
 use thiserror::Error;
 
 #[derive(Error, Debug, Clone)]
+/// Different types of Redis errors.
 pub enum RedisErr {
     #[error("Failed to parse message ID: {0}")]
     MessageId(String),
@@ -50,6 +51,7 @@ pub enum RedisErr {
     Unknown(String),
 }
 
+/// A type alias for convenience.
 pub type RedisResult<T> = StreamResult<T, RedisErr>;
 
 pub(crate) fn map_err(err: RedisError) -> StreamErr<RedisErr> {

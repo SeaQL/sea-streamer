@@ -18,12 +18,14 @@ pub const SEA_STREAMER_INTERNAL: &str = "SEA_STREAMER_INTERNAL";
 const MAX_RETRY: usize = 100;
 
 #[derive(Debug, Clone)]
+/// The Redis Producer.
 pub struct RedisProducer {
     stream: Option<StreamKey>,
     sender: Sender<SendRequest>,
 }
 
 #[derive(Default, Clone)]
+/// Options for Producers, including sharding.
 pub struct RedisProducerOptions {
     sharder: Option<Arc<dyn SharderConfig>>,
 }
@@ -42,6 +44,7 @@ struct SendRequest {
     receipt: Sender<RedisResult<Receipt>>,
 }
 
+/// A future that returns a Send Receipt. This future is cancel safe.
 pub struct SendFuture {
     fut: RecvFut<'static, RedisResult<Receipt>>,
 }
@@ -52,15 +55,15 @@ impl Debug for SendFuture {
     }
 }
 
-/// Struct to bootstrap sharders
+/// Trait to instantiate new sharders. It should also impl `Debug` so it can be named.
 pub trait SharderConfig: Debug + Send + Sync {
     /// Each producer will create its own sharder.
     /// They should not have any shared state for the sake of concurrency.
     fn init(&self) -> Box<dyn Sharder>;
 }
 
-/// Custom sharding strategy
-pub trait Sharder: Send {
+/// Trait that sharding strategies should implement. It should also impl `Debug` so its states can be inspected.
+pub trait Sharder: Debug + Send {
     /// Return the determined shard id for the given message.
     /// This should be a *real quick* computation, otherwise this can become the bottleneck of streaming.
     /// Mutex, atomic or anything that can create contention will be disastrous.
@@ -142,18 +145,22 @@ impl Producer for RedisProducer {
 impl ProducerOptions for RedisProducerOptions {}
 
 impl RedisProducerOptions {
+    /// Assign a sharder.
+    ///
     /// Sharding simply means splitting a stream into multiple keys.
     /// These keys can then be handled by different nodes in a cluster.
-    /// Since shards (keys) can be moved across nodes on the fly,
+    /// Since shards (group of keys) can be moved across nodes on the fly,
     /// it is recommended to over-shard for better key distribution.
     pub fn set_sharder<S: SharderConfig + 'static>(&mut self, v: S) -> &mut Self {
         self.sharder = Some(Arc::new(v));
         self
     }
+    /// Reset sharder to None.
     pub fn clear_sharder(&mut self) -> &mut Self {
         self.sharder = None;
         self
     }
+    /// Get the currently assigned sharder.
     pub fn sharder(&self) -> Option<&dyn SharderConfig> {
         self.sharder.as_deref()
     }

@@ -452,7 +452,7 @@ impl Node {
                         &self.group.group_id,
                         match self.options.auto_stream_reset() {
                             AutoStreamReset::Earliest => "0",
-                            AutoStreamReset::Latest => "$",
+                            AutoStreamReset::Latest => DOLLAR,
                         },
                     )
                     .await;

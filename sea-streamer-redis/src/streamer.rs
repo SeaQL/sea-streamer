@@ -9,12 +9,14 @@ use sea_streamer_types::{
 };
 
 #[derive(Debug, Clone)]
+/// The Redis Streamer, from which you can create Producers and Consumers.
 pub struct RedisStreamer {
     uri: StreamerUri,
     options: Arc<RedisConnectOptions>,
 }
 
 #[derive(Debug, Default, Clone)]
+/// Options for connections, including credentials.
 pub struct RedisConnectOptions {
     db: u32,
     username: Option<String>,

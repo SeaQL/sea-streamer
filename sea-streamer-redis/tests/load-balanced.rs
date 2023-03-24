@@ -240,7 +240,7 @@ async fn failover() -> anyhow::Result<()> {
         assert_eq!(seq, [5, 6, 7, 8, 9]);
         println!("Stream beta ... ok");
 
-        beta.commit().await?;
+        beta.commit()?.await?;
         alpha.end().await?;
 
         let seq = consume_and_ack(&mut beta, 5).await;
@@ -253,7 +253,7 @@ async fn failover() -> anyhow::Result<()> {
         }
 
         producer.flush().await?;
-        beta.commit().await?;
+        beta.commit()?.await?;
 
         options.set_consumer_id(alpha_id);
         let mut alpha = streamer

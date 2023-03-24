@@ -11,7 +11,7 @@ pub use options::*;
 use shard::*;
 
 use flume::{bounded, unbounded, Receiver, Sender};
-use std::{fmt::Debug, sync::Arc, time::Duration};
+use std::{fmt::Debug, future::Future, sync::Arc, time::Duration};
 
 use crate::{
     from_seq_no, get_message_id, host_id, MessageId, RedisCluster, RedisErr, RedisResult,
@@ -19,11 +19,13 @@ use crate::{
 };
 use sea_streamer_runtime::{spawn_task, timeout};
 use sea_streamer_types::{
-    export::async_trait, Buffer, ConnectOptions, Consumer, ConsumerGroup, ConsumerId, ConsumerMode,
-    ConsumerOptions, Message, SeqPos, SharedMessage, StreamErr, StreamKey, Timestamp,
+    export::{async_trait, futures::FutureExt},
+    Buffer, ConnectOptions, Consumer, ConsumerGroup, ConsumerId, ConsumerMode, ConsumerOptions,
+    Message, SeqPos, SharedMessage, StreamErr, StreamKey, Timestamp,
 };
 
 #[derive(Debug)]
+/// The Redis Consumer.
 pub struct RedisConsumer {
     config: ConsumerConfig,
     streams: Vec<StreamShard>,
@@ -32,6 +34,7 @@ pub struct RedisConsumer {
 }
 
 #[derive(Debug, Clone)]
+/// Options for Consumers, including mode, group and other streaming mechanisms.
 pub struct RedisConsumerOptions {
     mode: ConsumerMode,
     group_id: Option<ConsumerGroup>,
@@ -55,6 +58,7 @@ struct ConsumerConfig {
     pre_fetch: bool,
 }
 
+/// More constants used throughout SeaStreamer Redis.
 pub mod constants {
     use std::time::Duration;
 
@@ -134,10 +138,12 @@ impl Consumer for RedisConsumer {
 }
 
 impl RedisConsumer {
+    /// Get the assigned group id.
     pub fn group_id(&self) -> Option<&ConsumerGroup> {
         self.config.group_id.as_ref()
     }
 
+    /// Get the assigned consumer id.
     pub fn consumer_id(&self) -> Option<&ConsumerId> {
         self.config.consumer_id.as_ref()
     }
@@ -148,6 +154,7 @@ impl RedisConsumer {
         &self.streams
     }
 
+    /// Like `Consumer::seek`, but with `MessageId`.
     pub async fn seek_to(&mut self, id: MessageId) -> RedisResult<()> {
         if self
             .handle
@@ -193,26 +200,27 @@ impl RedisConsumer {
         }
     }
 
-    /// Commit all pending acks
-    pub async fn commit(&mut self) -> RedisResult<()> {
+    /// Commit all pending acks and (optionally) wait for the result.
+    pub fn commit(&mut self) -> RedisResult<impl Future<Output = RedisResult<()>>> {
         if self.config.pre_fetch {
             return Err(StreamErr::Backend(RedisErr::InvalidClientConfig(
                 "Manual commit is not allowed. Please use another AutoCommit option.".to_owned(),
             )));
         }
         let (sender, notify) = bounded(1);
-        if self
-            .handle
-            .send_async(CtrlMsg::Commit(sender))
-            .await
-            .is_ok()
-        {
-            notify.recv_async().await.ok();
+        // unbounded, so never blocks
+        if self.handle.try_send(CtrlMsg::Commit(sender)).is_ok() {
+            Ok(notify.into_recv_async().map(|res| match res {
+                Ok(Ok(res)) => Ok(res),
+                Ok(Err(err)) => Err(err),
+                Err(_) => Err(StreamErr::Backend(RedisErr::ConsumerDied)),
+            }))
+        } else {
+            Err(StreamErr::Backend(RedisErr::ConsumerDied))
         }
-        Ok(())
     }
 
-    /// Commit all pending acks and end the consumer
+    /// Commit all pending acks and end the consumer.
     pub async fn end(self) -> RedisResult<()> {
         let (sender, notify) = bounded(1);
         if self.handle.send_async(CtrlMsg::Kill(sender)).await.is_ok() {
@@ -300,6 +308,7 @@ pub(crate) async fn create_consumer(
     }
 }
 
+/// Generate a new group id which should uniquely identify this host.
 pub fn group_id(mode: &ConsumerMode) -> ConsumerGroup {
     let id = format!(
         "{}:{}",
@@ -313,6 +322,7 @@ pub fn group_id(mode: &ConsumerMode) -> ConsumerGroup {
     ConsumerGroup::new(id)
 }
 
+/// Generate a new consumer id, which should never collide.
 pub fn consumer_id() -> ConsumerId {
     let thread_id = format!("{:?}", std::thread::current().id());
     let thread_id = thread_id

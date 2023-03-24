@@ -4,6 +4,7 @@ use sea_streamer_types::{ConsumerGroup, ConsumerId, ConsumerMode, ConsumerOption
 use std::time::Duration;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+/// Where to start streaming from if there is no priori state.
 pub enum AutoStreamReset {
     /// Use `0` as ID, which is the earliest message.
     Earliest,
@@ -12,22 +13,28 @@ pub enum AutoStreamReset {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+/// The auto ack / commit mechanism.
 pub enum AutoCommit {
     /// `XREAD` with `NOACK`. This acknowledges messages as soon as they are fetched.
     /// In the event of service restart, this will likely result in messages being skipped.
     Immediate,
     /// Auto ack and commit, but only after `auto_commit_delay` has passed since messages are read.
+    ///
+    /// This is the default option, because users don't have to do anything extra. This also mimicks Kafka clients.
     Delayed,
     /// Do not auto ack, but continually commit acked messages to the server as new messages are read.
     /// The consumer will not commit more often than `auto_commit_interval`.
-    /// You have to call [`RedisConsumer::ack`] manually.
+    /// You have to call [`RedisConsumer::ack`](crate::RedisConsumer::ack) manually.
+    ///
+    /// This is the recommended option for achieving 'at-least-once' semantics.
     Rolling,
     /// Never auto ack or commit.
-    /// You have to call [`RedisConsumer::ack`] and [`RedisConsumer::commit`] manually.
+    /// You have to call [`RedisConsumer::ack`](crate::RedisConsumer::ack) and [`RedisConsumer::commit`](crate::RedisConsumer::commit) manually.
     Disabled,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+/// The shard ownership model.
 pub enum ShardOwnership {
     /// Consumers in the same group share the same shard
     Shared,
@@ -140,7 +147,7 @@ impl RedisConsumerOptions {
 
     /// Where to stream from when the consumer group does not exists.
     ///
-    /// If unset, defaults to Latest.
+    /// If unset, defaults to `Latest`.
     pub fn set_auto_stream_reset(&mut self, v: AutoStreamReset) -> &mut Self {
         self.auto_stream_reset = v;
         self
@@ -149,7 +156,8 @@ impl RedisConsumerOptions {
         &self.auto_stream_reset
     }
 
-    /// If you want to commit only what have been explicitly acked, set it to `Disabled`.
+    /// There are two moving parts: auto-ack and auto-commit. You can enable one, or both.
+    /// You can also opt out.
     ///
     /// If unset, defaults to `Delayed`.
     pub fn set_auto_commit(&mut self, v: AutoCommit) -> &mut Self {
@@ -197,7 +205,7 @@ impl RedisConsumerOptions {
         self.auto_claim_interval.as_ref()
     }
 
-    /// The idle time for a consumer considered dead and to XCLAIM its messages.
+    /// The idle time for a consumer to be considered dead and allow others to XCLAIM its messages.
     /// This option is only relevant when `mode` is `LoadBalanced`.
     ///
     /// Defaults to [`DEFAULT_AUTO_CLAIM_IDLE`]. None means never.
@@ -228,7 +236,7 @@ impl RedisConsumerOptions {
         &self.batch_size
     }
 
-    /// Default is [`Shared`].
+    /// Default is `Shared`.
     pub fn shard_ownership(&self) -> &ShardOwnership {
         &self.shard_ownership
     }
@@ -237,11 +245,12 @@ impl RedisConsumerOptions {
         self
     }
 
-    /// Whether to pre-fetch the next page as the consumer is streaming. This results in less jitter.
+    /// Whether to pre-fetch the next page as the consumer is streaming, which results in less jitter.
     ///
-    /// If false, it only fetches when [`Consumer::next`] is called, aka. on demand.
+    /// If false, it only fetches when [`Consumer::next`](sea_streamer_types::Consumer::next) is called, aka. on demand.
     ///
-    /// This option is a side effect of consumer mode and auto commit.
+    /// This is a side effect of currently set consumer mode and auto commit options.
+    /// e.g. when reading with `NOACK` the consumer should not pre-fetch.
     pub fn pre_fetch(&self) -> bool {
         if self.mode == ConsumerMode::RealTime {
             true

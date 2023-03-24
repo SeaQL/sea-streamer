@@ -214,14 +214,14 @@ async fn rolling_and_disabled() -> anyhow::Result<()> {
 
         if auto_commit == AutoCommit::Rolling {
             // should not allow
-            assert!(consumer.commit().await.is_err());
+            assert!(consumer.commit().is_err());
             // tick, should receive the ACK
             consumer.next().await?;
             // tick, should commit
             consumer.next().await?;
         } else {
             // manually commit
-            consumer.commit().await?;
+            consumer.commit()?.await?;
         }
 
         // no need to end properly

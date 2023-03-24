@@ -52,6 +52,9 @@
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![deny(missing_debug_implementations)]
+#![doc(
+    html_logo_url = "https://raw.githubusercontent.com/SeaQL/sea-streamer/main/docs/SeaQL icon.png"
+)]
 
 /// Default stream key
 pub const BROADCAST: &str = "broadcast";

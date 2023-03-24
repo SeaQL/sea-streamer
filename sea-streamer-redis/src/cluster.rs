@@ -3,10 +3,11 @@ use std::{collections::HashMap, fmt::Debug, sync::Arc};
 use crate::{Connection, RedisConnectOptions, RedisResult};
 use sea_streamer_types::{export::url::Url, StreamErr, StreamUrlErr, StreamerUri};
 
+/// ID of a node in a Redis Cluster.
 pub type NodeId = Url;
 
 #[derive(Debug)]
-/// A set of connections maintained to a Redis Cluster with moved-keys cache
+/// A set of connections maintained to a Redis Cluster with key cache.
 pub struct RedisCluster {
     pub(crate) cluster: StreamerUri,
     pub(crate) options: Arc<RedisConnectOptions>,
