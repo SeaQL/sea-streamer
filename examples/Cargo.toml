@@ -1,6 +1,6 @@
 [package]
 name = "sea-streamer-examples"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Chris Tsang <chris.2y3@outlook.com>"]
 edition = "2021"
 description = "🌊 The stream processing toolkit for Rust"
@@ -20,7 +20,7 @@ tokio = { version = "1.10", features = ["full"], optional = true }
 
 [dependencies.sea-streamer]
 path = ".."                             # remove this line in your own project
-version = "0.1"
+version = "0.2"
 features = ["kafka", "stdio", "socket"]
 
 [features]
