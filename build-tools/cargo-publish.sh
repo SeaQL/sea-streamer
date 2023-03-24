@@ -21,6 +21,11 @@ cargo publish
 cd ..
 sleep 60
 
+cd sea-streamer-redis
+cargo publish
+cd ..
+sleep 60
+
 cd sea-streamer-socket
 cargo publish
 cd ..
