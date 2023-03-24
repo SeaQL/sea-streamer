@@ -20,7 +20,7 @@ async fn main() -> Result<()> {
     let Args { stream } = Args::from_args();
 
     let streamer = RedisStreamer::connect(stream.streamer(), Default::default()).await?;
-    let producer = streamer
+    let mut producer = streamer
         .create_producer(stream.stream_key()?, Default::default())
         .await?;
 

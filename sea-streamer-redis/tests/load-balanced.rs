@@ -3,6 +3,13 @@ use util::*;
 
 static INIT: std::sync::Once = std::sync::Once::new();
 
+#[allow(unused_macros)]
+macro_rules! flush {
+    () => {
+        std::io::Write::flush(&mut std::io::stdout()).unwrap()
+    };
+}
+
 // cargo test --test load-balanced --features=test,runtime-tokio -- --nocapture
 // cargo test --test load-balanced --features=test,runtime-async-std -- --nocapture
 #[cfg(feature = "test")]
@@ -59,6 +66,7 @@ async fn load_balance() -> anyhow::Result<()> {
         options.set_auto_stream_reset(AutoStreamReset::Earliest);
         options.set_auto_commit(auto_commit);
         options.set_auto_commit_interval(Duration::from_secs(0));
+        // set a smaller batch size, otherwise one would take more than it can handle
         options.set_batch_size(1);
 
         let alpha = streamer
@@ -89,6 +97,7 @@ async fn load_balance() -> anyhow::Result<()> {
 
         producer.flush().await?;
 
+        // multiplex the two streams into one
         let (sender, messages) = unbounded();
 
         {
@@ -98,6 +107,7 @@ async fn load_balance() -> anyhow::Result<()> {
                     if sender.send(("a", msg)).is_err() {
                         break;
                     }
+                    // simulate time needed to process a message
                     sleep(Duration::from_millis(1)).await;
                 }
             });
@@ -131,6 +141,7 @@ async fn load_balance() -> anyhow::Result<()> {
             log::debug!("[{who}] {num}");
         }
 
+        // they may be received out-of-order
         numbers.sort();
         assert_eq!(numbers, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
         assert_ne!(a_count, 0);
@@ -218,9 +229,11 @@ async fn failover() -> anyhow::Result<()> {
 
         producer.flush().await?;
 
+        print!("Stream alpha ...");
+        flush!();
         let seq = consume(&mut alpha, 5).await;
         assert_eq!(seq, [0, 1, 2, 3, 4]);
-        println!("Stream alpha ... ok");
+        println!(" ok");
 
         let mut beta = streamer
             .create_consumer(&[stream.clone()], options.clone())
@@ -236,16 +249,29 @@ async fn failover() -> anyhow::Result<()> {
 
         producer.flush().await?;
 
+        print!("Stream beta ...");
+        flush!();
         let seq = consume_and_ack(&mut beta, 5).await;
         assert_eq!(seq, [5, 6, 7, 8, 9]);
-        println!("Stream beta ... ok");
+        println!(" ok");
 
+        print!("Commit beta ...");
+        flush!();
         beta.commit()?.await?;
-        alpha.end().await?;
+        println!(" ok");
 
+        print!("Abort alpha ...");
+        flush!();
+        // end alpha without ACKing anything
+        alpha.end().await?;
+        println!(" ok");
+
+        print!("Stream claim ...");
+        flush!();
+        // there are no new messages, so after XREAD timed out it will try XCLAIM
         let seq = consume_and_ack(&mut beta, 5).await;
         assert_eq!(seq, [0, 1, 2, 3, 4]);
-        println!("Stream claim ... ok");
+        println!(" ok");
 
         for i in 10..15 {
             let message = format!("{i}");
@@ -260,13 +286,19 @@ async fn failover() -> anyhow::Result<()> {
             .create_consumer(&[stream.clone()], options.clone())
             .await?;
 
+        print!("Resume alpha ...");
+        flush!();
         let seq = consume(&mut alpha, 2).await;
+        // alpha starts streaming from where the group is at
         assert_eq!(seq, [10, 11]);
-        println!("Resume alpha ... ok");
+        println!(" ok");
 
+        print!("Resume beta ...");
+        flush!();
         let seq = consume(&mut beta, 3).await;
+        // alpha is idle, so beta steps in
         assert_eq!(seq, [12, 13, 14]);
-        println!("Resume beta ... ok");
+        println!(" ok");
 
         println!("End test case.");
         Ok(())

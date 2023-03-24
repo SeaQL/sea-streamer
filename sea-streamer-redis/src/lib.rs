@@ -24,9 +24,12 @@
 //! + Seek/rewind to point in time
 //! + Basic stream sharding: split a stream into multiple sub-streams
 //!
+//! It's best to look through the [tests](https://github.com/SeaQL/sea-streamer/tree/main/sea-streamer-redis/tests)
+//! for an illustration of the different streaming behaviour.
+//!
 //! How SeaStreamer offers better concurrency?
 //!
-//! Consider the following simple program:
+//! Consider the following simple stream processor:
 //!
 //! ```ignore
 //! loop {
@@ -35,7 +38,7 @@
 //! }
 //! ```
 //!
-//! While it's reading, its not processing. So it's wasting idle time and reading messages with a higher delay.
+//! When it's reading, it's not processing. So it's wasting time idle and reading messages with a higher delay, which in turn limits the throughput.
 //!
 //! In SeaStreamer, the read loop is separate from your process loop, so they can happen in parallel.
 //!

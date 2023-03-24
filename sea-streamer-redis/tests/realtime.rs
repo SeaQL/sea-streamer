@@ -69,6 +69,10 @@ async fn main() -> anyhow::Result<()> {
             .create_consumer(&[stream_a.clone()], options.clone())
             .await?;
 
+        // Why do we have to wait? We want consumer to have started reading
+        // before producing any messages. While after `create` returns the consumer
+        // is ready (connection opened), there is still a small delay to send an `XREAD`
+        // operation to the server.
         sleep(Duration::from_millis(5)).await;
 
         for i in 5..10 {
