@@ -8,14 +8,9 @@ pub(crate) fn cluster_uri(streamer: &StreamerUri) -> Result<String, KafkaErr> {
     for (i, node) in streamer.nodes().iter().enumerate() {
         write!(
             string,
-            "{comma}{host}:{port}",
+            "{comma}{node}",
             comma = if i != 0 { "," } else { "" },
-            host = node
-                .host()
-                .ok_or_else(|| KafkaErr::ClientCreation("Empty host in StreamerUri.".to_owned()))?,
-            port = node
-                .port()
-                .ok_or_else(|| KafkaErr::ClientCreation("Empty port in StreamerUri.".to_owned()))?,
+            node = node.as_str().trim_start_matches("kafka://")
         )
         .unwrap();
     }
@@ -25,4 +20,15 @@ pub(crate) fn cluster_uri(streamer: &StreamerUri) -> Result<String, KafkaErr> {
         ));
     }
     Ok(string)
+}
+
+#[cfg(test)]
+#[test]
+fn test_cluster_uri() {
+    let uri: StreamerUri = "kafka://localhost:9092".parse().unwrap();
+    assert_eq!(cluster_uri(&uri).unwrap(), "localhost:9092");
+    let uri: StreamerUri = "localhost:9092".parse().unwrap();
+    assert_eq!(cluster_uri(&uri).unwrap(), "localhost:9092");
+    let uri: StreamerUri = "kafka://host-a:9092,host-b:9092".parse().unwrap();
+    assert_eq!(cluster_uri(&uri).unwrap(), "host-a:9092,host-b:9092");
 }
