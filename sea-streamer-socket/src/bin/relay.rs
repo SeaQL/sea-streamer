@@ -1,12 +1,15 @@
-use std::str::FromStr;
-
 use anyhow::{bail, Result};
-use sea_streamer_kafka::AutoOffsetReset;
 use sea_streamer_socket::{SeaConsumerOptions, SeaStreamer};
 use sea_streamer_types::{
     Consumer, ConsumerMode, ConsumerOptions, Message, Producer, StreamUrl, Streamer,
 };
+use std::str::FromStr;
 use structopt::StructOpt;
+
+#[cfg(feature = "backend-kafka")]
+use sea_streamer_kafka::AutoOffsetReset;
+#[cfg(feature = "backend-redis")]
+use sea_streamer_redis::AutoStreamReset;
 
 #[derive(Debug, StructOpt)]
 struct Args {
@@ -55,10 +58,18 @@ async fn main() -> Result<()> {
 
     let source = SeaStreamer::connect(input.streamer(), Default::default()).await?;
     let mut options = SeaConsumerOptions::new(ConsumerMode::RealTime);
+    #[cfg(feature = "backend-kafka")]
     options.set_kafka_consumer_options(|options| {
         options.set_auto_offset_reset(match offset {
             Offset::Start => AutoOffsetReset::Earliest,
             Offset::End => AutoOffsetReset::Latest,
+        });
+    });
+    #[cfg(feature = "backend-redis")]
+    options.set_redis_consumer_options(|options| {
+        options.set_auto_stream_reset(match offset {
+            Offset::Start => AutoStreamReset::Earliest,
+            Offset::End => AutoStreamReset::Latest,
         });
     });
     let consumer = source.create_consumer(input.stream_keys(), options).await?;

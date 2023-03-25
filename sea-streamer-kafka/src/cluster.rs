@@ -8,8 +8,14 @@ pub(crate) fn cluster_uri(streamer: &StreamerUri) -> Result<String, KafkaErr> {
     for (i, node) in streamer.nodes().iter().enumerate() {
         write!(
             string,
-            "{comma}{node}",
-            comma = if i != 0 { "," } else { "" }
+            "{comma}{host}:{port}",
+            comma = if i != 0 { "," } else { "" },
+            host = node
+                .host()
+                .ok_or_else(|| KafkaErr::ClientCreation("Empty host in StreamerUri.".to_owned()))?,
+            port = node
+                .port()
+                .ok_or_else(|| KafkaErr::ClientCreation("Empty port in StreamerUri.".to_owned()))?,
         )
         .unwrap();
     }
