@@ -50,3 +50,5 @@ It's quite a difficult task, because clients have to take responsibility when wo
 In Redis, shards and nodes is a M-N mapping - shards can be moved among nodes *at any time*.
 It makes testing much more difficult.
 Let us know if you'd like to help!
+
+This crate is built on top of [`redis`](https://docs.rs/redis).

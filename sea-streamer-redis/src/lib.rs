@@ -50,6 +50,8 @@
 //! In Redis, shards and nodes is a M-N mapping - shards can be moved among nodes *at any time*.
 //! It makes testing much more difficult.
 //! Let us know if you'd like to help!
+//!
+//! This crate is built on top of [`redis`](https://docs.rs/redis).
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![deny(missing_debug_implementations)]
