@@ -22,7 +22,7 @@ use sea_streamer_runtime::{spawn_task, timeout};
 use sea_streamer_types::{
     export::{async_trait, futures::FutureExt},
     Buffer, ConnectOptions, Consumer, ConsumerGroup, ConsumerId, ConsumerMode, ConsumerOptions,
-    Message, SeqPos, SharedMessage, StreamErr, StreamKey, Timestamp,
+    Message, MessageHeader, SeqNo, SeqPos, ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
 };
 
 #[derive(Debug)]
@@ -181,16 +181,41 @@ impl RedisConsumer {
                 "Please do not set AutoCommit to Delayed.".to_owned(),
             )));
         }
-        self.auto_ack(msg)
+        self.auto_ack(msg.header())
     }
 
-    fn auto_ack(&self, msg: &SharedMessage) -> RedisResult<()> {
+    pub fn ack_with(
+        &self,
+        (stream_key, shard_id, sequence): &(StreamKey, ShardId, SeqNo),
+    ) -> RedisResult<()> {
+        if self.config.auto_ack {
+            return Err(StreamErr::Backend(RedisErr::InvalidClientConfig(
+                "Please do not set AutoCommit to Delayed.".to_owned(),
+            )));
+        }
         // unbounded, so never blocks
         if self
             .handle
             .try_send(CtrlMsg::Ack(
-                (msg.stream_key(), msg.shard_id()),
-                get_message_id(msg.header()),
+                (stream_key.clone(), *shard_id),
+                from_seq_no(*sequence),
+                Timestamp::now_utc(),
+            ))
+            .is_ok()
+        {
+            Ok(())
+        } else {
+            Err(StreamErr::Backend(RedisErr::ConsumerDied))
+        }
+    }
+
+    fn auto_ack(&self, header: &MessageHeader) -> RedisResult<()> {
+        // unbounded, so never blocks
+        if self
+            .handle
+            .try_send(CtrlMsg::Ack(
+                (header.stream_key().clone(), *header.shard_id()),
+                get_message_id(header),
                 Timestamp::now_utc(),
             ))
             .is_ok()

@@ -26,6 +26,19 @@ cargo run --bin consumer -- --stream kafka://localhost:9092/hello2
 kill %1 %2
 ```
 
+With Redis:
+
+```bash
+# Produce some input
+cargo run --bin producer -- --stream redis://localhost:6379/hello1 &
+# Start the processor, producing some output
+cargo run --bin processor -- --input redis://localhost:6379/hello1 --output redis://localhost:6379/hello2 &
+# Replay the output
+cargo run --bin consumer -- --stream redis://localhost:6379/hello2
+# Remember to stop the processes
+kill %1 %2
+```
+
 With Stdio:
 
 ```bash
@@ -41,12 +54,14 @@ This is typically called "at least once" processing, meaning no messages should 
 but it's possible for the same message to be processed twice.
 
 ```bash
+STREAMER_URI="kafka://localhost:9092"
+STREAMER_URI="redis://localhost:6379"
 # Produce lots of input
-cargo run --bin producer -- --stream kafka://localhost:9092/hello1
+cargo run --bin producer -- --stream $STREAMER_URI/hello1
 # Run the processor, but kill it before it can process the entire stream
-cargo run --bin resumable -- --input kafka://localhost:9092/hello1 --output stdio:///hello2 | head -n 10
-cargo run --bin resumable -- --input kafka://localhost:9092/hello1 --output stdio:///hello2 | head -n 10
-cargo run --bin resumable -- --input kafka://localhost:9092/hello1 --output stdio:///hello2 | head -n 10
+cargo run --bin resumable -- --input $STREAMER_URI/hello1 --output stdio:///hello2 | head -n 10
+cargo run --bin resumable -- --input $STREAMER_URI/hello1 --output stdio:///hello2 | head -n 10
+cargo run --bin resumable -- --input $STREAMER_URI/hello1 --output stdio:///hello2 | head -n 10
 ```
 
 Output:

@@ -1,8 +1,10 @@
 use anyhow::Result;
 use sea_streamer::{
-    kafka::AutoOffsetReset, Buffer, Consumer, ConsumerMode, ConsumerOptions, Message, Producer,
-    SeaConsumer, SeaConsumerOptions, SeaMessage, SeaProducer, SeaStreamer, SeaStreamerBackend,
-    StreamUrl, Streamer,
+    kafka::AutoOffsetReset,
+    redis::{AutoCommit, AutoStreamReset},
+    Buffer, Consumer, ConsumerMode, ConsumerOptions, Message, Producer, SeaConsumer,
+    SeaConsumerOptions, SeaMessage, SeaProducer, SeaStreamer, SeaStreamerBackend, StreamUrl,
+    Streamer,
 };
 use std::time::Duration;
 use structopt::StructOpt;
@@ -38,6 +40,18 @@ async fn main() -> Result<()> {
         options.set_auto_commit_interval(Duration::from_secs(1));
         options.set_enable_auto_offset_store(false);
     });
+    options.set_redis_consumer_options(|options| {
+        options.set_auto_stream_reset(AutoStreamReset::Earliest);
+        options.set_auto_commit(if TRANSACTION {
+            AutoCommit::Disabled
+        } else {
+            AutoCommit::Rolling
+        });
+        // demo only; choose a larger number in your processor
+        options.set_auto_commit_interval(Duration::from_secs(0));
+        // demo only; choose a larger number in your processor
+        options.set_batch_size(1);
+    });
     let mut consumer: SeaConsumer = streamer
         .create_consumer(input.stream_keys(), options)
         .await?;
@@ -59,6 +73,13 @@ async fn main() -> Result<()> {
             } else {
                 // don't wait, so it may or may not have committed
                 consumer.store_offset_with(&identifier)?;
+            }
+        }
+        if let Some(consumer) = consumer.get_redis() {
+            consumer.ack_with(&identifier)?;
+            if TRANSACTION {
+                // wait until committed
+                consumer.commit()?.await?;
             }
         }
     }

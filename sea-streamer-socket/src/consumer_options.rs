@@ -1,7 +1,7 @@
 #[cfg(feature = "backend-kafka")]
-use sea_streamer_kafka::KafkaConsumerOptions;
+use sea_streamer_kafka::{AutoOffsetReset, KafkaConsumerOptions};
 #[cfg(feature = "backend-redis")]
-use sea_streamer_redis::RedisConsumerOptions;
+use sea_streamer_redis::{AutoStreamReset, RedisConsumerOptions};
 #[cfg(feature = "backend-stdio")]
 use sea_streamer_stdio::StdioConsumerOptions;
 
@@ -17,6 +17,12 @@ pub struct SeaConsumerOptions {
     kafka: KafkaConsumerOptions,
     #[cfg(feature = "backend-redis")]
     redis: RedisConsumerOptions,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum SeaStreamReset {
+    Earliest,
+    Latest,
 }
 
 impl SeaConsumerOptions {
@@ -51,6 +57,23 @@ impl SeaConsumerOptions {
     /// Set options that only applies to Redis
     pub fn set_redis_consumer_options<F: FnOnce(&mut RedisConsumerOptions)>(&mut self, func: F) {
         func(&mut self.redis)
+    }
+
+    pub fn set_auto_stream_reset(&mut self, _val: SeaStreamReset) {
+        #[cfg(feature = "backend-kafka")]
+        self.set_kafka_consumer_options(|options| {
+            options.set_auto_offset_reset(match _val {
+                SeaStreamReset::Earliest => AutoOffsetReset::Earliest,
+                SeaStreamReset::Latest => AutoOffsetReset::Latest,
+            });
+        });
+        #[cfg(feature = "backend-redis")]
+        self.set_redis_consumer_options(|options| {
+            options.set_auto_stream_reset(match _val {
+                SeaStreamReset::Earliest => AutoStreamReset::Earliest,
+                SeaStreamReset::Latest => AutoStreamReset::Latest,
+            });
+        });
     }
 }
 

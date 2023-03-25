@@ -25,7 +25,7 @@
 //!
 //! 2. Generic
 //!
-//! We provide integration for Kafka / Redpanda behind a generic trait interface, so your program can be backend-agnostic.
+//! We provide integration for Redis & Kafka / Redpanda behind a generic trait interface, so your program can be backend-agnostic.
 //! Support for Redis Stream is being planned.
 //!
 //! 3. Testable
@@ -42,7 +42,7 @@
 //! Add the following to your `Cargo.toml`
 //!
 //! ```toml
-//! sea-streamer = { version = "0", features = ["kafka", "stdio", "socket", "runtime-tokio"] }
+//! sea-streamer = { version = "0", features = ["kafka", "redis", "stdio", "socket", "runtime-tokio"] }
 //! ```
 //!
 //! Here is a basic [stream consumer](https://github.com/SeaQL/sea-streamer/tree/main/examples/src/bin/consumer.rs):

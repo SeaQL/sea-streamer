@@ -45,7 +45,7 @@ impl<'a> Future for NextFuture<'a> {
         match self.fut.poll_unpin(cx) {
             Ready(res) => match res {
                 Ok(Ok(msg)) => {
-                    if self.con.config.auto_ack && self.con.auto_ack(&msg).is_err() {
+                    if self.con.config.auto_ack && self.con.auto_ack(msg.header()).is_err() {
                         return Ready(Err(StreamErr::Backend(RedisErr::ConsumerDied)));
                     }
                     self.read = false;

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use sea_streamer::{
-    kafka::AutoOffsetReset, Buffer, Consumer, ConsumerMode, ConsumerOptions, Message, SeaConsumer,
-    SeaConsumerOptions, SeaMessage, SeaStreamer, StreamUrl, Streamer,
+    Buffer, Consumer, ConsumerMode, ConsumerOptions, Message, SeaConsumer, SeaConsumerOptions,
+    SeaMessage, SeaStreamReset, SeaStreamer, StreamUrl, Streamer,
 };
 use structopt::StructOpt;
 
@@ -25,9 +25,8 @@ async fn main() -> Result<()> {
     let streamer = SeaStreamer::connect(stream.streamer(), Default::default()).await?;
 
     let mut options = SeaConsumerOptions::new(ConsumerMode::RealTime);
-    options.set_kafka_consumer_options(|options| {
-        options.set_auto_offset_reset(AutoOffsetReset::Earliest);
-    });
+    options.set_auto_stream_reset(SeaStreamReset::Earliest);
+
     let consumer: SeaConsumer = streamer
         .create_consumer(stream.stream_keys(), options)
         .await?;
