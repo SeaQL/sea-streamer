@@ -98,7 +98,7 @@ async fn main() -> anyhow::Result<()> {
         println!("Stream seek ... ok");
 
         seeker.rewind(SeqPos::End).await?;
-        timeout(Duration::from_millis(1), seeker.next()).await.ok();
+        timeout(Duration::from_millis(5), seeker.next()).await.ok();
 
         for i in 100..110 {
             let message = format!("{i}");
