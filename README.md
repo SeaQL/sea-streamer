@@ -177,10 +177,10 @@ stream processors for different streaming servers.
 While the `sea-streamer-types` crate provides a nice trait-based abstraction, this crates provides a concrete-type API,
 so that your program can stream from/to any SeaStreamer backend selected by the user *on runtime*.
 
-This allows you to do neat things, like generating data locally and then stream them to Kafka. Or in the other
-way, sink data from Kafka to work on them locally. All _without recompiling_ the stream processor.
+This allows you to do neat things, like generating data locally and then stream them to Redis / Kafka. Or in the other
+way, sink data from server to work on them locally. All _without recompiling_ the stream processor.
 
-If you only ever work with Kafka, feel free to depend on `sea-streamer-kafka` directly.
+If you only ever work with one backend, feel free to depend on `sea-streamer-redis` / `sea-streamer-kafka` directly.
 
 A small number of cli programs are provided for demonstration. Let's set them up first:
 
@@ -215,8 +215,8 @@ relay -- --input kafka://localhost:9092/clock --output redis://localhost:6379/cl
 Here is how to *replay* the stream from Kafka / Redis:
 
 ```shell
-relay -- --input kafka://localhost:9092/clock --output stdio:///clock --offset start
 relay -- --input redis://localhost:6379/clock --output stdio:///clock --offset start
+relay -- --input kafka://localhost:9092/clock --output stdio:///clock --offset start
 ```
 
 ### `sea-streamer-kafka`: Kafka / Redpanda Backend

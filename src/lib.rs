@@ -176,6 +176,10 @@ pub use sea_streamer_types::*;
 #[cfg_attr(docsrs, doc(cfg(feature = "sea-streamer-kafka")))]
 pub use sea_streamer_kafka as kafka;
 
+#[cfg(feature = "sea-streamer-redis")]
+#[cfg_attr(docsrs, doc(cfg(feature = "sea-streamer-redis")))]
+pub use sea_streamer_redis as redis;
+
 #[cfg(feature = "sea-streamer-stdio")]
 #[cfg_attr(docsrs, doc(cfg(feature = "sea-streamer-stdio")))]
 pub use sea_streamer_stdio as stdio;
