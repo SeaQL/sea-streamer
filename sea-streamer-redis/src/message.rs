@@ -10,13 +10,15 @@ pub type MessageId = (u64, u16);
 /// To indicate `$`, aka latest.
 pub const MAX_MSG_ID: MessageId = (u64::MAX, u16::MAX);
 
-#[derive(Debug)]
-#[repr(transparent)]
-pub(crate) struct StreamReadReply(pub(crate) Vec<SharedMessage>);
+pub type RedisMessage = SharedMessage;
 
 #[derive(Debug)]
 #[repr(transparent)]
-pub(crate) struct AutoClaimReply(pub(crate) Vec<SharedMessage>);
+pub(crate) struct StreamReadReply(pub(crate) Vec<RedisMessage>);
+
+#[derive(Debug)]
+#[repr(transparent)]
+pub(crate) struct AutoClaimReply(pub(crate) Vec<RedisMessage>);
 
 /// The Redis message id comprises two 64 bit integers. In order to fit it into 64 bit,
 /// we only allocate 48 bit to the timestamp, and the remaining 16 bit to the sub-sequence number.
@@ -65,13 +67,13 @@ pub(crate) fn from_seq_no(seq_no: SeqNo) -> MessageId {
     )
 }
 
-/// A trait that adds some methods to [`SharedMessage`].
-pub trait RedisMessage {
+/// A trait that adds some methods to [`RedisMessage`].
+pub trait RedisMessageId {
     /// Get the Redis MessageId in form of (timestamp,seq) tuple from the message
     fn message_id(&self) -> MessageId;
 }
 
-impl RedisMessage for SharedMessage {
+impl RedisMessageId for RedisMessage {
     fn message_id(&self) -> MessageId {
         get_message_id(self.header())
     }
@@ -147,7 +149,7 @@ fn parse_messages(
     values: Vec<Value>,
     stream: StreamKey,
     shard: ShardId,
-    messages: &mut Vec<SharedMessage>,
+    messages: &mut Vec<RedisMessage>,
 ) -> RedisResult<()> {
     for value in values {
         if let Value::Bulk(values) = value {
@@ -170,7 +172,7 @@ fn parse_messages(
                     if field == MSG {
                         let bytes = bytes_from_redis_value(value)?;
                         let length = bytes.len();
-                        messages.push(SharedMessage::new(
+                        messages.push(RedisMessage::new(
                             MessageHeader::new(stream.clone(), shard, sequence, timestamp),
                             bytes,
                             0,

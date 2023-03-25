@@ -159,6 +159,7 @@ The architecture of [`sea-streamer`](https://docs.rs/sea-streamer) is constructe
 + [`sea-streamer-types`](https://docs.rs/sea-streamer-types)
 + [`sea-streamer-socket`](https://docs.rs/sea-streamer-socket)
     + [`sea-streamer-kafka`](https://docs.rs/sea-streamer-kafka)
+    + [`sea-streamer-redis`](https://docs.rs/sea-streamer-redis)
     + [`sea-streamer-stdio`](https://docs.rs/sea-streamer-stdio)
 + [`sea-streamer-runtime`](https://docs.rs/sea-streamer-runtime)
 
@@ -228,8 +229,6 @@ which in turn depends on [librdkafka-sys](https://docs.rs/librdkafka-sys), which
 Configuration Reference: <https://kafka.apache.org/documentation/#configuration>
 
 ### `sea-streamer-redis`: Redis Backend
-
-> 🚧 To be released
 
 This is the Redis backend implementation for SeaStreamer.
 This crate provides a high-level async API on top of Redis that makes working with Redis Streams fool-proof:

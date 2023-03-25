@@ -5,7 +5,8 @@ mod options;
 mod shard;
 
 use cluster::*;
-use future::*;
+use future::StreamFuture;
+pub use future::{NextFuture, StreamFuture as RedisMessageStream};
 use node::*;
 pub use options::*;
 use shard::*;

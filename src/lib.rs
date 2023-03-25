@@ -159,6 +159,7 @@
 //! + [`sea-streamer-types`](https://docs.rs/sea-streamer-types)
 //! + [`sea-streamer-socket`](https://docs.rs/sea-streamer-socket)
 //!     + [`sea-streamer-kafka`](https://docs.rs/sea-streamer-kafka)
+//!     + [`sea-streamer-redis`](https://docs.rs/sea-streamer-redis)
 //!     + [`sea-streamer-stdio`](https://docs.rs/sea-streamer-stdio)
 //! + [`sea-streamer-runtime`](https://docs.rs/sea-streamer-runtime)
 //!

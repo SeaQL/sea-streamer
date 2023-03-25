@@ -1,7 +1,5 @@
 ### `sea-streamer-redis`: Redis Backend
 
-> 🚧 To be released
-
 This is the Redis backend implementation for SeaStreamer.
 This crate provides a high-level async API on top of Redis that makes working with Redis Streams fool-proof:
 
