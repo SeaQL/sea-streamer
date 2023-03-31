@@ -77,15 +77,17 @@ pub trait Consumer: Sized + Send + Sync {
     async fn rewind(&mut self, offset: SeqPos) -> StreamResult<(), Self::Error>;
 
     /// Assign this consumer to a particular shard. Can be called multiple times to assign
-    /// to multiple shards. You cannot assign streams that has not been subscribed.
+    /// to multiple shards. Returns error `StreamKeyNotFound` if the stream is not currently subscribed.
     ///
     /// It will only take effect on the next [`Consumer::seek`] or [`Consumer::rewind`].
     fn assign(&mut self, ss: (StreamKey, ShardId)) -> StreamResult<(), Self::Error>;
 
-    /// Unassign a shard. Returns `ConsumerNotAssigned` if this consumer has not been assigned to this stream or shard.
+    /// Unassign a shard. Returns error `StreamKeyNotFound` if the stream is not currently subscribed.
+    /// Returns error `StreamKeyEmpty` if all streams have been unassigned.
     fn unassign(&mut self, ss: (StreamKey, ShardId)) -> StreamResult<(), Self::Error>;
 
-    /// Poll and receive one message: it awaits until there are new messages
+    /// Poll and receive one message: it awaits until there are new messages.
+    /// This method can be called from multiple threads.
     fn next(&self) -> Self::NextFuture<'_>;
 
     /// Returns an async stream. You cannot create multiple streams from the same consumer,
