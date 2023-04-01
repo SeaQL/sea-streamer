@@ -276,6 +276,21 @@ mod test {
     }
 
     #[test]
+    fn test_parse_streamer_uri() {
+        let uri: StreamerUri = "kafka://localhost:9092".parse().unwrap();
+        assert_eq!(uri.protocol(), Some("kafka"));
+        assert_eq!(uri.nodes(), &["kafka://localhost:9092".parse().unwrap()]);
+
+        let uri: StreamerUri = "redis://localhost:6379".parse().unwrap();
+        assert_eq!(uri.protocol(), Some("redis"));
+        assert_eq!(uri.nodes(), &["redis://localhost:6379".parse().unwrap()]);
+
+        let uri: StreamerUri = "stdio://".parse().unwrap();
+        assert_eq!(uri.protocol(), Some("stdio"));
+        assert_eq!(uri.nodes(), &["stdio://.".parse().unwrap()]);
+    }
+
+    #[test]
     fn test_parse_stream_url_err() {
         use crate::StreamKeyErr;
 

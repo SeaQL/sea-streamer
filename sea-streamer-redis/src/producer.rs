@@ -68,7 +68,7 @@ pub trait Sharder: Debug + Send {
     /// This should be a *real quick* computation, otherwise this can become the bottleneck of streaming.
     /// Mutex, atomic or anything that can create contention will be disastrous.
     ///
-    /// It will then be sent to the stream with key `STREAM_KEY:SHARD`.
+    /// It will then be sent to the stream with key `STREAM_KEY:SHARD_ID`.
     /// The Redis Cluster will assign this shard to a particular node as the cluster scales.
     /// Different shards may or may not end up in the same slot, and thus may or may not end up in the same node.
     fn shard(&mut self, stream_key: &StreamKey, bytes: &[u8]) -> u64;

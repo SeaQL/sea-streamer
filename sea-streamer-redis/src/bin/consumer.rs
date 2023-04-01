@@ -1,5 +1,5 @@
 use anyhow::Result;
-use sea_streamer_redis::{RedisConsumerOptions, RedisStreamer};
+use sea_streamer_redis::{AutoStreamReset, RedisConsumerOptions, RedisStreamer};
 use sea_streamer_types::{
     Buffer, Consumer, ConsumerMode, ConsumerOptions, Message, StreamUrl, Streamer,
 };
@@ -22,21 +22,14 @@ async fn main() -> Result<()> {
     let Args { stream } = Args::from_args();
 
     let streamer = RedisStreamer::connect(stream.streamer(), Default::default()).await?;
+    let mut options = RedisConsumerOptions::new(ConsumerMode::RealTime);
+    options.set_auto_stream_reset(AutoStreamReset::Earliest);
     let consumer = streamer
-        .create_consumer(
-            stream.stream_keys(),
-            RedisConsumerOptions::new(ConsumerMode::RealTime),
-        )
+        .create_consumer(stream.stream_keys(), options)
         .await?;
 
     loop {
-        let message = consumer.next().await?;
-        println!(
-            "[{timestamp} | {stream_key} | {sequence}] {payload}",
-            timestamp = message.timestamp(),
-            stream_key = message.stream_key(),
-            sequence = message.sequence(),
-            payload = message.message().as_str().unwrap(),
-        );
+        let mess = consumer.next().await?;
+        println!("{}", mess.message().as_str()?);
     }
 }

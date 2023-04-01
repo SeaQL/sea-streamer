@@ -262,7 +262,7 @@ While we'd like to provide a Kafka-like client experience, there are some fundam
 What's already implemented:
 
 + RealTime mode with AutoStreamReset
-+ Resumable mode with 4 `ACK` mechanisms
++ Resumable mode with auto-ack and/or auto-commit
 + LoadBalanced mode with failover behaviour
 + Seek/rewind to point in time
 + Basic stream sharding: split a stream into multiple sub-streams
