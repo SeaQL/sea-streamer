@@ -246,18 +246,20 @@ impl RedisConsumerOptions {
         self
     }
 
-    /// By default, an `XGROUP CREATE <key> <groupname> <id or $>` command will be used to establish
-    /// connection to the stream as part of a consumer group.
-    /// If the stream key does not already exist, the consumer will fail to initialize. 
+    /// If set to `false`, a `XGROUP CREATE <key> <groupname> <id or $>` command will be used create consumer 
+    /// groups on the stream.
+    /// If the stream key does not already exist, the command will fail and the consumer will fail to initialize. 
     /// 
-    /// By setting this to `true`, a `XGROUP CREATE <key> <groupname> <id or $> [MKSTREAM]` command will
-    /// be used instead, allowing the consumer to initialize before the stream may be created 
-    /// by the producer calling XADD when it first enqueues a message in the stream.
+    /// Setting this to `true` will cause the consumer to run 
+    /// `XGROUP CREATE <key> <groupname> <id or $> MKSTREAM` commands when first getting new messages,
+    /// allowing the consumer to initialize even if a producer has never written a message 
+    /// to a stream at the same key.
     pub fn set_mkstream(&mut self, enabled: bool) -> RedisResult<&mut Self> {
         self.mkstream = enabled;
         Ok(self)
     }
 
+    /// Default is `false`.
     pub fn mkstream(&self) -> RedisResult<bool> {
         Ok(self.mkstream)
     }
