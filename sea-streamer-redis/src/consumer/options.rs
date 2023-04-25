@@ -124,22 +124,6 @@ impl ConsumerOptions for RedisConsumerOptions {
         self.group_id = Some(group_id);
         Ok(self)
     }
-
-    /// By default, an `XGROUP CREATE <key> <groupname> <id or $>` command will be used to establish
-    /// connection to the stream as part of a consumer group.
-    /// If the stream key does not already exist, the consumer will fail to initialize. 
-    /// 
-    /// By setting this to `true`, a `XGROUP CREATE <key> <groupname> <id or $> [MKSTREAM]` command will
-    /// be used instead, allowing the consumer to initialize before the stream may be created 
-    /// by the producer calling XADD when it first enqueues a message in the stream.
-    fn set_mkstream(&mut self, enabled: bool) -> RedisResult<&mut Self> {
-        self.mkstream = enabled;
-        Ok(self)
-    }
-
-    fn mkstream(&self) -> RedisResult<bool> {
-        Ok(self.mkstream)
-    }
 }
 
 impl RedisConsumerOptions {
@@ -260,6 +244,22 @@ impl RedisConsumerOptions {
     pub fn set_shard_ownership(&mut self, shard_ownership: ShardOwnership) -> &mut Self {
         self.shard_ownership = shard_ownership;
         self
+    }
+
+    /// By default, an `XGROUP CREATE <key> <groupname> <id or $>` command will be used to establish
+    /// connection to the stream as part of a consumer group.
+    /// If the stream key does not already exist, the consumer will fail to initialize. 
+    /// 
+    /// By setting this to `true`, a `XGROUP CREATE <key> <groupname> <id or $> [MKSTREAM]` command will
+    /// be used instead, allowing the consumer to initialize before the stream may be created 
+    /// by the producer calling XADD when it first enqueues a message in the stream.
+    pub fn set_mkstream(&mut self, enabled: bool) -> RedisResult<&mut Self> {
+        self.mkstream = enabled;
+        Ok(self)
+    }
+
+    pub fn mkstream(&self) -> RedisResult<bool> {
+        Ok(self.mkstream)
     }
 
     /// Whether to pre-fetch the next page as the consumer is streaming, which results in less jitter.
