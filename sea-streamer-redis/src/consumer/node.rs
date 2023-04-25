@@ -445,17 +445,30 @@ impl Node {
         {
             self.group.first_read = false;
             self.group.pending_state = true;
+
             for shard in self.shards.iter() {
-                let result: Result<Value, _> = conn
-                    .xgroup_create(
-                        &shard.key,
-                        &self.group.group_id,
-                        match self.options.auto_stream_reset() {
-                            AutoStreamReset::Earliest => "0",
-                            AutoStreamReset::Latest => DOLLAR,
-                        },
-                    )
-                    .await;
+                let id = match self.options.auto_stream_reset() {
+                    AutoStreamReset::Earliest => "0",
+                    AutoStreamReset::Latest => DOLLAR,
+                };
+                if self.options.mkstream { 
+                    let result: Result<Value, _> = conn
+                        .xgroup_create_mkstream(
+                            &shard.key,
+                            &self.group.group_id,
+                            id,
+                        )
+                        .await;
+                } else {
+                    let result: Result<Value, _> = conn
+                        .xgroup_create(
+                            &shard.key,
+                            &self.group.group_id,
+                            id,
+                        )
+                        .await;
+                }
+                
                 match result {
                     Ok(_) => (),
                     Err(err) => {

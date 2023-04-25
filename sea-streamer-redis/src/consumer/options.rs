@@ -82,6 +82,7 @@ impl ConsumerOptions for RedisConsumerOptions {
                 DEFAULT_BATCH_SIZE
             },
             shard_ownership: ShardOwnership::Shared,
+            mkstream: false
         }
     }
 
@@ -122,6 +123,22 @@ impl ConsumerOptions for RedisConsumerOptions {
     fn set_consumer_group(&mut self, group_id: ConsumerGroup) -> RedisResult<&mut Self> {
         self.group_id = Some(group_id);
         Ok(self)
+    }
+
+    /// By default, an `XGROUP CREATE <key> <groupname> <id or $>` command will be used to establish
+    /// connection to the stream as part of a consumer group.
+    /// If the stream key does not already exist, the consumer will fail to initialize. 
+    /// 
+    /// By setting this to `true`, a `XGROUP CREATE <key> <groupname> <id or $> [MKSTREAM]` command will
+    /// be used instead, allowing the consumer to initialize before the stream may be created 
+    /// by the producer calling XADD when it first enqueues a message in the stream.
+    fn set_mkstream(&mut self, enabled: bool) -> RedisResult<&mut Self> {
+        self.mkstream = enabled;
+        Ok(self)
+    }
+
+    fn mkstream(&self) -> RedisResult<bool> {
+        Ok(self.mkstream)
     }
 }
 
