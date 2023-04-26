@@ -49,6 +49,7 @@ pub struct RedisConsumerOptions {
     auto_claim_idle: Duration,
     batch_size: usize,
     shard_ownership: ShardOwnership,
+    mkstream: bool,
 }
 
 #[derive(Debug)]

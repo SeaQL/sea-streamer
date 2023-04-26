@@ -82,6 +82,7 @@ impl ConsumerOptions for RedisConsumerOptions {
                 DEFAULT_BATCH_SIZE
             },
             shard_ownership: ShardOwnership::Shared,
+            mkstream: false,
         }
     }
 
@@ -243,6 +244,24 @@ impl RedisConsumerOptions {
     pub fn set_shard_ownership(&mut self, shard_ownership: ShardOwnership) -> &mut Self {
         self.shard_ownership = shard_ownership;
         self
+    }
+
+    /// If set to `false`, a `XGROUP CREATE <key> <groupname> <id or $>` command will be used create consumer
+    /// groups on the stream.
+    /// If the stream key does not already exist, the command will fail and the consumer will fail to initialize.
+    ///
+    /// Setting this to `true` will cause the consumer to run
+    /// `XGROUP CREATE <key> <groupname> <id or $> MKSTREAM` commands when first getting new messages,
+    /// allowing the consumer to initialize even if a producer has never written a message
+    /// to a stream at the same key.
+    pub fn set_mkstream(&mut self, enabled: bool) -> RedisResult<&mut Self> {
+        self.mkstream = enabled;
+        Ok(self)
+    }
+
+    /// Default is `false`.
+    pub fn mkstream(&self) -> RedisResult<bool> {
+        Ok(self.mkstream)
     }
 
     /// Whether to pre-fetch the next page as the consumer is streaming, which results in less jitter.
