@@ -254,14 +254,13 @@ impl RedisConsumerOptions {
     /// `XGROUP CREATE <key> <groupname> <id or $> MKSTREAM` commands when first getting new messages,
     /// allowing the consumer to initialize even if a producer has never written a message
     /// to a stream at the same key.
-    pub fn set_mkstream(&mut self, enabled: bool) -> RedisResult<&mut Self> {
+    pub fn set_mkstream(&mut self, enabled: bool) -> &mut Self {
         self.mkstream = enabled;
-        Ok(self)
+        self
     }
-
     /// Default is `false`.
-    pub fn mkstream(&self) -> RedisResult<bool> {
-        Ok(self.mkstream)
+    pub fn mkstream(&self) -> &bool {
+        &self.mkstream
     }
 
     /// Whether to pre-fetch the next page as the consumer is streaming, which results in less jitter.
