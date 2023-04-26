@@ -451,21 +451,11 @@ impl Node {
                     AutoStreamReset::Earliest => "0",
                     AutoStreamReset::Latest => DOLLAR,
                 };
-                let result: Result<Value, _> = if self.options.mkstream { 
-                    conn
-                        .xgroup_create_mkstream(
-                            &shard.key,
-                            &self.group.group_id,
-                            id,
-                        )
+                let result: Result<Value, _> = if self.options.mkstream {
+                    conn.xgroup_create_mkstream(&shard.key, &self.group.group_id, id)
                         .await
                 } else {
-                    conn
-                        .xgroup_create(
-                            &shard.key,
-                            &self.group.group_id,
-                            id,
-                        )
+                    conn.xgroup_create(&shard.key, &self.group.group_id, id)
                         .await
                 };
 
