@@ -254,11 +254,12 @@ impl RedisConsumerOptions {
     /// `XGROUP CREATE <key> <groupname> <id or $> MKSTREAM` commands when first getting new messages,
     /// allowing the consumer to initialize even if a producer has never written a message
     /// to a stream at the same key.
+    ///
+    /// Default is `false`.
     pub fn set_mkstream(&mut self, enabled: bool) -> &mut Self {
         self.mkstream = enabled;
         self
     }
-    /// Default is `false`.
     pub fn mkstream(&self) -> &bool {
         &self.mkstream
     }
