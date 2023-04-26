@@ -48,7 +48,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        kafka_version: [latest, 2.8]
+        kafka_version: [3.3.1, 2.8]
         runtime: [async-std, tokio]
     services:
       zookeeper:
