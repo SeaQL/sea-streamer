@@ -26,6 +26,8 @@ pub struct KafkaStreamer {
 #[derive(Debug, Default, Clone)]
 pub struct KafkaConnectOptions {
     timeout: Option<Duration>,
+    security_protocol: Option<SecurityProtocol>,
+    sasl_options: Option<Box<SaslOptions>>,
     custom_options: Vec<(String, String)>,
 }
 
@@ -33,6 +35,31 @@ pub struct KafkaConnectOptions {
 pub(crate) enum BaseOptionKey {
     BootstrapServers,
     SocketTimeout,
+    SecurityProtocol,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum SecurityProtocol {
+    Plaintext,
+    Ssl,
+    SaslPlaintext,
+    SaslSsl,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SaslOptions {
+    mechanism: SaslMechanism,
+    username: Option<String>,
+    password: Option<String>,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum SaslMechanism {
+    Plain,
+    Gssapi,
+    ScramSha256,
+    ScramSha512,
+    Oauthbearer,
 }
 
 type AdminClient = rdkafka::admin::AdminClient<rdkafka::client::DefaultClientContext>;
@@ -52,6 +79,24 @@ impl ConnectOptions for KafkaConnectOptions {
 }
 
 impl KafkaConnectOptions {
+    /// Set the security protocol
+    pub fn set_security_protocol(&mut self, v: SecurityProtocol) -> &mut Self {
+        self.security_protocol = Some(v);
+        self
+    }
+    pub fn security_protocol(&self) -> Option<&SecurityProtocol> {
+        self.security_protocol.as_ref()
+    }
+
+    /// Set the SASL options
+    pub fn set_sasl_options(&mut self, v: SaslOptions) -> &mut Self {
+        self.sasl_options = Some(Box::new(v));
+        self
+    }
+    pub fn sasl_options(&self) -> Option<&SaslOptions> {
+        self.sasl_options.as_deref()
+    }
+
     /// Add a custom option. If you have an option you frequently use,
     /// please consider open a PR and add it to above.
     pub fn add_custom_option<K, V>(&mut self, key: K, value: V) -> &mut Self
@@ -72,8 +117,44 @@ impl KafkaConnectOptions {
         if let Some(v) = self.timeout {
             client_config.set(BaseOptionKey::SocketTimeout, format!("{}", v.as_millis()));
         }
+        if let Some(v) = self.security_protocol {
+            client_config.set(BaseOptionKey::SecurityProtocol, v);
+        }
+        if let Some(options) = self.sasl_options.as_ref() {
+            options.make_client_config(client_config);
+        }
         for (key, value) in self.custom_options() {
             client_config.set(key, value);
+        }
+    }
+}
+
+impl SaslOptions {
+    pub fn new(mechanism: SaslMechanism) -> Self {
+        Self {
+            mechanism,
+            username: None,
+            password: None,
+        }
+    }
+
+    pub fn username<T: Into<String>>(mut self, v: T) -> Self {
+        self.username = Some(v.into());
+        self
+    }
+
+    pub fn password<T: Into<String>>(mut self, v: T) -> Self {
+        self.password = Some(v.into());
+        self
+    }
+
+    pub(crate) fn make_client_config(&self, client_config: &mut ClientConfig) {
+        client_config.set("sasl.mechanism", self.mechanism);
+        if let Some(v) = &self.username {
+            client_config.set("sasl.username", v);
+        }
+        if let Some(v) = &self.password {
+            client_config.set("sasl.password", v);
         }
     }
 }
@@ -83,11 +164,37 @@ impl BaseOptionKey {
         match self {
             Self::BootstrapServers => "bootstrap.servers",
             Self::SocketTimeout => "socket.timeout.ms",
+            Self::SecurityProtocol => "security.protocol",
+        }
+    }
+}
+
+impl SecurityProtocol {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Plaintext => "PLAINTEXT",
+            Self::Ssl => "SSL",
+            Self::SaslPlaintext => "SASL_PLAINTEXT",
+            Self::SaslSsl => "SASL_SSL",
+        }
+    }
+}
+
+impl SaslMechanism {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Plain => "PLAIN",
+            Self::Gssapi => "GSSAPI",
+            Self::ScramSha256 => "SCRAM-SHA-256",
+            Self::ScramSha512 => "SCRAM-SHA-512",
+            Self::Oauthbearer => "OAUTHBEARER",
         }
     }
 }
 
 impl_into_string!(BaseOptionKey);
+impl_into_string!(SecurityProtocol);
+impl_into_string!(SaslMechanism);
 
 #[async_trait]
 impl Streamer for KafkaStreamer {
@@ -212,4 +319,26 @@ fn create_admin(
     let client: AdminClient = client_config.create()?;
 
     Ok(client)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_sasl_options() {
+        let mut options = KafkaConnectOptions::default();
+        options.set_security_protocol(SecurityProtocol::SaslSsl);
+        options.set_sasl_options(
+            SaslOptions::new(SaslMechanism::Plain)
+                .username("uu")
+                .password("pp"),
+        );
+        let mut client_config = ClientConfig::new();
+        options.make_client_config(&mut client_config);
+        assert_eq!(client_config.get("security.protocol"), Some("SASL_SSL"));
+        assert_eq!(client_config.get("sasl.mechanism"), Some("PLAIN"));
+        assert_eq!(client_config.get("sasl.username"), Some("uu"));
+        assert_eq!(client_config.get("sasl.password"), Some("pp"));
+    }
 }
