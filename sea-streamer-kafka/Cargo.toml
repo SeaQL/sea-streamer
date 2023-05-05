@@ -39,6 +39,7 @@ libz = ["rdkafka/libz"]
 libz-static = ["rdkafka/libz-static"]
 ssl = ["rdkafka/ssl"]
 ssl-vendored = ["rdkafka/ssl-vendored"]
+gssapi-vendored = ["rdkafka/gssapi-vendored"]
 
 [[bin]]
 name = "consumer"
