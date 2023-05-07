@@ -231,7 +231,7 @@ async fn failover() -> anyhow::Result<()> {
 
         print!("Stream alpha ...");
         flush!();
-        let seq = consume(&mut alpha, 5).await;
+        let seq = consume(&mut alpha, 5).await?;
         assert_eq!(seq, [0, 1, 2, 3, 4]);
         println!(" ok");
 
@@ -251,7 +251,7 @@ async fn failover() -> anyhow::Result<()> {
 
         print!("Stream beta ...");
         flush!();
-        let seq = consume_and_ack(&mut beta, 5).await;
+        let seq = consume_and_ack(&mut beta, 5).await?;
         assert_eq!(seq, [5, 6, 7, 8, 9]);
         println!(" ok");
 
@@ -269,7 +269,7 @@ async fn failover() -> anyhow::Result<()> {
         print!("Stream claim ...");
         flush!();
         // there are no new messages, so after XREAD timed out it will try XCLAIM
-        let seq = consume_and_ack(&mut beta, 5).await;
+        let seq = consume_and_ack(&mut beta, 5).await?;
         assert_eq!(seq, [0, 1, 2, 3, 4]);
         println!(" ok");
 
@@ -288,14 +288,14 @@ async fn failover() -> anyhow::Result<()> {
 
         print!("Resume alpha ...");
         flush!();
-        let seq = consume(&mut alpha, 2).await;
+        let seq = consume(&mut alpha, 2).await?;
         // alpha starts streaming from where the group is at
         assert_eq!(seq, [10, 11]);
         println!(" ok");
 
         print!("Resume beta ...");
         flush!();
-        let seq = consume(&mut beta, 3).await;
+        let seq = consume(&mut beta, 3).await?;
         // alpha is idle, so beta steps in
         assert_eq!(seq, [12, 13, 14]);
         println!(" ok");

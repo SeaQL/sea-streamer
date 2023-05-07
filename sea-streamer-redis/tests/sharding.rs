@@ -67,7 +67,7 @@ async fn main() -> anyhow::Result<()> {
 
         let mut full = streamer.create_consumer(&[stream.clone()], options).await?;
 
-        let mut seq = consume(&mut full, 10).await;
+        let mut seq = consume(&mut full, 10).await?;
         seq.sort();
         assert_eq!(seq, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
@@ -79,7 +79,7 @@ async fn main() -> anyhow::Result<()> {
         }
 
         producer.flush().await?;
-        let mut seq = consume(&mut full, 10).await;
+        let mut seq = consume(&mut full, 10).await?;
         seq.sort();
         assert_eq!(seq, [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
 

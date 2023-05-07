@@ -87,11 +87,11 @@ async fn main() -> anyhow::Result<()> {
             .create_consumer(&[stream_a.clone(), stream_b.clone()], options)
             .await?;
 
-        let seq = consume(&mut half, 5).await;
+        let seq = consume(&mut half, 5).await?;
         assert_eq!(seq, [5, 6, 7, 8, 9]);
         println!("Stream latest ... ok");
 
-        let seq = consume(&mut full, 10).await;
+        let seq = consume(&mut full, 10).await?;
         assert_eq!(seq, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
         println!("Stream history ... ok");
 
@@ -103,7 +103,7 @@ async fn main() -> anyhow::Result<()> {
         producer.flush().await?;
         half.end().await?;
 
-        let seq = consume(&mut full, 2).await;
+        let seq = consume(&mut full, 2).await?;
         assert_eq!(seq, [10, 11]);
 
         for i in 13..15 {
@@ -118,10 +118,10 @@ async fn main() -> anyhow::Result<()> {
 
         producer.end().await?;
 
-        let seq = consume(&mut full, 3).await;
+        let seq = consume(&mut full, 3).await?;
         assert_eq!(seq, [12, 13, 14]);
 
-        let seq = consume(&mut full, 5).await;
+        let seq = consume(&mut full, 5).await?;
         assert_eq!(seq, [15, 16, 17, 18, 19]);
 
         println!("Stream realtime ... ok");

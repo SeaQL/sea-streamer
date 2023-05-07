@@ -75,25 +75,25 @@ async fn main() -> anyhow::Result<()> {
         options.set_auto_commit(AutoCommit::Disabled); // no pre-fetch
         let mut seeker = streamer.create_consumer(&[stream.clone()], options).await?;
 
-        let seq = consume(&mut seeker, 10).await;
+        let seq = consume(&mut seeker, 10).await?;
         assert_eq!(seq, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
         println!("Stream head ... ok");
 
         seeker.rewind(SeqPos::Beginning).await?;
 
-        let seq = consume(&mut seeker, 10).await;
+        let seq = consume(&mut seeker, 10).await?;
         assert_eq!(seq, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
         println!("Stream again ... ok");
 
         seeker.rewind(SeqPos::At(one_third)).await?;
 
-        let seq = consume(&mut seeker, 10).await;
+        let seq = consume(&mut seeker, 10).await?;
         assert_eq!(seq, [30, 31, 32, 33, 34, 35, 36, 37, 38, 39]);
         println!("Stream rewind ... ok");
 
         seeker.seek(point_in_time).await?;
 
-        let seq = consume(&mut seeker, 10).await;
+        let seq = consume(&mut seeker, 10).await?;
         assert_eq!(seq, [30, 31, 32, 33, 34, 35, 36, 37, 38, 39]);
         println!("Stream seek ... ok");
 
@@ -107,9 +107,9 @@ async fn main() -> anyhow::Result<()> {
 
         producer.flush().await?;
 
-        let seq = consume(&mut seeker, 5).await;
+        let seq = consume(&mut seeker, 5).await?;
         assert_eq!(seq, [100, 101, 102, 103, 104]);
-        let seq = consume(&mut seeker, 5).await;
+        let seq = consume(&mut seeker, 5).await?;
         assert_eq!(seq, [105, 106, 107, 108, 109]);
         println!("Stream latest ... ok");
 

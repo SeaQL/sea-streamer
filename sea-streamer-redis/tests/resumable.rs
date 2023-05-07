@@ -86,7 +86,7 @@ async fn immediate_and_delayed() -> anyhow::Result<()> {
             .create_consumer(&[stream.clone()], options.clone())
             .await?;
 
-        let seq = consume(&mut full, 5).await;
+        let seq = consume(&mut full, 5).await?;
         assert_eq!(seq, [0, 1, 2, 3, 4]);
         println!("Stream history ... ok");
 
@@ -100,13 +100,13 @@ async fn immediate_and_delayed() -> anyhow::Result<()> {
         // now commit and end the consumer, before it consumes any new messages
         full.end().await?;
 
-        let seq = consume(&mut half, 5).await;
+        let seq = consume(&mut half, 5).await?;
         assert_eq!(seq, [5, 6, 7, 8, 9]);
         println!("Stream latest ... ok");
 
         // resume from last committed
         let mut full = streamer.create_consumer(&[stream.clone()], options).await?;
-        let seq = consume(&mut full, 5).await;
+        let seq = consume(&mut full, 5).await?;
         assert_eq!(seq, [5, 6, 7, 8, 9]);
 
         println!("End test case.");
@@ -187,7 +187,7 @@ async fn rolling_and_disabled() -> anyhow::Result<()> {
             .create_consumer(&[stream.clone()], options.clone())
             .await?;
 
-        let seq = consume(&mut no_commit, 5).await;
+        let seq = consume(&mut no_commit, 5).await?;
         assert_eq!(seq, [0, 1, 2, 3, 4]);
 
         // read 5
@@ -243,10 +243,10 @@ async fn rolling_and_disabled() -> anyhow::Result<()> {
             .create_consumer(&[stream.clone()], options.clone())
             .await?;
 
-        let seq = consume(&mut consumer, 6).await;
+        let seq = consume(&mut consumer, 6).await?;
         assert_eq!(seq, [4, 5, 6, 7, 8, 9]);
 
-        let seq = consume(&mut no_commit, 5).await;
+        let seq = consume(&mut no_commit, 5).await?;
         assert_eq!(seq, [0, 1, 2, 3, 4]);
 
         println!("Stream resume ... ok");
