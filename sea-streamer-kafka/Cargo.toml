@@ -1,6 +1,6 @@
 [package]
 name = "sea-streamer-kafka"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Chris Tsang <chris.2y3@outlook.com>"]
 edition = "2021"
 description = "🌊 SeaStreamer Kafka / Redpanda Backend"
