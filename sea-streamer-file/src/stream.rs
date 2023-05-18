@@ -1,6 +1,6 @@
 use crate::{ByteBuffer, Bytes, FileErr};
-use flume::{unbounded, Receiver, Sender};
-use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use flume::{bounded, unbounded, Receiver, TryRecvError};
+use notify::{event::ModifyKind, Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::{
     fs::File,
     io::{Read, Seek, SeekFrom},
@@ -10,7 +10,7 @@ use std::{
 const BUFFER_SIZE: usize = 1024;
 
 // `FileStream` treats files as a live stream of bytes.
-// It always read til the end, and will resume reading when the file grows.
+// It will read til the end, and will resume reading when the file grows.
 // It relies on `notify::RecommendedWatcher`, which is the OS's native notify mechanism.
 // The async API allows you to request how many bytes you need, and it will wait for those
 // bytes to come in a non-blocking fashion.
@@ -26,48 +26,45 @@ pub enum ReadFrom {
     End,
 }
 
-enum WrappedSender<T: Send, E: Send> {
-    Alive(Sender<Result<T, E>>),
-    Dead,
+enum FileEvent {
+    Modify,
+    Remove,
+    Error(notify::Error),
 }
 
 impl FileStream {
     pub fn new<P: AsRef<Path>>(path: P, read_from: ReadFrom) -> Result<Self, FileErr> {
         if !path.as_ref().is_file() {
-            return Err(FileErr::NotFound);
+            return Err(FileErr::NotFound(path.as_ref().display().to_string()));
         }
         let mut file = File::open(&path).map_err(|e| FileErr::IoError(e))?;
+        let mut can_read = true;
         if matches!(read_from, ReadFrom::End) {
             file.seek(SeekFrom::End(0)).unwrap();
+            can_read = false;
         }
         let mut buffer = vec![0u8; BUFFER_SIZE];
-        let (sender, receiver) = unbounded();
-        let mut sender = WrappedSender::Alive(sender);
+        // This allows the consumer to control the pace
+        let (sender, receiver) = bounded(0);
+        let (notify, event) = unbounded();
         let mut watcher = RecommendedWatcher::new(
             move |event: Result<notify::Event, notify::Error>| {
                 if let Err(e) = event {
-                    if let Err(e) = sender.send(Err(FileErr::WatchError(e))) {
-                        log::error!("{e}");
-                    }
+                    notify.send(FileEvent::Error(e)).ok();
                     return;
                 }
+                log::trace!("{event:?}");
                 match event.unwrap().kind {
-                    EventKind::Modify(_) => {
-                        let mut bytes: Vec<u8> = Vec::new();
-                        loop {
-                            let bytes_read = file.read(&mut buffer).unwrap();
-                            // read until EOF
-                            if bytes_read == 0 {
-                                break;
+                    EventKind::Modify(modify) => {
+                        match modify {
+                            ModifyKind::Data(_) => {
+                                // only if the file grows
+                                notify.send(FileEvent::Modify).ok();
                             }
-                            bytes.extend_from_slice(&buffer[0..bytes_read]);
-                        }
-                        if let Err(e) = sender.send(Ok(match bytes.len() {
-                            1 => Bytes::Byte(bytes[0]),
-                            4 => Bytes::Word([bytes[0], bytes[1], bytes[2], bytes[3]]),
-                            _ => Bytes::Bytes(bytes),
-                        })) {
-                            log::error!("{e}");
+                            ModifyKind::Metadata(_) => {
+                                notify.send(FileEvent::Remove).ok();
+                            }
+                            _ => (),
                         }
                     }
                     EventKind::Any
@@ -75,9 +72,7 @@ impl FileStream {
                     | EventKind::Create(_)
                     | EventKind::Other => {}
                     EventKind::Remove(_) => {
-                        if let Err(e) = sender.send(Err(FileErr::FileRemoved)) {
-                            log::error!("{e}");
-                        }
+                        notify.send(FileEvent::Remove).ok();
                     }
                 }
             },
@@ -87,6 +82,92 @@ impl FileStream {
         watcher
             .watch(path.as_ref(), RecursiveMode::Recursive)
             .map_err(|e| FileErr::WatchError(e))?;
+        let path = path.as_ref().display().to_string();
+
+        std::thread::spawn(move || {
+            'outer: loop {
+                if can_read {
+                    // drain all remaining events
+                    loop {
+                        match event.try_recv() {
+                            Ok(FileEvent::Modify) => {}
+                            Ok(FileEvent::Remove) => {
+                                if let Err(e) = sender.send(Err(FileErr::FileRemoved)) {
+                                    log::error!("{}", e.into_inner().err().unwrap());
+                                }
+                                break 'outer;
+                            }
+                            Ok(FileEvent::Error(e)) => {
+                                if let Err(e) = sender.send(Err(FileErr::WatchError(e))) {
+                                    log::error!("{}", e.into_inner().err().unwrap());
+                                }
+                                break 'outer;
+                            }
+                            Err(TryRecvError::Disconnected) => {
+                                break 'outer;
+                            }
+                            Err(TryRecvError::Empty) => break,
+                        }
+                    }
+                    let bytes_read = match file.read(&mut buffer) {
+                        Ok(bytes_read) => {
+                            if bytes_read == 0 {
+                                can_read = false;
+                            }
+                            bytes_read
+                        }
+                        Err(e) => {
+                            if let Err(e) = sender.send(Err(FileErr::IoError(e))) {
+                                log::error!("{}", e.into_inner().err().unwrap());
+                            }
+                            break;
+                        }
+                    };
+                    if bytes_read > 0 {
+                        if sender
+                            .send(Ok(match bytes_read {
+                                // will block here
+                                1 => Bytes::Byte(buffer[0]),
+                                4 => Bytes::Word([buffer[0], buffer[1], buffer[2], buffer[3]]),
+                                _ => {
+                                    let mut bytes: Vec<u8> = Vec::new();
+                                    bytes.extend_from_slice(&buffer[0..bytes_read]);
+                                    Bytes::Bytes(bytes)
+                                }
+                            }))
+                            .is_err()
+                        {
+                            break;
+                        }
+                    }
+                } else {
+                    if sender.is_disconnected() {
+                        break;
+                    }
+                    match event.recv() {
+                        Ok(FileEvent::Modify) => {
+                            can_read = true;
+                        }
+                        Ok(FileEvent::Remove) => {
+                            if let Err(e) = sender.send(Err(FileErr::FileRemoved)) {
+                                log::error!("{}", e.into_inner().err().unwrap());
+                            }
+                            break 'outer;
+                        }
+                        Ok(FileEvent::Error(e)) => {
+                            if let Err(e) = sender.send(Err(FileErr::WatchError(e))) {
+                                log::error!("{}", e.into_inner().err().unwrap());
+                            }
+                            break 'outer;
+                        }
+                        Err(_) => {
+                            break 'outer;
+                        }
+                    }
+                }
+            }
+            log::debug!("FileReader exit ({})", path);
+        });
 
         Ok(Self {
             watcher: Some(watcher),
@@ -138,26 +219,6 @@ impl FileStream {
                 // Already dead
                 Err(FileErr::WatchDead)
             }
-        }
-    }
-}
-
-impl<T: Send, E: Send> WrappedSender<T, E> {
-    fn send(&mut self, item: Result<T, E>) -> Result<(), &str> {
-        match self {
-            Self::Alive(sender) => {
-                let is_err = item.is_err();
-                if sender.send(item).is_err() {
-                    *self = Self::Dead;
-                    return Err("WrappedSender: send failed");
-                }
-                if is_err {
-                    // The error originates here...
-                    *self = Self::Dead;
-                }
-                Ok(())
-            }
-            Self::Dead => Err("WrappedSender: dead"),
         }
     }
 }

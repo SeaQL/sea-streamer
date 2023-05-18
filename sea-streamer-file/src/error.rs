@@ -3,8 +3,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum FileErr {
-    #[error("File not found")]
-    NotFound,
+    #[error("File not found: {0}")]
+    NotFound(String),
     #[error("IO Error: {0}")]
     IoError(#[source] std::io::Error),
     #[error("Watch Error: {0}")]
