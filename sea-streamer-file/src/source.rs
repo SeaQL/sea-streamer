@@ -1,20 +1,24 @@
-use crate::{ByteBuffer, Bytes, FileErr};
+use crate::{
+    watcher::{new_watcher, FileEvent, Watcher},
+    ByteBuffer, Bytes, FileErr,
+};
 use flume::{bounded, unbounded, Receiver, TryRecvError};
-use notify::{event::ModifyKind, Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use sea_streamer_runtime::{
     file::{AsyncReadExt, AsyncSeekExt, File, SeekFrom},
     spawn_task,
 };
 
-const BUFFER_SIZE: usize = 1024;
+pub const BUFFER_SIZE: usize = 1024;
 
-// `FileStream` treats files as a live stream of bytes.
-// It will read til the end, and will resume reading when the file grows.
-// It relies on `notify::RecommendedWatcher`, which is the OS's native notify mechanism.
-// The async API allows you to request how many bytes you need, and it will wait for those
-// bytes to come in a non-blocking fashion.
-pub struct FileStream {
-    watcher: Option<RecommendedWatcher>,
+/// `FileSource` treats files as a live stream of bytes.
+/// It will read til the end, and will resume reading when the file grows.
+/// It relies on `notify::RecommendedWatcher`, which is the OS's native notify mechanism.
+/// The async API allows you to request how many bytes you need, and it will wait for those
+/// bytes to come in a non-blocking fashion.
+///
+/// If the file is removed from the file system, the stream ends.
+pub struct FileSource {
+    watcher: Option<Watcher>,
     receiver: Receiver<Result<Bytes, FileErr>>,
     buffer: ByteBuffer,
 }
@@ -25,15 +29,9 @@ pub enum ReadFrom {
     End,
 }
 
-enum FileEvent {
-    Modify,
-    Remove,
-    Error(notify::Error),
-}
-
-impl FileStream {
+impl FileSource {
     pub async fn new(path: &str, read_from: ReadFrom) -> Result<Self, FileErr> {
-        let mut file = File::open(&path).await.map_err(|e| FileErr::IoError(e))?;
+        let mut file = File::open(path).await.map_err(|e| FileErr::IoError(e))?;
         let mut can_read = true;
         if matches!(read_from, ReadFrom::End) {
             file.seek(SeekFrom::End(0))
@@ -45,42 +43,7 @@ impl FileStream {
         // This allows the consumer to control the pace
         let (sender, receiver) = bounded(0);
         let (notify, event) = unbounded();
-        let mut watcher = RecommendedWatcher::new(
-            move |event: Result<notify::Event, notify::Error>| {
-                if let Err(e) = event {
-                    notify.send(FileEvent::Error(e)).ok();
-                    return;
-                }
-                log::trace!("{event:?}");
-                match event.unwrap().kind {
-                    EventKind::Modify(modify) => {
-                        match modify {
-                            ModifyKind::Data(_) => {
-                                // only if the file grows
-                                notify.send(FileEvent::Modify).ok();
-                            }
-                            ModifyKind::Metadata(_) => {
-                                // it only shows `Any` on my machine
-                                notify.send(FileEvent::Remove).ok();
-                            }
-                            _ => (),
-                        }
-                    }
-                    EventKind::Any
-                    | EventKind::Access(_)
-                    | EventKind::Create(_)
-                    | EventKind::Other => {}
-                    EventKind::Remove(_) => {
-                        notify.send(FileEvent::Remove).ok();
-                    }
-                }
-            },
-            Config::default(),
-        )
-        .map_err(|e| FileErr::WatchError(e))?;
-        watcher
-            .watch(path.as_ref(), RecursiveMode::Recursive)
-            .map_err(|e| FileErr::WatchError(e))?;
+        let watcher = new_watcher(path, notify)?;
         let path = path.to_string();
 
         _ = spawn_task(async move {
@@ -166,7 +129,7 @@ impl FileStream {
                     }
                 }
             }
-            log::debug!("FileReader task finish ({})", path);
+            log::debug!("FileSource task finish ({})", path);
             // sender drops, then channel closes
         });
 

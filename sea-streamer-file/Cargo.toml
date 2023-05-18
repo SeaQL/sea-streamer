@@ -44,3 +44,8 @@ runtime-tokio = ["sea-streamer-runtime/runtime-tokio"]
 name = "tail"
 path = "src/bin/tail.rs"
 required-features = ["executables"]
+
+[[bin]]
+name = "clock"
+path = "src/bin/clock.rs"
+required-features = ["executables"]

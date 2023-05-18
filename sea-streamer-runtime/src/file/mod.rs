@@ -1,13 +1,13 @@
 #[cfg(feature = "runtime-tokio")]
 pub use tokio::{
-    fs::File,
-    io::{AsyncReadExt, AsyncSeekExt},
+    fs::{File, OpenOptions},
+    io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
 };
 
 #[cfg(feature = "runtime-async-std")]
 pub use async_std::{
-    fs::File,
-    io::{prelude::SeekExt as AsyncSeekExt, ReadExt as AsyncReadExt},
+    fs::{File, OpenOptions},
+    io::{prelude::SeekExt as AsyncSeekExt, ReadExt as AsyncReadExt, WriteExt as AsyncWriteExt},
 };
 
 #[cfg(not(any(feature = "runtime-tokio", feature = "runtime-async-std")))]

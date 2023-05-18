@@ -11,6 +11,8 @@ pub enum FileErr {
     // RecvError(#[source] flume::RecvError),
     #[error("File Removed")]
     FileRemoved,
+    #[error("File Limit Exceeded")]
+    FileLimitExceeded,
     #[error("Watch Dead")]
     WatchDead,
 }
