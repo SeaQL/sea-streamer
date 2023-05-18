@@ -16,25 +16,31 @@ features = []
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-# anyhow = { version = "1", optional = true }
-# env_logger = { version = "0.9", optional = true }
-# flume = { version = "0.10", default-features = false, features = ["async"] }
+anyhow = { version = "1", optional = true }
+env_logger = { version = "0.9", optional = true }
+flume = { version = "0.10", default-features = false, features = ["async"] }
 # lazy_static = { version = "1.4" }
-# log = { version = "0.4", default-features = false }
+log = { version = "0.4", default-features = false }
 # nom = { version = "7" }
-# sea-streamer-types = { version = "0.2", path = "../sea-streamer-types" }
+notify = { version = "6" }
+sea-streamer-types = { version = "0.2", path = "../sea-streamer-types" }
 # sea-streamer-runtime = { version = "0.2", path = "../sea-streamer-runtime" }
 # serde_json = { version = "1", optional = true }
-# structopt = { version = "0.3", optional = true }
-# thiserror = { version = "1", default-features = false }
+structopt = { version = "0.3", optional = true }
+thiserror = { version = "1", default-features = false }
 # time = { version = "0.3", default-features = false, features = ["std", "macros", "parsing", "formatting"] }
-# tokio = { version = "1.10.0", optional = true }
+tokio = { version = "1.10.0", optional = true }
 
 [dev-dependencies]
 
 [features]
 default = []
 # test = ["anyhow", "tokio/full", "env_logger", "sea-streamer-runtime/runtime-tokio"]
-# executables = ["anyhow", "tokio/full", "env_logger", "structopt", "serde_json", "sea-streamer-types/json", "sea-streamer-runtime/runtime-tokio"]
+executables = ["anyhow", "tokio/full", "env_logger", "structopt"] # "serde_json", "sea-streamer-types/json", "sea-streamer-runtime/runtime-tokio"
 # runtime-async-std = ["sea-streamer-runtime/runtime-async-std"]
 # runtime-tokio = ["sea-streamer-runtime/runtime-tokio"]
+
+[[bin]]
+name = "tail"
+path = "src/bin/tail.rs"
+required-features = ["executables"]
