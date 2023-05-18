@@ -13,7 +13,7 @@ async fn main() -> Result<()> {
     env_logger::init();
 
     let Args { file } = Args::from_args();
-    let mut stream = FileStream::new(file, ReadFrom::End)?;
+    let mut stream = FileStream::new(&file, ReadFrom::End).await?;
 
     loop {
         let bytes = stream.stream_bytes().await?;

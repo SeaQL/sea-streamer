@@ -1,10 +1,9 @@
 use crate::{ByteBuffer, Bytes, FileErr};
 use flume::{bounded, unbounded, Receiver, TryRecvError};
 use notify::{event::ModifyKind, Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use std::{
-    fs::File,
-    io::{Read, Seek, SeekFrom},
-    path::Path,
+use sea_streamer_runtime::{
+    file::{AsyncReadExt, AsyncSeekExt, File, SeekFrom},
+    spawn_task,
 };
 
 const BUFFER_SIZE: usize = 1024;
@@ -33,14 +32,13 @@ enum FileEvent {
 }
 
 impl FileStream {
-    pub fn new<P: AsRef<Path>>(path: P, read_from: ReadFrom) -> Result<Self, FileErr> {
-        if !path.as_ref().is_file() {
-            return Err(FileErr::NotFound(path.as_ref().display().to_string()));
-        }
-        let mut file = File::open(&path).map_err(|e| FileErr::IoError(e))?;
+    pub async fn new(path: &str, read_from: ReadFrom) -> Result<Self, FileErr> {
+        let mut file = File::open(&path).await.map_err(|e| FileErr::IoError(e))?;
         let mut can_read = true;
         if matches!(read_from, ReadFrom::End) {
-            file.seek(SeekFrom::End(0)).unwrap();
+            file.seek(SeekFrom::End(0))
+                .await
+                .map_err(|e| FileErr::IoError(e))?;
             can_read = false;
         }
         let mut buffer = vec![0u8; BUFFER_SIZE];
@@ -62,6 +60,7 @@ impl FileStream {
                                 notify.send(FileEvent::Modify).ok();
                             }
                             ModifyKind::Metadata(_) => {
+                                // it only shows `Any` on my machine
                                 notify.send(FileEvent::Remove).ok();
                             }
                             _ => (),
@@ -82,9 +81,9 @@ impl FileStream {
         watcher
             .watch(path.as_ref(), RecursiveMode::Recursive)
             .map_err(|e| FileErr::WatchError(e))?;
-        let path = path.as_ref().display().to_string();
+        let path = path.to_string();
 
-        std::thread::spawn(move || {
+        _ = spawn_task(async move {
             'outer: loop {
                 if can_read {
                     // drain all remaining events
@@ -92,13 +91,14 @@ impl FileStream {
                         match event.try_recv() {
                             Ok(FileEvent::Modify) => {}
                             Ok(FileEvent::Remove) => {
-                                if let Err(e) = sender.send(Err(FileErr::FileRemoved)) {
+                                if let Err(e) = sender.send_async(Err(FileErr::FileRemoved)).await {
                                     log::error!("{}", e.into_inner().err().unwrap());
                                 }
                                 break 'outer;
                             }
                             Ok(FileEvent::Error(e)) => {
-                                if let Err(e) = sender.send(Err(FileErr::WatchError(e))) {
+                                if let Err(e) = sender.send_async(Err(FileErr::WatchError(e))).await
+                                {
                                     log::error!("{}", e.into_inner().err().unwrap());
                                 }
                                 break 'outer;
@@ -109,7 +109,7 @@ impl FileStream {
                             Err(TryRecvError::Empty) => break,
                         }
                     }
-                    let bytes_read = match file.read(&mut buffer) {
+                    let bytes_read = match file.read(&mut buffer).await {
                         Ok(bytes_read) => {
                             if bytes_read == 0 {
                                 can_read = false;
@@ -117,7 +117,7 @@ impl FileStream {
                             bytes_read
                         }
                         Err(e) => {
-                            if let Err(e) = sender.send(Err(FileErr::IoError(e))) {
+                            if let Err(e) = sender.send_async(Err(FileErr::IoError(e))).await {
                                 log::error!("{}", e.into_inner().err().unwrap());
                             }
                             break;
@@ -125,8 +125,7 @@ impl FileStream {
                     };
                     if bytes_read > 0 {
                         if sender
-                            .send(Ok(match bytes_read {
-                                // will block here
+                            .send_async(Ok(match bytes_read {
                                 1 => Bytes::Byte(buffer[0]),
                                 4 => Bytes::Word([buffer[0], buffer[1], buffer[2], buffer[3]]),
                                 _ => {
@@ -135,6 +134,7 @@ impl FileStream {
                                     Bytes::Bytes(bytes)
                                 }
                             }))
+                            .await
                             .is_err()
                         {
                             break;
@@ -144,18 +144,18 @@ impl FileStream {
                     if sender.is_disconnected() {
                         break;
                     }
-                    match event.recv() {
+                    match event.recv_async().await {
                         Ok(FileEvent::Modify) => {
                             can_read = true;
                         }
                         Ok(FileEvent::Remove) => {
-                            if let Err(e) = sender.send(Err(FileErr::FileRemoved)) {
+                            if let Err(e) = sender.send_async(Err(FileErr::FileRemoved)).await {
                                 log::error!("{}", e.into_inner().err().unwrap());
                             }
                             break 'outer;
                         }
                         Ok(FileEvent::Error(e)) => {
-                            if let Err(e) = sender.send(Err(FileErr::WatchError(e))) {
+                            if let Err(e) = sender.send_async(Err(FileErr::WatchError(e))).await {
                                 log::error!("{}", e.into_inner().err().unwrap());
                             }
                             break 'outer;
@@ -166,7 +166,8 @@ impl FileStream {
                     }
                 }
             }
-            log::debug!("FileReader exit ({})", path);
+            log::debug!("FileReader task finish ({})", path);
+            // sender drops, then channel closes
         });
 
         Ok(Self {
@@ -211,12 +212,11 @@ impl FileStream {
                 Ok(())
             }
             Ok(Err(e)) => {
-                // The error propagates to here...
                 self.watcher = None; // drop the watch, this closes the channel
                 Err(e)
             }
             Err(_) => {
-                // Already dead
+                // Channel closed
                 Err(FileErr::WatchDead)
             }
         }

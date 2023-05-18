@@ -6,6 +6,8 @@
 #[cfg(all(feature = "runtime-async-std", feature = "runtime-tokio"))]
 compile_error!("'runtime-async-std' and 'runtime-tokio' cannot be enabled at the same time");
 
+#[cfg(feature = "file")]
+pub mod file;
 mod sleep;
 mod task;
 mod timeout;
