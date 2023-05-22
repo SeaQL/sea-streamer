@@ -50,6 +50,7 @@ impl FileSink {
                     bytes = bytes.pop(limit);
                     len = limit;
                 }
+
                 if let Err(e) = file.write_all(&bytes.bytes()).await {
                     std::mem::drop(pending); // trigger error
                     if let Err(e) = notify.send_async(FileErr::IoError(e)).await {
@@ -57,6 +58,16 @@ impl FileSink {
                     }
                     break;
                 }
+
+                #[cfg(feature = "runtime-async-std")]
+                if let Err(e) = file.flush().await {
+                    std::mem::drop(pending); // trigger error
+                    if let Err(e) = notify.send_async(FileErr::IoError(e)).await {
+                        log::error!("{}", e.into_inner());
+                    }
+                    break;
+                }
+
                 limit -= len;
                 if limit == 0 {
                     std::mem::drop(pending); // trigger error

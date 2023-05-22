@@ -39,7 +39,6 @@ impl FileSource {
                 .map_err(|e| FileErr::IoError(e))?;
             can_read = false;
         }
-        let mut buffer = vec![0u8; BUFFER_SIZE];
         // This allows the consumer to control the pace
         let (sender, receiver) = bounded(0);
         let (notify, event) = unbounded();
@@ -47,6 +46,9 @@ impl FileSource {
         let path = path.to_string();
 
         _ = spawn_task(async move {
+            #[allow(unused_variables)]
+            let mut pos: usize = 0;
+            let mut buffer = vec![0u8; BUFFER_SIZE];
             'outer: loop {
                 if can_read {
                     // drain all remaining events
@@ -72,6 +74,10 @@ impl FileSource {
                             Err(TryRecvError::Empty) => break,
                         }
                     }
+                    #[cfg(feature = "runtime-async-std")]
+                    // Not sure why, there must be a subtle implementation difference.
+                    // This is needed only on async-std
+                    file.seek(SeekFrom::Start(pos as u64)).await.unwrap();
                     let bytes_read = match file.read(&mut buffer).await {
                         Ok(bytes_read) => {
                             if bytes_read == 0 {
@@ -87,6 +93,7 @@ impl FileSource {
                         }
                     };
                     if bytes_read > 0 {
+                        pos += bytes_read;
                         if sender
                             .send_async(Ok(match bytes_read {
                                 1 => Bytes::Byte(buffer[0]),

@@ -1,5 +1,7 @@
 use std::{cmp::Ordering, collections::VecDeque};
 
+use crate::{FileErr, FileSink, FileSource};
+
 pub struct ByteBuffer {
     buf: VecDeque<Bytes>,
 }
@@ -146,7 +148,42 @@ impl Bytes {
         }
     }
 
-    #[cfg(test)]
+    /// Get exactly a byte; otherwise None
+    pub fn byte(&self) -> Option<u8> {
+        match self {
+            Bytes::Empty => None,
+            Bytes::Byte(b) => Some(*b),
+            Bytes::Word(_) => None,
+            Bytes::Bytes(bytes) => {
+                if bytes.len() == 1 {
+                    Some(bytes[0])
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    /// Get exactly a word; otherwise None
+    pub fn word(&self) -> Option<[u8; 4]> {
+        match self {
+            Bytes::Empty => None,
+            Bytes::Byte(_) => None,
+            Bytes::Word(w) => Some(*w),
+            Bytes::Bytes(b) => {
+                if b.len() == 4 {
+                    Some([b[0], b[1], b[2], b[3]])
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    pub fn from_bytes(bytes: Vec<u8>) -> Self {
+        Bytes::Bytes(bytes)
+    }
+
     fn bytes_copy(&self) -> Vec<u8> {
         match self {
             Bytes::Empty => vec![],
@@ -175,6 +212,35 @@ impl Bytes {
         let mut ret = Bytes::Empty;
         std::mem::swap(self, &mut ret);
         ret
+    }
+}
+
+/// IO methods
+impl Bytes {
+    pub async fn read_from(file: &mut FileSource, size: usize) -> Result<Self, FileErr> {
+        file.request_bytes(size).await
+    }
+
+    pub fn write_to(self, file: &mut FileSink) -> Result<(), FileErr> {
+        file.write(self)
+    }
+}
+
+impl PartialEq for Bytes {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Empty, Self::Empty) => true,
+            (Self::Byte(l), Self::Byte(r)) => l == r,
+            (Self::Word(l), Self::Word(r)) => l == r,
+            (Self::Bytes(l), Self::Bytes(r)) => l == r,
+            (left, right) => {
+                if left.len() != right.len() {
+                    false
+                } else {
+                    left.bytes_copy() == right.bytes_copy()
+                }
+            }
+        }
     }
 }
 
