@@ -1,8 +1,10 @@
+use flume::{bounded, unbounded, Receiver, Sender, TryRecvError};
+use std::sync::Mutex;
+
 use crate::{
     watcher::{new_watcher, FileEvent, Watcher},
     Bytes, FileErr,
 };
-use flume::{bounded, unbounded, Receiver, Sender, TryRecvError};
 use sea_streamer_runtime::{
     file::{AsyncWriteExt, OpenOptions},
     spawn_task,
@@ -12,9 +14,9 @@ use sea_streamer_runtime::{
 ///
 /// If the file is removed from the file system, the stream ends.
 pub struct FileSink {
+    watcher: Mutex<Option<Watcher>>,
     writer: Sender<Bytes>,
     error: Receiver<FileErr>,
-    watcher: Watcher,
 }
 
 pub enum WriteFrom {
@@ -95,9 +97,9 @@ impl FileSink {
         });
 
         Ok(Self {
+            watcher: Mutex::new(Some(watcher)),
             writer,
             error,
-            watcher,
         })
     }
 
@@ -105,6 +107,10 @@ impl FileSink {
     pub fn write(&self, bytes: Bytes) -> Result<(), FileErr> {
         // never blocks
         if self.writer.send(bytes).is_err() {
+            if let Ok(mut watcher) = self.watcher.try_lock() {
+                // kill the watcher so we don't leak
+                watcher.take();
+            }
             Err(self
                 .error
                 .try_recv()
