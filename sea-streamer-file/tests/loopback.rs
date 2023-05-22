@@ -8,9 +8,10 @@ use util::*;
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
 async fn main() -> anyhow::Result<()> {
     use sea_streamer_file::{
-        format::HeaderV1, Bytes, FileSink, FileSource, ReadFrom, WriteFrom, DEFAULT_FILE_SIZE_LIMIT,
+        format::{self, HeaderV1, ShortString},
+        Bytes, FileSink, FileSource, ReadFrom, WriteFrom, DEFAULT_FILE_SIZE_LIMIT,
     };
-    use sea_streamer_types::Timestamp;
+    use sea_streamer_types::{MessageHeader, ShardId, StreamKey, Timestamp};
 
     const TEST: &str = "loopback";
     env_logger::init();
@@ -36,14 +37,36 @@ async fn main() -> anyhow::Result<()> {
     let read = Bytes::read_from(&mut source, 2).await?;
     assert_eq!(read.bytes(), vec![7, 8]);
 
-    let created_at = now.replace_millisecond(0)?;
+    let timestamp = now.replace_microsecond(0)?;
+
+    assert!(
+        ShortString::new("Lorem ipsum dolor sit amet, consectetur adipiscing elit".to_owned())
+            .is_ok()
+    );
+    assert!(
+        ShortString::new("Lorem ipsum dolor sit amet, consectetur adipiscing elit, ".to_owned() +
+        "sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam" +
+        ", quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in").is_err()
+    );
+
     let header = HeaderV1 {
         file_name: "hello".to_owned(),
-        created_at,
+        created_at: timestamp,
+        beacon_interval: 12345,
     };
     header.clone().write_to(&mut sink)?;
     let read = HeaderV1::read_from(&mut source).await?;
     assert_eq!(header, read);
+
+    let mess_header = format::MessageHeader(MessageHeader::new(
+        StreamKey::new("stream_key")?,
+        ShardId::new(1122334455667788),
+        123456789101112,
+        timestamp,
+    ));
+    mess_header.clone().write_to(&mut sink)?;
+    let read = format::MessageHeader::read_from(&mut source).await?;
+    assert_eq!(mess_header, read);
 
     Ok(())
 }
