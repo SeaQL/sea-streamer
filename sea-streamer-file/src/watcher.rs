@@ -48,11 +48,11 @@ pub(crate) fn new_watcher<P: AsRef<Path>>(
         },
         Config::default(),
     )
-    .map_err(|e| FileErr::WatchError(e))?;
+    .map_err(FileErr::WatchError)?;
 
     watcher
         .watch(path.as_ref(), RecursiveMode::Recursive)
-        .map_err(|e| FileErr::WatchError(e))?;
+        .map_err(FileErr::WatchError)?;
 
     Ok(watcher)
 }

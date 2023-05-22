@@ -2,6 +2,7 @@ use std::{cmp::Ordering, collections::VecDeque};
 
 use crate::{FileErr, FileSink, FileSource};
 
+#[derive(Debug, Default, Clone)]
 pub struct ByteBuffer {
     buf: VecDeque<Bytes>,
 }
@@ -27,9 +28,7 @@ impl std::fmt::Debug for Bytes {
 
 impl ByteBuffer {
     pub fn new() -> Self {
-        Self {
-            buf: VecDeque::new(),
-        }
+        Default::default()
     }
 
     pub fn append(&mut self, bytes: Bytes) {

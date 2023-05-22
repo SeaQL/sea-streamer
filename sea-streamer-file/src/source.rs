@@ -31,12 +31,12 @@ pub enum ReadFrom {
 
 impl FileSource {
     pub async fn new(path: &str, read_from: ReadFrom) -> Result<Self, FileErr> {
-        let mut file = File::open(path).await.map_err(|e| FileErr::IoError(e))?;
+        let mut file = File::open(path).await.map_err(FileErr::IoError)?;
         let mut can_read = true;
         if matches!(read_from, ReadFrom::End) {
             file.seek(SeekFrom::End(0))
                 .await
-                .map_err(|e| FileErr::IoError(e))?;
+                .map_err(FileErr::IoError)?;
             can_read = false;
         }
         // This allows the consumer to control the pace
@@ -45,7 +45,7 @@ impl FileSource {
         let watcher = new_watcher(path, notify)?;
         let path = path.to_string();
 
-        _ = spawn_task(async move {
+        let _handle = spawn_task(async move {
             #[allow(unused_variables)]
             let mut pos: usize = 0;
             let mut buffer = vec![0u8; BUFFER_SIZE];

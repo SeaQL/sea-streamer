@@ -36,14 +36,14 @@ impl FileSink {
             WriteFrom::Beginning => options.truncate(true),
             WriteFrom::End => options.append(true),
         };
-        let mut file = options.open(path).await.map_err(|e| FileErr::IoError(e))?;
+        let mut file = options.open(path).await.map_err(FileErr::IoError)?;
         let (writer, pending) = unbounded::<Bytes>();
         let (notify, error) = bounded(0);
         let (watch, event) = unbounded();
         let watcher = new_watcher(path, watch)?;
         let path = path.to_string();
 
-        _ = spawn_task(async move {
+        let _handle = spawn_task(async move {
             'outer: while let Ok(mut bytes) = pending.recv_async().await {
                 let mut len = bytes.len();
                 if limit < len {

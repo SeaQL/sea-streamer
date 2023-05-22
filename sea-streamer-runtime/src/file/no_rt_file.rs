@@ -1,8 +1,13 @@
 use super::SeekFrom;
 use futures::future::{ready, Future, Ready};
-use std::io::{Error as IoError, ErrorKind};
+use std::{
+    io::{Error as IoError, ErrorKind},
+    path::Path,
+};
 
 pub struct File;
+
+pub struct OpenOptions;
 
 pub trait AsyncReadExt {
     type Future: Future<Output = Result<usize, IoError>>;
@@ -58,5 +63,37 @@ impl AsyncSeekExt for File {
             ErrorKind::Other,
             "Please enable a runtime",
         )))
+    }
+}
+
+impl Default for OpenOptions {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl OpenOptions {
+    pub fn new() -> Self {
+        Self
+    }
+
+    pub fn write(&mut self, _: bool) -> &mut OpenOptions {
+        self
+    }
+
+    pub fn truncate(&mut self, _: bool) -> &mut OpenOptions {
+        self
+    }
+
+    pub fn append(&mut self, _: bool) -> &mut OpenOptions {
+        self
+    }
+
+    pub fn create(&mut self, _: bool) -> &mut OpenOptions {
+        self
+    }
+
+    pub async fn open(&self, _: impl AsRef<Path>) -> Result<File, IoError> {
+        Err(IoError::new(ErrorKind::Other, "Please enable a runtime"))
     }
 }
