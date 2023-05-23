@@ -11,7 +11,7 @@ async fn main() -> anyhow::Result<()> {
         format::{self, HeaderV1, ShortString},
         Bytes, FileSink, FileSource, ReadFrom, WriteFrom, DEFAULT_FILE_SIZE_LIMIT,
     };
-    use sea_streamer_types::{MessageHeader, ShardId, StreamKey, Timestamp};
+    use sea_streamer_types::{Buffer, MessageHeader, OwnedMessage, ShardId, StreamKey, Timestamp};
 
     const TEST: &str = "loopback";
     env_logger::init();
@@ -67,6 +67,15 @@ async fn main() -> anyhow::Result<()> {
     mess_header.clone().write_to(&mut sink)?;
     let read = format::MessageHeader::read_from(&mut source).await?;
     assert_eq!(mess_header, read);
+
+    let mut message = format::Message {
+        message: OwnedMessage::new(mess_header.0, "123456789".into_bytes()),
+        checksum: 0,
+    };
+    message.clone().write_to(&mut sink)?;
+    let read = format::Message::read_from(&mut source).await?;
+    message.checksum = 0x4C06;
+    assert_eq!(message, read);
 
     Ok(())
 }

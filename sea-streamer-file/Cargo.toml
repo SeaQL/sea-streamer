@@ -18,6 +18,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 anyhow = { version = "1", optional = true }
 async-std = { version = "1", optional = true }
+crczoo = { version = "0.1" }
 env_logger = { version = "0.9", optional = true }
 flume = { version = "0.10", default-features = false, features = ["async"] }
 # lazy_static = { version = "1.4" }
@@ -35,7 +36,7 @@ tokio = { version = "1.10.0", optional = true }
 [dev-dependencies]
 
 [features]
-default = []
+default = ["test"]
 test = ["anyhow", "async-std?/attributes", "tokio?/full", "env_logger"]
 executables = ["anyhow", "tokio/full", "env_logger", "structopt", "sea-streamer-runtime/runtime-tokio"] # "serde_json", "sea-streamer-types/json"
 runtime-async-std = ["async-std", "sea-streamer-runtime/runtime-async-std"]

@@ -26,9 +26,9 @@
 //! Header meta v1 is always 128 - 3 bytes long. Unused bytes must be zero-padded.
 //!
 //! Message is:
-//! +---~----+---+----+---+----+----~----+----------+------+
+//! +---~----+---+----+---+----+----~----+-----+----+------+
 //! | header | size of payload | payload | checksum | 0x0D |
-//! +---~----+---+----+---+----+----~----+----------+------+
+//! +---~----+---+----+---+----+----~----+-----+----+------+
 //!
 //! Message spliced:
 //! +----~----+----~---+--------~-------+
@@ -36,9 +36,9 @@
 //! +----~----+----~---+--------~-------+
 //!
 //! Beacon is:
-//! +-----+------+-----+------+---+---+---+--+----~----+-----+
+//! +-----+------+-----+------+--------------+----~----+-----+
 //! | remaining message bytes | num of items |  item   | ... |
-//! +-----+------+-----+------+---+---+---+--+----~----+-----+
+//! +-----+------+-----+------+--------------+----~----+-----+
 //!
 //! Message header is same as beacon item:
 //! +-------------------+--------~---------+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -46,15 +46,16 @@
 //! +-------------------+--------~---------+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 //!
 //! Except that beacon item has an extra tail:
-//! +------------------+
+//! +---------+--------+
 //! | running checksum |
-//! +------------------+
+//! +---------+--------+
 //! ```
 //!
 //! All numbers are encoded in big endian.
 
-use crate::{Bytes, FileErr, FileSink, FileSource};
-use sea_streamer_types::{ShardId, StreamKey, StreamKeyErr, Timestamp};
+use crate::{ByteSource, Bytes, FileErr, FileSink};
+use crczoo::crc16_cdma2000;
+use sea_streamer_types::{OwnedMessage, ShardId, StreamKey, StreamKeyErr, Timestamp};
 use thiserror::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -71,8 +72,10 @@ pub type Header = HeaderV1;
 pub struct MessageHeader(pub sea_streamer_types::MessageHeader);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[repr(transparent)]
-pub struct Message(pub sea_streamer_types::SharedMessage);
+pub struct Message {
+    pub message: OwnedMessage,
+    pub checksum: u16,
+}
 
 // `ShortString` definition inside
 pub use short_string::*;
@@ -127,7 +130,7 @@ impl From<StreamKeyErr> for FileErr {
 }
 
 impl HeaderV1 {
-    pub async fn read_from(file: &mut FileSource) -> Result<Self, FileErr> {
+    pub async fn read_from(file: &mut impl ByteSource) -> Result<Self, FileErr> {
         let bytes = Bytes::read_from(file, 3).await?.bytes();
         if bytes[0] != 0x53 {
             return Err(FileErr::HeaderErr(HeaderErr::ByteMark));
@@ -147,6 +150,7 @@ impl HeaderV1 {
             beacon_interval,
         };
         let _padding = Bytes::read_from(file, ret.padding_size()).await?;
+
         Ok(ret)
     }
 
@@ -159,6 +163,7 @@ impl HeaderV1 {
         UnixTimestamp(self.created_at).write_to(file)?;
         U16(self.beacon_interval).write_to(file)?;
         Bytes::Bytes(vec![0; padding_size]).write_to(file)?;
+
         Ok(())
     }
 
@@ -167,16 +172,38 @@ impl HeaderV1 {
     }
 }
 
+impl Message {
+    pub async fn read_from(file: &mut impl ByteSource) -> Result<Self, FileErr> {
+        let header = MessageHeader::read_from(file).await?.0;
+        let size = U32::read_from(file).await?.0;
+        let payload = Bytes::read_from(file, size as usize).await?.bytes();
+        let checksum = U16::read_from(file).await?.0;
+        let message = OwnedMessage::new(header, payload);
+        let _byte = Bytes::read_from(file, 1).await?.byte().unwrap();
+        Ok(Self { message, checksum })
+    }
+
+    pub fn write_to(self, file: &mut FileSink) -> Result<(), FileErr> {
+        let (header, payload) = self.message.take();
+        MessageHeader(header).write_to(file)?;
+        let size = payload.len().try_into().expect("Message too big");
+        U32(size).write_to(file)?;
+        let checksum = crc16_cdma2000(&payload);
+        Bytes::Bytes(payload).write_to(file)?;
+        U16(checksum).write_to(file)?;
+        Bytes::Byte(0x0D).write_to(file)?;
+        Ok(())
+    }
+}
+
 impl MessageHeader {
-    pub async fn read_from(file: &mut FileSource) -> Result<Self, FileErr> {
+    pub async fn read_from(file: &mut impl ByteSource) -> Result<Self, FileErr> {
+        use sea_streamer_types::MessageHeader as Header;
         let stream_key = StreamKey::new(ShortString::read_from(file).await?.string())?;
         let shard_id = ShardId::new(U64::read_from(file).await?.0);
         let sequence = U64::read_from(file).await?.0;
         let timestamp = UnixTimestamp::read_from(file).await?.0;
-
-        Ok(Self(sea_streamer_types::MessageHeader::new(
-            stream_key, shard_id, sequence, timestamp,
-        )))
+        Ok(Self(Header::new(stream_key, shard_id, sequence, timestamp)))
     }
 
     pub fn write_to(self, file: &mut FileSink) -> Result<(), FileErr> {
@@ -185,7 +212,6 @@ impl MessageHeader {
         U64(h.shard_id().id()).write_to(file)?;
         U64(*h.sequence()).write_to(file)?;
         UnixTimestamp(*h.timestamp()).write_to(file)?;
-
         Ok(())
     }
 }
@@ -215,7 +241,7 @@ mod short_string {
             self.0
         }
 
-        pub async fn read_from(file: &mut FileSource) -> Result<Self, FileErr> {
+        pub async fn read_from(file: &mut impl ByteSource) -> Result<Self, FileErr> {
             let len = Bytes::read_from(file, 1).await?.byte().unwrap();
             let bytes = Bytes::read_from(file, len as usize).await?;
             Ok(Self(
@@ -246,7 +272,7 @@ pub enum UnixTimestampErr {
 }
 
 impl UnixTimestamp {
-    pub async fn read_from(file: &mut FileSource) -> Result<Self, FileErr> {
+    pub async fn read_from(file: &mut impl ByteSource) -> Result<Self, FileErr> {
         let ts = U64::read_from(file).await?.0;
         Ok(Self(
             Timestamp::from_unix_timestamp_nanos(ts as i128 * 1_000_000)
@@ -270,7 +296,7 @@ impl UnixTimestamp {
 pub enum U64Err {}
 
 impl U64 {
-    pub async fn read_from(file: &mut FileSource) -> Result<Self, FileErr> {
+    pub async fn read_from(file: &mut impl ByteSource) -> Result<Self, FileErr> {
         let a = Bytes::read_from(file, 4).await?.word().unwrap();
         let b = Bytes::read_from(file, 4).await?.word().unwrap();
         Ok(Self(u64::from_be_bytes([
@@ -294,7 +320,7 @@ impl U64 {
 pub enum U32Err {}
 
 impl U32 {
-    pub async fn read_from(file: &mut FileSource) -> Result<Self, FileErr> {
+    pub async fn read_from(file: &mut impl ByteSource) -> Result<Self, FileErr> {
         let word: [u8; 4] = Bytes::read_from(file, 4).await?.word().unwrap();
         Ok(Self(u32::from_be_bytes(word)))
     }
@@ -315,7 +341,7 @@ impl U32 {
 pub enum U16Err {}
 
 impl U16 {
-    pub async fn read_from(file: &mut FileSource) -> Result<Self, FileErr> {
+    pub async fn read_from(file: &mut impl ByteSource) -> Result<Self, FileErr> {
         let a = Bytes::read_from(file, 1).await?.byte().unwrap();
         let b = Bytes::read_from(file, 1).await?.byte().unwrap();
         Ok(Self(u16::from_be_bytes([a, b])))
