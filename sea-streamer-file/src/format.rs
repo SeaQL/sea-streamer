@@ -70,6 +70,11 @@ pub type Header = HeaderV1;
 #[repr(transparent)]
 pub struct MessageHeader(pub sea_streamer_types::MessageHeader);
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct Message(pub sea_streamer_types::SharedMessage);
+
+// `ShortString` definition inside
 pub use short_string::*;
 
 /// Timestamp in seconds
@@ -195,7 +200,7 @@ mod short_string {
     }
 
     #[repr(transparent)]
-    pub struct ShortString(String);
+    pub struct ShortString(String); // I want to hide the inner String
 
     impl ShortString {
         pub fn new(string: String) -> Result<Self, ShortStringErr> {

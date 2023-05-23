@@ -1,6 +1,17 @@
-use std::{cmp::Ordering, collections::VecDeque};
+use crate::{FileErr, FileSink};
+use std::{
+    cmp::Ordering,
+    collections::VecDeque,
+    future::{ready, Future, Ready},
+};
 
-use crate::{FileErr, FileSink, FileSource};
+pub trait ByteSource {
+    type Future<'a>: Future<Output = Result<Bytes, FileErr>>
+    where
+        Self: 'a;
+
+    fn request_bytes<'a>(&'a mut self, size: usize) -> Self::Future<'a>;
+}
 
 #[derive(Debug, Default, Clone)]
 pub struct ByteBuffer {
@@ -216,12 +227,26 @@ impl Bytes {
 
 /// IO methods
 impl Bytes {
-    pub async fn read_from(file: &mut FileSource, size: usize) -> Result<Self, FileErr> {
+    #[inline]
+    pub async fn read_from(file: &mut impl ByteSource, size: usize) -> Result<Self, FileErr> {
         file.request_bytes(size).await
     }
 
+    #[inline]
     pub fn write_to(self, file: &mut FileSink) -> Result<(), FileErr> {
         file.write(self)
+    }
+}
+
+impl ByteSource for Bytes {
+    type Future<'a> = Ready<Result<Bytes, FileErr>>;
+
+    fn request_bytes<'a>(&'a mut self, size: usize) -> Self::Future<'a> {
+        if size <= self.len() {
+            ready(Ok(self.pop(size)))
+        } else {
+            ready(Err(FileErr::NotEnoughBytes))
+        }
     }
 }
 

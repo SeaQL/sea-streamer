@@ -23,6 +23,8 @@ pub enum FileErr {
     FileLimitExceeded,
     #[error("Watch Dead")]
     WatchDead,
+    #[error("Not Enough Bytes: the file might be truncated.")]
+    NotEnoughBytes,
 }
 
 pub type FileResult<T> = StreamResult<T, FileErr>;

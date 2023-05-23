@@ -1,8 +1,15 @@
+use flume::{
+    bounded,
+    r#async::{RecvFut, RecvStream},
+    unbounded, Receiver, TryRecvError,
+};
+use sea_streamer_types::export::futures::{FutureExt, StreamExt};
+use std::future::Future;
+
 use crate::{
     watcher::{new_watcher, FileEvent, Watcher},
-    ByteBuffer, Bytes, FileErr,
+    ByteBuffer, ByteSource, Bytes, FileErr,
 };
-use flume::{bounded, unbounded, Receiver, TryRecvError};
 use sea_streamer_runtime::{
     file::{AsyncReadExt, AsyncSeekExt, File, SeekFrom},
     spawn_task,
@@ -147,19 +154,6 @@ impl FileSource {
         })
     }
 
-    /// Stream N bytes from file. If there is not enough bytes, it will wait until there are,
-    /// like `tail -f`.
-    ///
-    /// If there are enough bytes in the buffer, it yields immediately.
-    pub async fn request_bytes(&mut self, size: usize) -> Result<Bytes, FileErr> {
-        loop {
-            if self.buffer.size() >= size {
-                return Ok(self.buffer.consume(size));
-            }
-            self.receive().await?;
-        }
-    }
-
     /// Stream bytes from file. If there is no bytes, it will wait until there are,
     /// like `tail -f`.
     ///
@@ -174,20 +168,115 @@ impl FileSource {
         }
     }
 
-    async fn receive(&mut self) -> Result<(), FileErr> {
-        let res = self.receiver.recv_async().await;
-        match res {
-            Ok(Ok(bytes)) => {
-                self.buffer.append(bytes);
-                Ok(())
+    fn receive<'a>(&'a mut self) -> ReceiveFuture<'a> {
+        ReceiveFuture {
+            watcher: &mut self.watcher,
+            buffer: &mut self.buffer,
+            future: self.receiver.recv_async(),
+        }
+    }
+}
+
+impl ByteSource for FileSource {
+    type Future<'a> = FileStream<'a>;
+
+    /// Stream N bytes from file. If there is not enough bytes, it will wait until there are,
+    /// like `tail -f`.
+    ///
+    /// If there are enough bytes in the buffer, it yields immediately.
+    fn request_bytes<'a>(&'a mut self, size: usize) -> Self::Future<'a> {
+        FileStream {
+            size,
+            watcher: &mut self.watcher,
+            buffer: &mut self.buffer,
+            stream: self.receiver.stream(),
+        }
+    }
+}
+
+pub struct ReceiveFuture<'a> {
+    watcher: &'a mut Option<Watcher>,
+    buffer: &'a mut ByteBuffer,
+    future: RecvFut<'a, Result<Bytes, FileErr>>,
+}
+
+pub struct FileStream<'a> {
+    size: usize,
+    watcher: &'a mut Option<Watcher>,
+    buffer: &'a mut ByteBuffer,
+    stream: RecvStream<'a, Result<Bytes, FileErr>>,
+}
+
+impl<'a> Future for ReceiveFuture<'a> {
+    type Output = Result<(), FileErr>;
+
+    fn poll(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        use std::task::Poll::{Pending, Ready};
+
+        match self.future.poll_unpin(cx) {
+            Ready(res) => Ready(match res {
+                Ok(Ok(bytes)) => {
+                    self.buffer.append(bytes);
+                    Ok(())
+                }
+                Ok(Err(e)) => {
+                    self.watcher.take(); // drop the watch, this closes the channel
+                    Err(e)
+                }
+                Err(_) => {
+                    // Channel closed
+                    Err(FileErr::WatchDead)
+                }
+            }),
+            Pending => Pending,
+        }
+    }
+}
+
+/// A hand unrolled version of the following
+/// ```ignore
+/// loop {
+///     if self.buffer.size() >= size {
+///         return Ok(self.buffer.consume(size));
+///     }
+///     self.receive().await?;
+/// }
+/// ```
+impl<'a> Future for FileStream<'a> {
+    type Output = Result<Bytes, FileErr>;
+
+    fn poll(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        use std::task::Poll::{Pending, Ready};
+
+        loop {
+            if self.buffer.size() >= self.size {
+                let size = self.size;
+                return Ready(Ok(self.buffer.consume(size)));
             }
-            Ok(Err(e)) => {
-                self.watcher = None; // drop the watch, this closes the channel
-                Err(e)
-            }
-            Err(_) => {
-                // Channel closed
-                Err(FileErr::WatchDead)
+
+            match self.stream.poll_next_unpin(cx) {
+                Ready(res) => match res {
+                    Some(Ok(bytes)) => {
+                        self.buffer.append(bytes);
+                    }
+                    Some(Err(e)) => {
+                        self.watcher.take(); // drop the watch, this closes the channel
+                        return Ready(Err(e));
+                    }
+                    None => {
+                        // Channel closed
+                        return Ready(Err(FileErr::WatchDead));
+                    }
+                },
+                Pending => {
+                    return Pending;
+                }
             }
         }
     }
