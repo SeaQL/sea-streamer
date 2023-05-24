@@ -207,7 +207,7 @@ impl FileSource {
         let (sender, receiver) = bounded(0);
         // Drops the old channel; this may stop the task
         self.receiver = receiver;
-        // Notify task in case it is sleeping
+        // Notify the task in case it is sleeping
         self.notify
             .send(FileEvent::Rewatch) // unbounded, never blocks
             .expect("FileSource: task panic");

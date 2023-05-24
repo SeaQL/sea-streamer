@@ -2,8 +2,8 @@
 //! It has internal checksum to ensure integrity.
 //! It is a binary file format, but is readable with a plain text editor (if the payload is UTF-8).
 //!
-//! There is a header. Every N bytes after the header there will be a beacon summarizing all streams so far.
-//! A message can be spliced by a beacon.
+//! There is a header. Every N bytes there will be a beacon summarizing the streams so far.
+//! A message can be spliced by one or more beacons.
 //!
 //! ```ignore
 //! +-----------------~-----------------+
@@ -66,6 +66,8 @@ pub struct HeaderV1 {
 }
 
 pub type Header = HeaderV1;
+
+pub const HEADER_SIZE: usize = 128;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[repr(transparent)]
@@ -185,8 +187,16 @@ impl HeaderV1 {
         Ok(())
     }
 
+    pub fn size() -> usize {
+        HEADER_SIZE
+    }
+
     pub fn padding_size(&self) -> usize {
-        128 - 3 - ShortString::size_of(&self.file_name) - UnixTimestamp::size() - U16::size()
+        HEADER_SIZE
+            - 3
+            - ShortString::size_of(&self.file_name)
+            - UnixTimestamp::size()
+            - U16::size()
     }
 }
 
@@ -239,6 +249,27 @@ impl Beacons {
         }
         Ok(())
     }
+
+    pub fn size(&self) -> usize {
+        let mut size = U32::size() + 1;
+        for item in self.items.iter() {
+            size += item.size();
+        }
+        size
+    }
+
+    /// Calculate the maximum number of beacons that can be fitted in the given space
+    pub fn max_beacons(space: usize) -> usize {
+        if space < 5 {
+            return 0;
+        }
+        std::cmp::min(u8::MAX as usize, (space - 4 - 1) / Beacon::max_size())
+    }
+
+    /// The reasonable number of beacons to use, given the beacon_interval
+    pub fn num_beacons(beacon_interval: usize) -> usize {
+        Self::max_beacons(beacon_interval) / 2
+    }
 }
 
 impl Beacon {
@@ -255,6 +286,14 @@ impl Beacon {
         MessageHeader(self.header).write_to(file)?;
         U16(self.running_checksum).write_to(file)?;
         Ok(())
+    }
+
+    pub fn size(&self) -> usize {
+        MessageHeader::size_of(&self.header) + U16::size()
+    }
+
+    pub fn max_size() -> usize {
+        MessageHeader::max_size() + 2
     }
 }
 
@@ -275,6 +314,17 @@ impl MessageHeader {
         U64(*h.sequence()).write_to(file)?;
         UnixTimestamp(*h.timestamp()).write_to(file)?;
         Ok(())
+    }
+
+    pub fn size_of(header: &sea_streamer_types::MessageHeader) -> usize {
+        ShortString::size_of(header.stream_key().name())
+            + U64::size()
+            + U64::size()
+            + UnixTimestamp::size()
+    }
+
+    pub fn max_size() -> usize {
+        ShortString::max_size() + U64::size() + U64::size() + UnixTimestamp::size()
     }
 }
 
@@ -321,8 +371,12 @@ mod short_string {
             1 + self.0.len()
         }
 
-        pub fn size_of(string: &String) -> usize {
+        pub fn size_of(string: &str) -> usize {
             1 + string.len()
+        }
+
+        pub fn max_size() -> usize {
+            1 + u8::MAX as usize
         }
     }
 }
@@ -470,5 +524,11 @@ mod test {
             checksum.crc(),
             crc16_cdma2000(&"123456789abcd".into_bytes())
         );
+    }
+
+    #[test]
+    fn test_num_beacons() {
+        // we can only fit 1 beacon in 1kb
+        assert_eq!(Beacons::num_beacons(1024), 1);
     }
 }

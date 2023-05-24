@@ -152,3 +152,48 @@ async fn seek() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[cfg(feature = "test")]
+#[cfg_attr(feature = "runtime-tokio", tokio::test)]
+#[cfg_attr(feature = "runtime-async-std", async_std::test)]
+async fn beacon() -> anyhow::Result<()> {
+    use sea_streamer_file::{
+        format::Beacons, Bytes, FileSink, FileSource, MessageSource, ReadFrom, WriteFrom,
+        DEFAULT_FILE_SIZE_LIMIT,
+    };
+    use sea_streamer_types::Timestamp;
+
+    const TEST: &str = "beacon";
+    INIT.call_once(env_logger::init);
+
+    let now = Timestamp::now_utc();
+    let path = temp_file(format!("{}-{}", TEST, now.unix_timestamp_nanos() / 1_000_000).as_str())?;
+    println!("{path}");
+
+    let mut sink = FileSink::new(&path, WriteFrom::Beginning, DEFAULT_FILE_SIZE_LIMIT).await?;
+    let source = FileSource::new(&path, ReadFrom::Beginning).await?;
+    let mut source = MessageSource::new(source, 10);
+
+    Bytes::Bytes(vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]).write_to(&mut sink)?;
+    Beacons {
+        items: Vec::new(),
+        remaining_messages_bytes: 0x88,
+    }
+    .write_to(&mut sink)?;
+    Bytes::Bytes(vec![11, 12, 13, 14, 15]).write_to(&mut sink)?;
+    Beacons {
+        items: Vec::new(),
+        remaining_messages_bytes: 0x99,
+    }
+    .write_to(&mut sink)?;
+    Bytes::Bytes(vec![16, 17, 18, 19, 20]).write_to(&mut sink)?;
+
+    let read = Bytes::read_from(&mut source, 8).await?;
+    assert_eq!(read.bytes(), vec![1, 2, 3, 4, 5, 6, 7, 8]);
+    let read = Bytes::read_from(&mut source, 8).await?;
+    assert_eq!(read.bytes(), vec![9, 10, 11, 12, 13, 14, 15, 16]);
+    let read = Bytes::read_from(&mut source, 4).await?;
+    assert_eq!(read.bytes(), vec![17, 18, 19, 20]);
+
+    Ok(())
+}

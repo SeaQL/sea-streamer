@@ -17,7 +17,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 async-trait = { version = "0.1" }
-futures = { version = "0.3", default-features = false }
+futures = { version = "0.3", default-features = false, features = ["alloc"] }
 thiserror = { version = "1", default-features = false }
 time = { version = "0.3", default-features = false, features = ["std"] }
 url = { version = "2.2", default-features = false }
