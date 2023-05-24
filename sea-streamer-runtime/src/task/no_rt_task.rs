@@ -4,6 +4,8 @@ use std::future::Future;
 #[derive(Debug)]
 pub struct JoinError;
 
+pub type TaskHandle<T> = Ready<Result<T, JoinError>>;
+
 pub fn spawn_task<F, T>(_: F) -> Ready<Result<T, JoinError>>
 where
     F: Future<Output = T> + Send + 'static,

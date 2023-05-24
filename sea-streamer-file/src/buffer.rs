@@ -58,6 +58,10 @@ impl ByteBuffer {
         self.size() == 0
     }
 
+    pub fn clear(&mut self) {
+        self.buf.clear();
+    }
+
     pub fn consume(&mut self, size: usize) -> Bytes {
         let mut buffer = Bytes::Empty;
         let mut remaining = size;

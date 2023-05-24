@@ -100,6 +100,10 @@ impl FileSink {
                             }
                             break 'outer;
                         }
+                        Ok(FileEvent::Rewatch) => {
+                            log::warn!("Why are we receiving this?");
+                            break 'outer;
+                        }
                         Err(TryRecvError::Empty) => break,
                     }
                 }

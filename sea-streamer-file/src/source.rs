@@ -1,9 +1,12 @@
 use flume::{
     bounded,
     r#async::{RecvFut, RecvStream},
-    unbounded, Receiver, TryRecvError,
+    unbounded, Receiver, Sender, TryRecvError,
 };
-use sea_streamer_types::export::futures::{FutureExt, StreamExt};
+use sea_streamer_types::{
+    export::futures::{FutureExt, StreamExt},
+    SeqPos,
+};
 use std::future::Future;
 
 use crate::{
@@ -12,7 +15,7 @@ use crate::{
 };
 use sea_streamer_runtime::{
     file::{AsyncReadExt, AsyncSeekExt, File, SeekFrom},
-    spawn_task,
+    spawn_task, TaskHandle,
 };
 
 pub const BUFFER_SIZE: usize = 1024;
@@ -25,9 +28,12 @@ pub const BUFFER_SIZE: usize = 1024;
 ///
 /// If the file is removed from the file system, the stream ends.
 pub struct FileSource {
-    watcher: Option<Watcher>,
+    #[allow(dead_code)]
+    watcher: Watcher,
     receiver: Receiver<Result<Bytes, FileErr>>,
     buffer: ByteBuffer,
+    handle: Option<TaskHandle<(File, Receiver<FileEvent>, String)>>,
+    notify: Sender<FileEvent>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -39,24 +45,40 @@ pub enum ReadFrom {
 impl FileSource {
     pub async fn new(path: &str, read_from: ReadFrom) -> Result<Self, FileErr> {
         let mut file = File::open(path).await.map_err(FileErr::IoError)?;
-        let mut can_read = true;
+        let mut pos = 0;
         if matches!(read_from, ReadFrom::End) {
-            file.seek(SeekFrom::End(0))
+            pos = file
+                .seek(SeekFrom::End(0))
                 .await
                 .map_err(FileErr::IoError)?;
-            can_read = false;
         }
         // This allows the consumer to control the pace
         let (sender, receiver) = bounded(0);
         let (notify, event) = unbounded();
-        let watcher = new_watcher(path, notify)?;
-        let path = path.to_string();
+        let watcher = new_watcher(path, notify.clone())?;
 
-        let _handle = spawn_task(async move {
-            #[allow(unused_variables)]
-            let mut pos: usize = 0;
+        let handle = Self::spawn_task(file, pos, sender, event, path.to_string());
+
+        Ok(Self {
+            watcher,
+            receiver,
+            buffer: ByteBuffer::new(),
+            handle: Some(handle),
+            notify,
+        })
+    }
+
+    fn spawn_task(
+        mut file: File,
+        #[allow(unused_variables)] mut pos: u64,
+        sender: Sender<Result<Bytes, FileErr>>,
+        event: Receiver<FileEvent>,
+        path: String,
+    ) -> TaskHandle<(File, Receiver<FileEvent>, String)> {
+        spawn_task(async move {
+            let mut can_read = true;
             let mut buffer = vec![0u8; BUFFER_SIZE];
-            'outer: loop {
+            'outer: while !sender.is_disconnected() {
                 if can_read {
                     // drain all remaining events
                     loop {
@@ -75,6 +97,10 @@ impl FileSource {
                                 }
                                 break 'outer;
                             }
+                            Ok(FileEvent::Rewatch) => {
+                                log::debug!("FileSource: Rewatch");
+                                break 'outer;
+                            }
                             Err(TryRecvError::Disconnected) => {
                                 break 'outer;
                             }
@@ -84,7 +110,7 @@ impl FileSource {
                     #[cfg(feature = "runtime-async-std")]
                     // Not sure why, there must be a subtle implementation difference.
                     // This is needed only on async-std
-                    file.seek(SeekFrom::Start(pos as u64)).await.unwrap();
+                    file.seek(SeekFrom::Start(pos)).await.unwrap();
                     let bytes_read = match file.read(&mut buffer).await {
                         Ok(bytes_read) => {
                             if bytes_read == 0 {
@@ -100,7 +126,7 @@ impl FileSource {
                         }
                     };
                     if bytes_read > 0 {
-                        pos += bytes_read;
+                        pos += bytes_read as u64;
                         if sender
                             .send_async(Ok(match bytes_read {
                                 1 => Bytes::Byte(buffer[0]),
@@ -118,9 +144,6 @@ impl FileSource {
                         }
                     }
                 } else {
-                    if sender.is_disconnected() {
-                        break;
-                    }
                     match event.recv_async().await {
                         Ok(FileEvent::Modify) => {
                             can_read = true;
@@ -137,6 +160,10 @@ impl FileSource {
                             }
                             break 'outer;
                         }
+                        Ok(FileEvent::Rewatch) => {
+                            log::debug!("FileSource: Rewatch");
+                            break 'outer;
+                        }
                         Err(_) => {
                             break 'outer;
                         }
@@ -144,13 +171,8 @@ impl FileSource {
                 }
             }
             log::debug!("FileSource task finish ({})", path);
-            // sender drops, then channel closes
-        });
-
-        Ok(Self {
-            watcher: Some(watcher),
-            receiver,
-            buffer: ByteBuffer::new(),
+            event.drain();
+            (file, event, path)
         })
     }
 
@@ -170,10 +192,46 @@ impl FileSource {
 
     fn receive<'a>(&'a mut self) -> ReceiveFuture<'a> {
         ReceiveFuture {
-            watcher: &mut self.watcher,
             buffer: &mut self.buffer,
             future: self.receiver.recv_async(),
         }
+    }
+
+    /// Seek the file stream to a different position.
+    ///
+    /// Note: SeqNo is regarded as byte offset.
+    ///
+    /// Warning: This future must not be canceled.
+    pub async fn seek(&mut self, to: SeqPos) -> Result<(), FileErr> {
+        // Create a fresh channel
+        let (sender, receiver) = bounded(0);
+        // Drops the old channel; this may stop the task
+        self.receiver = receiver;
+        // Notify task in case it is sleeping
+        self.notify
+            .send(FileEvent::Rewatch) // unbounded, never blocks
+            .expect("FileSource: task panic");
+        // Wait for task exit
+        let (mut file, event, path) = self
+            .handle
+            .take()
+            .expect("This future must not be canceled")
+            .await
+            .expect("FileSource: task panic");
+        // Seek!
+        let pos = file
+            .seek(match to {
+                SeqPos::Beginning => SeekFrom::Start(0),
+                SeqPos::End => SeekFrom::End(0),
+                SeqPos::At(to) => SeekFrom::Start(to),
+            })
+            .await
+            .map_err(FileErr::IoError)?;
+        // Spawn new task
+        self.handle = Some(Self::spawn_task(file, pos, sender, event, path));
+        // Clear the buffer
+        self.buffer.clear();
+        Ok(())
     }
 }
 
@@ -187,7 +245,6 @@ impl ByteSource for FileSource {
     fn request_bytes<'a>(&'a mut self, size: usize) -> Self::Future<'a> {
         FileStream {
             size,
-            watcher: &mut self.watcher,
             buffer: &mut self.buffer,
             stream: self.receiver.stream(),
         }
@@ -195,14 +252,12 @@ impl ByteSource for FileSource {
 }
 
 pub struct ReceiveFuture<'a> {
-    watcher: &'a mut Option<Watcher>,
     buffer: &'a mut ByteBuffer,
     future: RecvFut<'a, Result<Bytes, FileErr>>,
 }
 
 pub struct FileStream<'a> {
     size: usize,
-    watcher: &'a mut Option<Watcher>,
     buffer: &'a mut ByteBuffer,
     stream: RecvStream<'a, Result<Bytes, FileErr>>,
 }
@@ -222,10 +277,7 @@ impl<'a> Future for ReceiveFuture<'a> {
                     self.buffer.append(bytes);
                     Ok(())
                 }
-                Ok(Err(e)) => {
-                    self.watcher.take(); // drop the watch, this closes the channel
-                    Err(e)
-                }
+                Ok(Err(e)) => Err(e),
                 Err(_) => {
                     // Channel closed
                     Err(FileErr::WatchDead)
@@ -266,7 +318,6 @@ impl<'a> Future for FileStream<'a> {
                         self.buffer.append(bytes);
                     }
                     Some(Err(e)) => {
-                        self.watcher.take(); // drop the watch, this closes the channel
                         return Ready(Err(e));
                     }
                     None => {

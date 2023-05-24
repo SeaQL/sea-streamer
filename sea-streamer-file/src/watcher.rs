@@ -10,6 +10,7 @@ pub(crate) enum FileEvent {
     Modify,
     Remove,
     Error(notify::Error),
+    Rewatch,
 }
 
 pub(crate) type Watcher = RecommendedWatcher;
