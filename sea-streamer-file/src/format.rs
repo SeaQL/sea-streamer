@@ -54,7 +54,7 @@
 //! All numbers are encoded in big endian.
 
 use crate::{ByteSource, Bytes, FileErr, FileSink};
-use crczoo::crc16_cdma2000;
+use crczoo::{calculate_crc16, crc16_cdma2000, CRC16_CDMA2000_POLY};
 use sea_streamer_types::{OwnedMessage, ShardId, StreamKey, StreamKeyErr, Timestamp};
 use thiserror::Error;
 
@@ -87,6 +87,10 @@ pub struct Beacons {
 pub struct Beacon {
     pub header: sea_streamer_types::MessageHeader,
     pub running_checksum: u16,
+}
+
+pub struct RunningChecksum {
+    crc: u16,
 }
 
 // `ShortString` definition inside
@@ -350,6 +354,27 @@ impl UnixTimestamp {
     }
 }
 
+/// CRC16/CDMA2000
+impl RunningChecksum {
+    pub fn new() -> Self {
+        Self { crc: 0xFFFF }
+    }
+
+    pub fn update(&mut self, byte: u8) {
+        self.crc = calculate_crc16(&[byte], CRC16_CDMA2000_POLY, self.crc, false, false, 0);
+    }
+
+    pub fn crc(&self) -> u16 {
+        self.crc
+    }
+}
+
+impl Default for RunningChecksum {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Error, Debug)]
 pub enum U64Err {}
 
@@ -414,5 +439,36 @@ impl U16 {
 
     pub fn size() -> usize {
         2
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use sea_streamer_types::Buffer;
+
+    use super::*;
+
+    #[test]
+    fn test_running_checksum() {
+        let mut checksum = RunningChecksum::new();
+        checksum.update(b'1');
+        checksum.update(b'2');
+        checksum.update(b'3');
+        checksum.update(b'4');
+        checksum.update(b'5');
+        checksum.update(b'6');
+        checksum.update(b'7');
+        checksum.update(b'8');
+        checksum.update(b'9');
+        assert_eq!(checksum.crc(), 0x4C06);
+        checksum.update(b'a');
+        checksum.update(b'b');
+        checksum.update(b'c');
+        checksum.update(b'd');
+        assert_eq!(checksum.crc(), 0xA106);
+        assert_eq!(
+            checksum.crc(),
+            crc16_cdma2000(&"123456789abcd".into_bytes())
+        );
     }
 }
