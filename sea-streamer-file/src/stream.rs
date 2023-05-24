@@ -9,16 +9,16 @@ pub struct MessageSource {
     source: FileSource,
     buffer: ByteBuffer,
     offset: u64,
-    beacon_interval: u16,
+    beacon_interval: u32,
     beacons: Vec<Beacon>,
 }
 
 impl MessageSource {
-    pub fn new(source: FileSource, beacon_interval: u16) -> Self {
+    pub fn new(source: FileSource, offset: u64, beacon_interval: u32) -> Self {
         Self {
             source,
             buffer: ByteBuffer::new(),
-            offset: 0,
+            offset,
             beacon_interval,
             beacons: Vec::new(),
         }

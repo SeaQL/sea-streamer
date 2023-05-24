@@ -62,7 +62,7 @@ use thiserror::Error;
 pub struct HeaderV1 {
     pub file_name: String,
     pub created_at: Timestamp,
-    pub beacon_interval: u16,
+    pub beacon_interval: u32,
 }
 
 pub type Header = HeaderV1;
@@ -163,7 +163,7 @@ impl HeaderV1 {
         }
         let file_name = ShortString::read_from(file).await?.string();
         let created_at = UnixTimestamp::read_from(file).await?.0;
-        let beacon_interval = U16::read_from(file).await?.0;
+        let beacon_interval = U32::read_from(file).await?.0;
         let ret = Self {
             file_name,
             created_at,
@@ -181,7 +181,7 @@ impl HeaderV1 {
         let padding_size = self.padding_size();
         ShortString::new(self.file_name)?.write_to(file)?;
         UnixTimestamp(self.created_at).write_to(file)?;
-        U16(self.beacon_interval).write_to(file)?;
+        U32(self.beacon_interval).write_to(file)?;
         Bytes::Bytes(vec![0; padding_size]).write_to(file)?;
 
         Ok(())
@@ -196,7 +196,7 @@ impl HeaderV1 {
             - 3
             - ShortString::size_of(&self.file_name)
             - UnixTimestamp::size()
-            - U16::size()
+            - U32::size()
     }
 }
 

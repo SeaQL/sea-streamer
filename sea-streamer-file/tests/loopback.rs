@@ -172,7 +172,7 @@ async fn beacon() -> anyhow::Result<()> {
 
     let mut sink = FileSink::new(&path, WriteFrom::Beginning, DEFAULT_FILE_SIZE_LIMIT).await?;
     let source = FileSource::new(&path, ReadFrom::Beginning).await?;
-    let mut source = MessageSource::new(source, 10);
+    let mut source = MessageSource::new(source, 0, 10);
 
     Bytes::Bytes(vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]).write_to(&mut sink)?;
     Beacons {

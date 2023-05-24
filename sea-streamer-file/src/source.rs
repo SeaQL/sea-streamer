@@ -43,7 +43,13 @@ pub enum ReadFrom {
 }
 
 impl FileSource {
+    #[inline]
     pub async fn new(path: &str, read_from: ReadFrom) -> Result<Self, FileErr> {
+        let (file, _) = Self::new_with_pos(path, read_from).await?;
+        Ok(file)
+    }
+
+    pub async fn new_with_pos(path: &str, read_from: ReadFrom) -> Result<(Self, u64), FileErr> {
         let mut file = File::open(path).await.map_err(FileErr::IoError)?;
         let mut pos = 0;
         if matches!(read_from, ReadFrom::End) {
@@ -59,13 +65,16 @@ impl FileSource {
 
         let handle = Self::spawn_task(file, pos, sender, event, path.to_string());
 
-        Ok(Self {
-            watcher,
-            receiver,
-            buffer: ByteBuffer::new(),
-            handle: Some(handle),
-            notify,
-        })
+        Ok((
+            Self {
+                watcher,
+                receiver,
+                buffer: ByteBuffer::new(),
+                handle: Some(handle),
+                notify,
+            },
+            pos,
+        ))
     }
 
     fn spawn_task(
