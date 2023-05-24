@@ -14,11 +14,13 @@ pub trait ByteSource {
     fn request_bytes<'a>(&'a mut self, size: usize) -> Self::Future<'a>;
 }
 
+/// A FIFO queue of Bytes.
 #[derive(Debug, Default, Clone)]
 pub struct ByteBuffer {
     buf: VecDeque<Bytes>,
 }
 
+/// A blob of bytes; optimized over byte and word.
 #[derive(Clone)]
 pub enum Bytes {
     Empty,

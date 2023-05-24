@@ -6,7 +6,7 @@ pub struct JoinError;
 
 pub type TaskHandle<T> = Ready<Result<T, JoinError>>;
 
-pub fn spawn_task<F, T>(_: F) -> Ready<Result<T, JoinError>>
+pub fn spawn_task<F, T>(_: F) -> TaskHandle<T>
 where
     F: Future<Output = T> + Send + 'static,
     T: Send + 'static,
@@ -14,7 +14,7 @@ where
     ready(Err(JoinError))
 }
 
-pub fn spawn_blocking<F, T>(_: F) -> Ready<Result<T, JoinError>>
+pub fn spawn_blocking<F, T>(_: F) -> TaskHandle<T>
 where
     F: FnOnce() -> T + Send + 'static,
     T: Send + 'static,
