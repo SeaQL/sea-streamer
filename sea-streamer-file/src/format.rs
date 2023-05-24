@@ -77,6 +77,18 @@ pub struct Message {
     pub checksum: u16,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Beacons {
+    pub remaining_messages_bytes: u32,
+    pub items: Vec<Beacon>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Beacon {
+    pub header: sea_streamer_types::MessageHeader,
+    pub running_checksum: u16,
+}
+
 // `ShortString` definition inside
 pub use short_string::*;
 
@@ -109,6 +121,8 @@ pub enum FormatErr {
     UnixTimestampErr(#[from] UnixTimestampErr),
     #[error("StreamKeyErr: {0}")]
     StreamKeyErr(#[from] StreamKeyErr),
+    #[error("TooManyBeacon")]
+    TooManyBeacon,
 }
 
 impl From<ShortStringErr> for FileErr {
@@ -192,6 +206,50 @@ impl Message {
         Bytes::Bytes(payload).write_to(file)?;
         U16(checksum).write_to(file)?;
         Bytes::Byte(0x0D).write_to(file)?;
+        Ok(())
+    }
+}
+
+impl Beacons {
+    pub async fn read_from(file: &mut impl ByteSource) -> Result<Self, FileErr> {
+        let remaining_messages_bytes = U32::read_from(file).await?.0;
+        let mut items = Vec::new();
+        let num = Bytes::read_from(file, 1).await?.byte().unwrap();
+        for _ in 0..num {
+            items.push(Beacon::read_from(file).await?);
+        }
+        Ok(Self {
+            remaining_messages_bytes,
+            items,
+        })
+    }
+
+    pub fn write_to(self, file: &mut FileSink) -> Result<(), FileErr> {
+        if self.items.len() > u8::MAX as usize {
+            return Err(FileErr::FormatErr(FormatErr::TooManyBeacon));
+        }
+        U32(self.remaining_messages_bytes).write_to(file)?;
+        Bytes::Byte(self.items.len().try_into().unwrap()).write_to(file)?;
+        for item in self.items {
+            item.write_to(file)?;
+        }
+        Ok(())
+    }
+}
+
+impl Beacon {
+    pub async fn read_from(file: &mut impl ByteSource) -> Result<Self, FileErr> {
+        let header = MessageHeader::read_from(file).await?.0;
+        let running_checksum = U16::read_from(file).await?.0;
+        Ok(Self {
+            header,
+            running_checksum,
+        })
+    }
+
+    pub fn write_to(self, file: &mut FileSink) -> Result<(), FileErr> {
+        MessageHeader(self.header).write_to(file)?;
+        U16(self.running_checksum).write_to(file)?;
         Ok(())
     }
 }

@@ -1,6 +1,8 @@
 mod util;
 use util::*;
 
+static INIT: std::sync::Once = std::sync::Once::new();
+
 // cargo test --test loopback --features=test,runtime-tokio -- --nocapture
 // cargo test --test loopback --features=test,runtime-async-std -- --nocapture
 #[cfg(feature = "test")]
@@ -8,13 +10,12 @@ use util::*;
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
 async fn loopback() -> anyhow::Result<()> {
     use sea_streamer_file::{
-        format::{self, HeaderV1, ShortString},
+        format::{self, Beacon, Beacons, HeaderV1, ShortString},
         Bytes, FileSink, FileSource, ReadFrom, WriteFrom, DEFAULT_FILE_SIZE_LIMIT,
     };
     use sea_streamer_types::{Buffer, MessageHeader, OwnedMessage, ShardId, StreamKey, Timestamp};
 
     const TEST: &str = "loopback";
-    env_logger::init();
 
     let now = Timestamp::now_utc();
     let path = temp_file(format!("{}-{}", TEST, now.unix_timestamp_nanos() / 1_000_000).as_str())?;
@@ -69,7 +70,7 @@ async fn loopback() -> anyhow::Result<()> {
     assert_eq!(mess_header, read);
 
     let mut message = format::Message {
-        message: OwnedMessage::new(mess_header.0, "123456789".into_bytes()),
+        message: OwnedMessage::new(mess_header.0.clone(), "123456789".into_bytes()),
         checksum: 0,
     };
     message.clone().write_to(&mut sink)?;
@@ -77,8 +78,26 @@ async fn loopback() -> anyhow::Result<()> {
     message.checksum = 0x4C06;
     assert_eq!(message, read);
 
+    let beacon = Beacons {
+        remaining_messages_bytes: 1234,
+        items: vec![
+            Beacon {
+                header: mess_header.0.clone(),
+                running_checksum: 5678,
+            },
+            Beacon {
+                header: mess_header.0.clone(),
+                running_checksum: 9876,
+            },
+        ],
+    };
+    beacon.clone().write_to(&mut sink)?;
+    let read = Beacons::read_from(&mut source).await?;
+    assert_eq!(beacon, read);
+
     Ok(())
 }
+
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
@@ -89,7 +108,7 @@ async fn seek() -> anyhow::Result<()> {
     use sea_streamer_types::{SeqPos, Timestamp};
 
     const TEST: &str = "seek";
-    env_logger::init();
+    INIT.call_once(env_logger::init);
 
     let now = Timestamp::now_utc();
     let path = temp_file(format!("{}-{}", TEST, now.unix_timestamp_nanos() / 1_000_000).as_str())?;
