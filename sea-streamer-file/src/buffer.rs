@@ -38,14 +38,17 @@ impl std::fmt::Debug for Bytes {
 }
 
 impl ByteBuffer {
+    /// Create a new buffer.
     pub fn new() -> Self {
         Default::default()
     }
 
+    /// Push bytes into the buffer.
     pub fn append(&mut self, bytes: Bytes) {
         self.buf.push_back(bytes);
     }
 
+    /// Calculate the total number of bytes in the buffer.
     pub fn size(&self) -> usize {
         let mut size = 0;
         for bytes in self.buf.iter() {
@@ -54,14 +57,17 @@ impl ByteBuffer {
         size
     }
 
+    /// Return whether this buffer is empty.
     pub fn is_empty(&self) -> bool {
         self.size() == 0
     }
 
+    /// Clear all bytes from this buffer.
     pub fn clear(&mut self) {
         self.buf.clear();
     }
 
+    /// Consume a specific number of bytes from the buffer.
     pub fn consume(&mut self, size: usize) -> Bytes {
         let mut buffer = Bytes::Empty;
         let mut remaining = size;
@@ -94,6 +100,12 @@ impl ByteBuffer {
 }
 
 impl Bytes {
+    /// Construct a blob from raw bytes.
+    pub fn from_bytes(bytes: Vec<u8>) -> Self {
+        Bytes::Bytes(bytes)
+    }
+
+    /// Get the length of this blob of bytes.
     pub fn len(&self) -> usize {
         match self {
             Bytes::Empty => 0,
@@ -103,6 +115,7 @@ impl Bytes {
         }
     }
 
+    /// Return true if self is empty.
     pub fn is_empty(&self) -> bool {
         match self {
             Bytes::Empty => true,
@@ -112,6 +125,7 @@ impl Bytes {
         }
     }
 
+    /// Return true if there is exactly 1 byte.
     pub fn is_byte(&self) -> bool {
         match self {
             Bytes::Empty => false,
@@ -121,6 +135,7 @@ impl Bytes {
         }
     }
 
+    /// Pop some bytes from head. This requires allocation.
     pub fn pop(&mut self, size: usize) -> Self {
         let len = self.len();
         match len.cmp(&size) {
@@ -153,6 +168,7 @@ impl Bytes {
         }
     }
 
+    /// Take ownership of all bytes.
     pub fn bytes(self) -> Vec<u8> {
         match self {
             Bytes::Empty => vec![],
@@ -194,10 +210,6 @@ impl Bytes {
         }
     }
 
-    pub fn from_bytes(bytes: Vec<u8>) -> Self {
-        Bytes::Bytes(bytes)
-    }
-
     fn bytes_copy(&self) -> Vec<u8> {
         match self {
             Bytes::Empty => vec![],
@@ -207,6 +219,7 @@ impl Bytes {
         }
     }
 
+    /// Append some bytes. This may require re-allocation.
     pub fn append(&mut self, other: Self) {
         if other.is_empty() {
             return;
@@ -222,6 +235,7 @@ impl Bytes {
         }
     }
 
+    /// Take ownership of all bytes; leaving self Empty.
     pub fn take(&mut self) -> Self {
         let mut ret = Bytes::Empty;
         std::mem::swap(self, &mut ret);
