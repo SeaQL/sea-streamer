@@ -190,7 +190,7 @@ impl FileSource {
         }
     }
 
-    fn receive<'a>(&'a mut self) -> ReceiveFuture<'a> {
+    fn receive(&mut self) -> ReceiveFuture<'_> {
         ReceiveFuture {
             buffer: &mut self.buffer,
             future: self.receiver.recv_async(),
@@ -242,7 +242,7 @@ impl ByteSource for FileSource {
     /// like `tail -f`.
     ///
     /// If there are enough bytes in the buffer, it yields immediately.
-    fn request_bytes<'a>(&'a mut self, size: usize) -> Self::Future<'a> {
+    fn request_bytes(&mut self, size: usize) -> Self::Future<'_> {
         FileStream {
             size,
             buffer: &mut self.buffer,

@@ -10,6 +10,7 @@ pub trait ByteSource {
     where
         Self: 'a;
 
+    #[allow(clippy::needless_lifetimes)]
     fn request_bytes<'a>(&'a mut self, size: usize) -> Self::Future<'a>;
 }
 
@@ -259,7 +260,7 @@ impl Bytes {
 impl ByteSource for Bytes {
     type Future<'a> = Ready<Result<Bytes, FileErr>>;
 
-    fn request_bytes<'a>(&'a mut self, size: usize) -> Self::Future<'a> {
+    fn request_bytes(&mut self, size: usize) -> Self::Future<'_> {
         if size <= self.len() {
             ready(Ok(self.pop(size)))
         } else {
