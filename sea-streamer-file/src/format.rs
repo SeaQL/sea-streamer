@@ -19,11 +19,11 @@
 //! +-----------------~-----------------+
 //!
 //! Header is:
-//! +--------+--------+---------+---~---+
-//! |  0x53  |  0x73  | version | meta  |
-//! +--------+--------+---------+---~---+
+//! +--------+--------+---------+---~---+----~----+------+
+//! |  0x53  |  0x73  | version | meta  | padding | 0x0D |
+//! +--------+--------+---------+---~---+----~----+------+
 //!
-//! Header meta v1 is always 128 - 3 bytes long. Unused bytes must be zero-padded.
+//! Header meta v1 is always 128 - 3 bytes long. Padding is stuffed with 0, ending with a \n.
 //!
 //! Message is:
 //! +---~----+---+----+---+----+----~----+-----+----+------+
@@ -36,9 +36,9 @@
 //! +----~----+----~---+--------~-------+
 //!
 //! Beacon is:
-//! +-----+------+-----+------+--------------+----~----+-----+
-//! | remaining message bytes | num of items |  item   | ... |
-//! +-----+------+-----+------+--------------+----~----+-----+
+//! +------+-----+------+-----+------+--------------+----~----+-----+------+
+//! | 0x0D | remaining message bytes | num of items |  item   | ... | 0x0D |
+//! +------+-----+------+-----+------+--------------+----~----+-----+------+
 //!
 //! Message header is same as beacon item:
 //! +-------------------+--------~---------+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -55,7 +55,9 @@
 
 use crate::{ByteSink, ByteSource, Bytes, FileErr};
 use crczoo::{calculate_crc16, crc16_cdma2000, CRC16_CDMA2000_POLY};
-use sea_streamer_types::{OwnedMessage, ShardId, StreamKey, StreamKeyErr, Timestamp};
+use sea_streamer_types::{
+    Buffer, Message as MessageTrait, OwnedMessage, ShardId, StreamKey, StreamKeyErr, Timestamp,
+};
 use thiserror::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,12 +90,16 @@ pub struct Beacons {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Beacon {
     pub header: sea_streamer_types::MessageHeader,
-    pub running_checksum: u16,
+    pub running_checksum: Checksum,
 }
 
 pub struct RunningChecksum {
     crc: u16,
 }
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
+pub struct Checksum(pub u16);
 
 // `ShortString` definition inside
 pub use short_string::*;
@@ -182,7 +188,8 @@ impl HeaderV1 {
         sum += ShortString::new(self.file_name)?.write_to(sink)?;
         sum += UnixTimestamp(self.created_at).write_to(sink)?;
         sum += U32(self.beacon_interval).write_to(sink)?;
-        sum += Bytes::Bytes(vec![0; padding_size]).write_to(sink)?;
+        sum += Bytes::Bytes(vec![0; padding_size - 1]).write_to(sink)?;
+        sum += Bytes::Byte(0x0D).write_to(sink)?;
         Ok(sum)
     }
 
@@ -206,11 +213,11 @@ impl Message {
         let payload = Bytes::read_from(file, size as usize).await?.bytes();
         let checksum = U16::read_from(file).await?.0;
         let message = OwnedMessage::new(header, payload);
-        let _byte = Bytes::read_from(file, 1).await?.byte().unwrap();
+        _ = Bytes::read_from(file, 1).await?.byte().unwrap();
         Ok(Self { message, checksum })
     }
 
-    pub fn write_to(self, sink: &mut impl ByteSink) -> Result<(usize, u16), FileErr> {
+    pub fn write_to(self, sink: &mut impl ByteSink) -> Result<(usize, Checksum), FileErr> {
         let mut sum = 0;
         let (header, payload) = self.message.take();
         sum += MessageHeader(header).write_to(sink)?;
@@ -220,18 +227,28 @@ impl Message {
         sum += Bytes::Bytes(payload).write_to(sink)?;
         sum += U16(checksum).write_to(sink)?;
         sum += Bytes::Byte(0x0D).write_to(sink)?;
-        Ok((sum, checksum))
+        Ok((sum, Checksum(checksum)))
+    }
+
+    pub fn size(&self) -> usize {
+        MessageHeader::size_of(self.message.header())
+            + U32::size()
+            + self.message.message().size()
+            + U16::size()
+            + 1
     }
 }
 
 impl Beacons {
     pub async fn read_from(file: &mut impl ByteSource) -> Result<Self, FileErr> {
+        _ = Bytes::read_from(file, 1).await?;
         let remaining_messages_bytes = U32::read_from(file).await?.0;
         let mut items = Vec::new();
         let num = Bytes::read_from(file, 1).await?.byte().unwrap();
         for _ in 0..num {
             items.push(Beacon::read_from(file).await?);
         }
+        _ = Bytes::read_from(file, 1).await?;
         Ok(Self {
             remaining_messages_bytes,
             items,
@@ -240,6 +257,7 @@ impl Beacons {
 
     pub fn write_to(self, sink: &mut impl ByteSink) -> Result<usize, FileErr> {
         let mut sum = 0;
+        sum += Bytes::Byte(0x0D).write_to(sink)?;
         if self.items.len() > u8::MAX as usize {
             return Err(FileErr::FormatErr(FormatErr::TooManyBeacon));
         }
@@ -248,23 +266,24 @@ impl Beacons {
         for item in self.items {
             sum += item.write_to(sink)?;
         }
+        sum += Bytes::Byte(0x0D).write_to(sink)?;
         Ok(sum)
     }
 
     pub fn size(&self) -> usize {
-        let mut size = U32::size() + 1;
+        let mut size = 1 + U32::size() + 1;
         for item in self.items.iter() {
             size += item.size();
         }
-        size
+        size + 1
     }
 
     /// Calculate the maximum number of beacons that can be fitted in the given space
     pub fn max_beacons(space: usize) -> usize {
-        if space < 5 {
+        if space < 7 {
             return 0;
         }
-        std::cmp::min(u8::MAX as usize, (space - 4 - 1) / Beacon::max_size())
+        std::cmp::min(u8::MAX as usize, (space - 7) / Beacon::max_size())
     }
 
     /// The reasonable number of beacons to use, given the beacon_interval
@@ -276,7 +295,7 @@ impl Beacons {
 impl Beacon {
     pub async fn read_from(file: &mut impl ByteSource) -> Result<Self, FileErr> {
         let header = MessageHeader::read_from(file).await?.0;
-        let running_checksum = U16::read_from(file).await?.0;
+        let running_checksum = Checksum(U16::read_from(file).await?.0);
         Ok(Self {
             header,
             running_checksum,
@@ -286,7 +305,7 @@ impl Beacon {
     pub fn write_to(self, sink: &mut impl ByteSink) -> Result<usize, FileErr> {
         let mut sum = 0;
         sum += MessageHeader(self.header).write_to(sink)?;
-        sum += U16(self.running_checksum).write_to(sink)?;
+        sum += U16(self.running_checksum.0).write_to(sink)?;
         Ok(sum)
     }
 
@@ -317,6 +336,10 @@ impl MessageHeader {
         sum += U64(*h.sequence()).write_to(sink)?;
         sum += UnixTimestamp(*h.timestamp()).write_to(sink)?;
         Ok(sum)
+    }
+
+    pub fn size(&self) -> usize {
+        Self::size_of(&self.0)
     }
 
     pub fn size_of(header: &sea_streamer_types::MessageHeader) -> usize {
@@ -418,8 +441,8 @@ impl RunningChecksum {
         Self { crc: 0xFFFF }
     }
 
-    pub fn update(&mut self, checksum: u16) {
-        let bytes = checksum.to_be_bytes();
+    pub fn update(&mut self, checksum: Checksum) {
+        let bytes = checksum.0.to_be_bytes();
         self.byte(bytes[0]);
         self.byte(bytes[1]);
     }
@@ -428,8 +451,8 @@ impl RunningChecksum {
         self.crc = calculate_crc16(&[byte], CRC16_CDMA2000_POLY, self.crc, false, false, 0);
     }
 
-    pub fn crc(&self) -> u16 {
-        self.crc
+    pub fn crc(&self) -> Checksum {
+        Checksum(self.crc)
     }
 }
 
@@ -521,20 +544,21 @@ mod test {
         checksum.byte(b'7');
         checksum.byte(b'8');
         checksum.byte(b'9');
-        assert_eq!(checksum.crc(), 0x4C06);
+        assert_eq!(checksum.crc(), Checksum(0x4C06));
         checksum.byte(b'a');
         checksum.byte(b'b');
         checksum.byte(b'c');
         checksum.byte(b'd');
-        assert_eq!(checksum.crc(), 0xA106);
+        assert_eq!(checksum.crc(), Checksum(0xA106));
         assert_eq!(
-            checksum.crc(),
+            checksum.crc().0,
             crc16_cdma2000(&"123456789abcd".into_bytes())
         );
     }
 
     #[test]
     fn test_num_beacons() {
+        assert_eq!(Beacons::num_beacons(640), 1);
         // we can only fit 1 beacon in 1kb
         assert_eq!(Beacons::num_beacons(1024), 1);
     }

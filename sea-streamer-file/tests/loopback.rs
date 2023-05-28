@@ -11,7 +11,7 @@ static INIT: std::sync::Once = std::sync::Once::new();
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
 async fn loopback() -> anyhow::Result<()> {
     use sea_streamer_file::{
-        format::{self, Beacon, Beacons, HeaderV1, ShortString},
+        format::{self, Beacon, Beacons, Checksum, HeaderV1, ShortString},
         Bytes, FileSink, FileSource, ReadFrom, WriteFrom, DEFAULT_FILE_SIZE_LIMIT,
     };
     use sea_streamer_types::{Buffer, MessageHeader, OwnedMessage, ShardId, StreamKey, Timestamp};
@@ -39,7 +39,7 @@ async fn loopback() -> anyhow::Result<()> {
     let read = Bytes::read_from(&mut source, 2).await?;
     assert_eq!(read.bytes(), vec![7, 8]);
 
-    let timestamp = now.replace_microsecond(0)?;
+    let timestamp = now.replace_millisecond(now.millisecond())?;
 
     assert!(
         ShortString::new("Lorem ipsum dolor sit amet, consectetur adipiscing elit".to_owned())
@@ -56,7 +56,8 @@ async fn loopback() -> anyhow::Result<()> {
         created_at: timestamp,
         beacon_interval: 12345,
     };
-    header.clone().write_to(&mut sink)?;
+    let size = HeaderV1::size();
+    assert_eq!(size, header.clone().write_to(&mut sink)?);
     let read = HeaderV1::read_from(&mut source).await?;
     assert_eq!(header, read);
 
@@ -66,7 +67,8 @@ async fn loopback() -> anyhow::Result<()> {
         123456789101112,
         timestamp,
     ));
-    mess_header.clone().write_to(&mut sink)?;
+    let size = mess_header.size();
+    assert_eq!(size, mess_header.clone().write_to(&mut sink)?);
     let read = format::MessageHeader::read_from(&mut source).await?;
     assert_eq!(mess_header, read);
 
@@ -74,7 +76,8 @@ async fn loopback() -> anyhow::Result<()> {
         message: OwnedMessage::new(mess_header.0.clone(), "123456789".into_bytes()),
         checksum: 0,
     };
-    message.clone().write_to(&mut sink)?;
+    let size = message.size();
+    assert_eq!(size, message.clone().write_to(&mut sink)?.0);
     let read = format::Message::read_from(&mut source).await?;
     message.checksum = 0x4C06;
     assert_eq!(message, read);
@@ -84,15 +87,16 @@ async fn loopback() -> anyhow::Result<()> {
         items: vec![
             Beacon {
                 header: mess_header.0.clone(),
-                running_checksum: 5678,
+                running_checksum: Checksum(5678),
             },
             Beacon {
                 header: mess_header.0.clone(),
-                running_checksum: 9876,
+                running_checksum: Checksum(9876),
             },
         ],
     };
-    beacon.clone().write_to(&mut sink)?;
+    let size = beacon.size();
+    assert_eq!(size, beacon.clone().write_to(&mut sink)?);
     let read = Beacons::read_from(&mut source).await?;
     assert_eq!(beacon, read);
 
@@ -195,6 +199,72 @@ async fn beacon() -> anyhow::Result<()> {
     assert_eq!(read.bytes(), vec![9, 10, 11, 12, 13, 14, 15, 16]);
     let read = Bytes::read_from(&mut source, 4).await?;
     assert_eq!(read.bytes(), vec![17, 18, 19, 20]);
+
+    Ok(())
+}
+
+#[cfg(feature = "test")]
+#[cfg_attr(feature = "runtime-tokio", tokio::test)]
+#[cfg_attr(feature = "runtime-async-std", async_std::test)]
+async fn messages() -> anyhow::Result<()> {
+    use sea_streamer_file::{format::RunningChecksum, MessageSink, MessageSource};
+    use sea_streamer_types::{Buffer, MessageHeader, OwnedMessage, ShardId, StreamKey, Timestamp};
+
+    const TEST: &str = "messages";
+    INIT.call_once(env_logger::init);
+
+    let path =
+        temp_file(format!("{}-{}", TEST, now().unix_timestamp_nanos() / 1_000_000).as_str())?;
+    println!("{path}");
+
+    let mut sink = MessageSink::new(&path, 640, 1024 * 1024).await?;
+    let mut source = MessageSource::new(&path).await?;
+
+    let stream_key = StreamKey::new("hello")?;
+    let mut running_checksum = RunningChecksum::new();
+
+    let header = MessageHeader::new(stream_key.clone(), ShardId::new(2), 1, now());
+    let message = OwnedMessage::new(header, "world".into_bytes());
+    running_checksum.update(sink.write(message.clone()).await?);
+    let read = source.next().await?;
+    assert_eq!(read.message, message);
+    dbg!(message.header());
+
+    let payload = ("Lorem ipsum dolor sit amet, consectetur adipiscing elit, ".to_owned() +
+    "sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam" +
+    ", quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in"
+    ).into_bytes();
+
+    let header = MessageHeader::new(stream_key.clone(), ShardId::new(2), 2, now());
+    let message = OwnedMessage::new(header, payload.clone());
+    running_checksum.update(sink.write(message.clone()).await?);
+    let read = source.next().await?;
+    assert_eq!(read.message, message);
+    dbg!(message.header());
+
+    let header = MessageHeader::new(stream_key.clone(), ShardId::new(2), 3, now());
+    let message = OwnedMessage::new(header, payload.clone());
+    running_checksum.update(sink.write(message.clone()).await?);
+    let read = source.next().await?;
+    assert_eq!(read.message, message);
+    dbg!(message.header());
+
+    // There should be a beacon here
+    assert_eq!(source.beacons()[0].running_checksum, running_checksum.crc());
+    dbg!(source.beacons());
+
+    let header = MessageHeader::new(stream_key.clone(), ShardId::new(2), 4, now());
+    let message = OwnedMessage::new(header, payload.clone());
+    running_checksum.update(sink.write(message.clone()).await?);
+    let read = source.next().await?;
+    assert_eq!(read.message, message);
+    dbg!(message.header());
+
+    fn now() -> Timestamp {
+        let now = Timestamp::now_utc();
+        let now = now.replace_millisecond(now.millisecond()).unwrap();
+        now
+    }
 
     Ok(())
 }

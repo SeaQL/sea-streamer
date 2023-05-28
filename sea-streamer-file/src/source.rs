@@ -297,7 +297,7 @@ impl<'a> Future for ReceiveFuture<'a> {
                 Ok(Err(e)) => Err(e),
                 Err(_) => {
                     // Channel closed
-                    Err(FileErr::WatchDead)
+                    Err(FileErr::TaskDead)
                 }
             }),
             Pending => Pending,
@@ -339,7 +339,7 @@ impl<'a> Future for FileStream<'a> {
                     }
                     None => {
                         // Channel closed
-                        return Ready(Err(FileErr::WatchDead));
+                        return Ready(Err(FileErr::TaskDead));
                     }
                 },
                 Pending => {

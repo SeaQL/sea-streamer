@@ -7,7 +7,7 @@ use sea_streamer_types::{
 };
 
 use crate::{
-    format::{Beacon, Beacons, Header, Message, RunningChecksum},
+    format::{Beacon, Beacons, Checksum, Header, Message, RunningChecksum},
     ByteBuffer, ByteSource, Bytes, FileErr, FileSink, FileSource, ReadFrom, WriteFrom,
 };
 
@@ -27,7 +27,8 @@ pub struct MessageSink {
     offset: u64,
     beacon_interval: u32,
     beacons: BTreeMap<(StreamKey, ShardId), BeaconState>,
-    beacon_count: usize,
+    beacon_count: u32,
+    message_count: u32,
 }
 
 struct BeaconState {
@@ -188,10 +189,11 @@ impl MessageSink {
             beacon_interval,
             beacons: Default::default(),
             beacon_count: 0,
+            message_count: 0,
         })
     }
 
-    pub fn write(&mut self, message: OwnedMessage) -> Result<(), FileErr> {
+    pub async fn write(&mut self, message: OwnedMessage) -> Result<Checksum, FileErr> {
         let key = (message.stream_key(), message.shard_id());
         let (seq_no, ts) = (message.sequence(), message.timestamp());
         let message = Message {
@@ -223,7 +225,7 @@ impl MessageSink {
                 for ((key, sid), beacon) in self
                     .beacons
                     .iter()
-                    .skip(self.beacon_count % self.beacons.len())
+                    .skip(self.beacon_count as usize % self.beacons.len())
                     .chain(self.beacons.iter())
                     .take(std::cmp::min(self.beacons.len(), num_beacons))
                 {
@@ -238,10 +240,14 @@ impl MessageSink {
                     items,
                 };
                 self.offset += beacons.write_to(&mut self.sink)? as u64;
-                self.beacon_count += beacon_count;
+                self.beacon_count += beacon_count as u32;
             }
         }
 
-        Ok(())
+        self.sink.marker(self.message_count)?;
+        assert_eq!(self.message_count, self.sink.receipt().await?);
+        self.message_count += 1;
+
+        Ok(checksum)
     }
 }
