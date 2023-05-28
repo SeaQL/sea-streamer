@@ -39,7 +39,7 @@ where
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-/// headerdata associated with a message.
+/// Metadata associated with a message.
 pub struct MessageHeader {
     stream_key: StreamKey,
     shard_id: ShardId,

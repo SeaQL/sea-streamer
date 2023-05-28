@@ -69,14 +69,16 @@ pub const TIMESTAMP_FORMAT: &[FormatItem<'static>] =
 pub const TIMESTAMP_FORMAT_SUBSEC: &[FormatItem<'static>] =
     format_description!("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond]");
 
-mod consumers;
+mod consumer;
+mod consumer_group;
 mod error;
 pub(crate) mod parser;
 mod producer;
 mod streamer;
 mod util;
 
-pub use consumers::*;
+pub use consumer::*;
 pub use error::*;
+pub(crate) use parser::*;
 pub use producer::*;
 pub use streamer::*;

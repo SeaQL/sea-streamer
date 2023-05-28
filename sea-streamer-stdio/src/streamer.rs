@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use crate::{
-    consumers, create_consumer, producer, StdioConsumer, StdioErr, StdioProducer, StdioResult,
+    consumer, create_consumer, producer, StdioConsumer, StdioErr, StdioProducer, StdioResult,
 };
 use sea_streamer_types::{
     export::async_trait, ConnectOptions as ConnectOptionsTrait, ConsumerGroup, ConsumerMode,
@@ -49,7 +49,7 @@ impl StreamerTrait for StdioStreamer {
     /// The side effects is global: all existing consumers and producers will become unusable, until you connect again.
     async fn disconnect(self) -> StdioResult<()> {
         // we can't reliably shutdown consumers
-        consumers::disconnect();
+        consumer::disconnect();
         producer::shutdown();
         while !producer::shutdown_already() {
             sea_streamer_runtime::sleep(Duration::from_millis(1)).await;

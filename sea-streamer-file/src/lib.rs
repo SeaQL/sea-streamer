@@ -1,4 +1,5 @@
 mod buffer;
+mod consumer;
 mod error;
 pub mod format;
 mod messages;
@@ -7,6 +8,7 @@ mod source;
 mod watcher;
 
 pub use buffer::*;
+pub use consumer::*;
 pub use error::*;
 pub use messages::*;
 pub use sink::*;

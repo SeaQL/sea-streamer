@@ -11,8 +11,9 @@ use sea_streamer_types::{
 use thiserror::Error;
 use time::PrimitiveDateTime;
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct PartialMeta {
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
+/// An incomplete [`MessageHeader`]
+pub struct PartialHeader {
     pub timestamp: Option<Timestamp>,
     pub stream_key: Option<StreamKey>,
     pub sequence: Option<SeqNo>,
@@ -21,18 +22,18 @@ pub struct PartialMeta {
 
 #[derive(Error, Debug)]
 pub enum ParseErr {
-    #[error("Empty PartialMeta")]
+    #[error("Empty PartialHeader")]
     Empty,
     #[error("Unknown part: {0}")]
     Unknown(String),
 }
 
-pub fn parse_meta(input: &str) -> Result<(PartialMeta, &str), ParseErr> {
+pub fn parse_meta(input: &str) -> Result<(PartialHeader, &str), ParseErr> {
     let (o, raw) = match parens(input) {
         Ok(ok) => ok,
         Err(_) => {
             return Ok((
-                PartialMeta {
+                PartialHeader {
                     timestamp: Some(Timestamp::now_utc()),
                     ..Default::default()
                 },
@@ -41,7 +42,7 @@ pub fn parse_meta(input: &str) -> Result<(PartialMeta, &str), ParseErr> {
         }
     };
     let parts = raw.split('|').map(|s| s.trim());
-    let mut meta = PartialMeta::default();
+    let mut meta = PartialHeader::default();
     for part in parts {
         let mut parsed = false;
         if meta.timestamp.is_none()
@@ -131,7 +132,7 @@ mod test {
         assert_eq!(
             parse_meta(r#"[2022-01-02T03:04:05] { "payload": "anything" }"#).unwrap(),
             (
-                PartialMeta {
+                PartialHeader {
                     timestamp: Some(datetime!(2022-01-02 03:04:05).assume_utc()),
                     ..Default::default()
                 },
@@ -146,7 +147,7 @@ mod test {
             parse_meta(r#"[2022-01-02T03:04:05.678 | my-fancy_topic.1] ["array", "of", "values"]"#)
                 .unwrap(),
             (
-                PartialMeta {
+                PartialHeader {
                     timestamp: Some(datetime!(2022-01-02 03:04:05.678).assume_utc()),
                     stream_key: Some(StreamKey::new("my-fancy_topic.1").unwrap()),
                     sequence: None,
@@ -163,7 +164,7 @@ mod test {
             parse_meta(r#"[2022-01-02T03:04:05 | my-fancy_topic.1 | 123] a string payload"#)
                 .unwrap(),
             (
-                PartialMeta {
+                PartialHeader {
                     timestamp: Some(datetime!(2022-01-02 03:04:05).assume_utc()),
                     stream_key: Some(StreamKey::new("my-fancy_topic.1").unwrap()),
                     sequence: Some(123),
@@ -182,7 +183,7 @@ mod test {
             )
             .unwrap(),
             (
-                PartialMeta {
+                PartialHeader {
                     timestamp: Some(datetime!(2022-01-02 03:04:05).assume_utc()),
                     stream_key: Some(StreamKey::new("my-fancy_topic.1").unwrap()),
                     sequence: Some(123),
@@ -198,7 +199,7 @@ mod test {
         assert_eq!(
             parse_meta(r#"[my-fancy_topic.1] { "payload": "anything" }"#).unwrap(),
             (
-                PartialMeta {
+                PartialHeader {
                     timestamp: None,
                     stream_key: Some(StreamKey::new("my-fancy_topic.1").unwrap()),
                     sequence: None,
@@ -214,7 +215,7 @@ mod test {
         assert_eq!(
             parse_meta(r#"[my-fancy_topic.1 | 123] ["array", "of", "values"]"#).unwrap(),
             (
-                PartialMeta {
+                PartialHeader {
                     timestamp: None,
                     stream_key: Some(StreamKey::new("my-fancy_topic.1").unwrap()),
                     sequence: Some(123),
@@ -230,7 +231,7 @@ mod test {
         assert_eq!(
             parse_meta(r#"[my-fancy_topic.1 | 123 | 4] { "payload": "anything" }"#).unwrap(),
             (
-                PartialMeta {
+                PartialHeader {
                     timestamp: None,
                     stream_key: Some(StreamKey::new("my-fancy_topic.1").unwrap()),
                     sequence: Some(123),

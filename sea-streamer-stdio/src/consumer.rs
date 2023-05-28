@@ -2,46 +2,27 @@ use flume::{
     r#async::{RecvFut, RecvStream},
     unbounded, Receiver, RecvError, Sender,
 };
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::Mutex,
-};
+use std::sync::Mutex;
 
 use sea_streamer_types::{
     export::{
         async_trait,
         futures::{future::MapErr, stream::Map as StreamMap, StreamExt, TryFutureExt},
     },
-    Consumer as ConsumerTrait, ConsumerGroup, Message, MessageHeader, SeqNo, SeqPos, ShardId,
-    SharedMessage, StreamErr, StreamKey, Timestamp,
+    Consumer as ConsumerTrait, ConsumerGroup, SeqPos, ShardId, SharedMessage, StreamErr, StreamKey,
+    Timestamp,
 };
 
 use crate::{
-    parser::{parse_meta, PartialMeta},
+    consumer_group::{Cid, Consumers},
+    parse_meta,
     util::PanicGuard,
-    StdioErr, StdioResult, BROADCAST,
+    PartialHeader, StdioErr, StdioResult,
 };
 
 lazy_static::lazy_static! {
     static ref CONSUMERS: Mutex<Consumers> = Mutex::new(Default::default());
     static ref THREAD: Mutex<bool> = Mutex::new(false);
-}
-
-type Cid = u64;
-
-#[derive(Debug, Default)]
-struct Consumers {
-    max_id: Cid,
-    consumers: BTreeMap<Cid, ConsumerRelay>,
-    sequences: HashMap<(StreamKey, ShardId), SeqNo>,
-}
-
-/// We use flume because it works on any async runtime. But actually we only wanted a SPSC queue.
-#[derive(Debug)]
-struct ConsumerRelay {
-    group: Option<ConsumerGroup>,
-    streams: Vec<StreamKey>,
-    sender: Sender<SharedMessage>,
 }
 
 #[derive(Debug)]
@@ -51,100 +32,14 @@ pub struct StdioConsumer {
     receiver: Receiver<SharedMessage>,
 }
 
+pub(crate) type ConsumerMember = StdioConsumer;
+
 pub type NextFuture<'a> = MapErr<RecvFut<'a, SharedMessage>, fn(RecvError) -> StreamErr<StdioErr>>;
 
 pub type StdioMessageStream<'a> =
     StreamMap<RecvStream<'a, SharedMessage>, fn(SharedMessage) -> StdioResult<SharedMessage>>;
 
 pub type StdioMessage = SharedMessage;
-
-impl Consumers {
-    fn add(&mut self, group: Option<ConsumerGroup>, streams: Vec<StreamKey>) -> StdioConsumer {
-        let id = self.max_id;
-        self.max_id += 1;
-        let (con, sender) = StdioConsumer::new(id, streams.clone());
-        self.consumers.insert(
-            id,
-            ConsumerRelay {
-                group,
-                streams,
-                sender,
-            },
-        );
-        con
-    }
-
-    fn remove(&mut self, id: Cid) {
-        self.consumers.remove(&id);
-    }
-
-    fn dispatch(&mut self, meta: PartialMeta, bytes: Vec<u8>, offset: usize) {
-        let stream_key = meta
-            .stream_key
-            .to_owned()
-            .unwrap_or_else(|| StreamKey::new(BROADCAST).unwrap());
-        let shard_id = meta.shard_id.unwrap_or_default();
-        let entry = self
-            .sequences
-            .entry((stream_key.clone(), shard_id)) // unfortunate we have to clone
-            .or_default();
-        let sequence = if let Some(sequence) = meta.sequence {
-            *entry = sequence;
-            sequence
-        } else {
-            let ret = *entry;
-            *entry = ret + 1;
-            ret
-        };
-        let length = bytes.len() - offset;
-        let message = SharedMessage::new(
-            MessageHeader::new(
-                stream_key,
-                shard_id,
-                sequence,
-                meta.timestamp.unwrap_or_else(Timestamp::now_utc),
-            ),
-            bytes,
-            offset,
-            length,
-        );
-
-        // We construct group membership on-the-fly so that consumers can join/leave a group anytime
-        let mut groups: BTreeMap<ConsumerGroup, Vec<Cid>> = Default::default();
-
-        for (cid, consumer) in self.consumers.iter() {
-            if meta.stream_key.is_none() // broadcast message
-                || consumer.streams.contains(meta.stream_key.as_ref().unwrap())
-            {
-                match &consumer.group {
-                    Some(group) => {
-                        if let Some(vec) = groups.get_mut(group) {
-                            vec.push(*cid);
-                        } else {
-                            groups.insert(group.to_owned(), vec![*cid]);
-                        }
-                    }
-                    None => {
-                        // we don't care if it cannot be delivered
-                        consumer.sender.send(message.clone()).ok();
-                    }
-                }
-            }
-        }
-
-        for ids in groups.values() {
-            // This round-robin is deterministic
-            let id = ids[message.sequence() as usize % ids.len()];
-            let consumer = self.consumers.get(&id).unwrap();
-            // ignore any error
-            consumer.sender.send(message.clone()).ok();
-        }
-    }
-
-    fn disconnect(&mut self) {
-        self.consumers = Default::default();
-    }
-}
 
 pub(crate) fn create_consumer(
     group: Option<ConsumerGroup>,
@@ -197,13 +92,13 @@ pub(crate) fn disconnect() {
     consumers.disconnect()
 }
 
-pub(crate) fn dispatch(meta: PartialMeta, bytes: Vec<u8>, offset: usize) {
+pub(crate) fn dispatch(meta: PartialHeader, bytes: Vec<u8>, offset: usize) {
     let mut consumers = CONSUMERS.lock().expect("Failed to lock Consumers");
     consumers.dispatch(meta, bytes, offset)
 }
 
 impl StdioConsumer {
-    fn new(id: Cid, streams: Vec<StreamKey>) -> (Self, Sender<SharedMessage>) {
+    pub(crate) fn new(id: Cid, streams: Vec<StreamKey>) -> (Self, Sender<SharedMessage>) {
         let (sender, receiver) = unbounded();
         (
             Self {
