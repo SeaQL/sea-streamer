@@ -208,7 +208,9 @@ async fn beacon() -> anyhow::Result<()> {
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
 async fn messages() -> anyhow::Result<()> {
     use sea_streamer_file::{format::RunningChecksum, MessageSink, MessageSource};
-    use sea_streamer_types::{Buffer, MessageHeader, OwnedMessage, ShardId, StreamKey, Timestamp};
+    use sea_streamer_types::{
+        Buffer, MessageHeader, OwnedMessage, SeqPos, ShardId, StreamKey, Timestamp,
+    };
 
     const TEST: &str = "messages";
     INIT.call_once(env_logger::init);
@@ -224,11 +226,10 @@ async fn messages() -> anyhow::Result<()> {
     let mut running_checksum = RunningChecksum::new();
 
     let header = MessageHeader::new(stream_key.clone(), ShardId::new(2), 1, now());
-    let message = OwnedMessage::new(header, "world".into_bytes());
-    running_checksum.update(sink.write(message.clone()).await?);
+    let world = OwnedMessage::new(header, "world".into_bytes());
+    running_checksum.update(sink.write(world.clone()).await?);
     let read = source.next().await?;
-    assert_eq!(read.message, message);
-    dbg!(message.header());
+    assert_eq(&read.message, &world);
 
     let payload = ("Lorem ipsum dolor sit amet, consectetur adipiscing elit, ".to_owned() +
     "sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam" +
@@ -239,15 +240,13 @@ async fn messages() -> anyhow::Result<()> {
     let message = OwnedMessage::new(header, payload.clone());
     running_checksum.update(sink.write(message.clone()).await?);
     let read = source.next().await?;
-    assert_eq!(read.message, message);
-    dbg!(message.header());
+    assert_eq(&read.message, &message);
 
     let header = MessageHeader::new(stream_key.clone(), ShardId::new(2), 3, now());
     let message = OwnedMessage::new(header, payload.clone());
     running_checksum.update(sink.write(message.clone()).await?);
     let read = source.next().await?;
-    assert_eq!(read.message, message);
-    dbg!(message.header());
+    assert_eq(&read.message, &message);
 
     // There should be a beacon here
     assert_eq!(source.beacons()[0].running_checksum, running_checksum.crc());
@@ -257,8 +256,51 @@ async fn messages() -> anyhow::Result<()> {
     let message = OwnedMessage::new(header, payload.clone());
     running_checksum.update(sink.write(message.clone()).await?);
     let read = source.next().await?;
-    assert_eq!(read.message, message);
-    dbg!(message.header());
+    assert_eq(&read.message, &message);
+
+    // Try rewind
+    assert_eq!(1, source.rewind(SeqPos::At(1)).await?);
+    let read = source.next().await?;
+    assert_eq(&read.message, &message);
+
+    // Fast forward
+    assert_eq!(1, source.rewind(SeqPos::End).await?);
+
+    // Let's make a message spanning multiple beacons
+    let header = MessageHeader::new(stream_key.clone(), ShardId::new(2), 5, now());
+    let message = OwnedMessage::new(header, vec![1; 768]);
+    running_checksum.update(sink.write(message.clone()).await?);
+    let read = source.next().await?;
+    assert_eq(&read.message, &message);
+
+    let header = MessageHeader::new(stream_key.clone(), ShardId::new(2), 6, now());
+    let message = OwnedMessage::new(header, payload.clone());
+    running_checksum.update(sink.write(message.clone()).await?);
+    let read = source.next().await?;
+    assert_eq(&read.message, &message);
+
+    // Now, seeking to 2 would cause a slippage to 3
+    assert_eq!(3, source.rewind(SeqPos::At(2)).await?);
+    let read = source.next().await?;
+    assert_eq(&read.message, &message);
+
+    // Rewind everything
+    assert_eq!(0, source.rewind(SeqPos::Beginning).await?);
+    let read = source.next().await?;
+    assert_eq(&read.message, &world);
+
+    // Fast forward
+    assert_eq!(3, source.rewind(SeqPos::End).await?);
+    let header = MessageHeader::new(stream_key.clone(), ShardId::new(2), 7, now());
+    let message = OwnedMessage::new(header, payload.clone());
+    running_checksum.update(sink.write(message.clone()).await?);
+    let read = source.next().await?;
+    assert_eq(&read.message, &message);
+
+    fn assert_eq(a: &OwnedMessage, b: &OwnedMessage) {
+        assert_eq!(a, b);
+        dbg!(a.header());
+    }
 
     fn now() -> Timestamp {
         let now = Timestamp::now_utc();

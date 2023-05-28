@@ -157,7 +157,7 @@ impl FileSink {
         match self.update.recv_async().await {
             Ok(Update::Receipt(receipt)) => Ok(receipt),
             Ok(Update::FileErr(err)) => Err(err),
-            Err(_) => Err(FileErr::TaskDead),
+            Err(_) => Err(FileErr::TaskDead("sink")),
         }
     }
 

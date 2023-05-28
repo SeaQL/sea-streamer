@@ -59,6 +59,13 @@ impl ByteBuffer {
         Default::default()
     }
 
+    /// Create a new buffer with one blob of bytes.
+    pub fn one(bytes: Bytes) -> Self {
+        let mut buf = Self::new();
+        buf.append(bytes);
+        buf
+    }
+
     /// Push bytes into the buffer.
     pub fn append(&mut self, bytes: Bytes) {
         self.buf.push_back(bytes);

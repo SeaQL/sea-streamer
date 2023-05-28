@@ -23,8 +23,8 @@ pub enum FileErr {
     FileLimitExceeded,
     #[error("Watch Dead")]
     WatchDead,
-    #[error("Task Dead")]
-    TaskDead,
+    #[error("Task Dead ({0})")]
+    TaskDead(&'static str),
     #[error("Not Enough Bytes: the file might be truncated.")]
     NotEnoughBytes,
 }

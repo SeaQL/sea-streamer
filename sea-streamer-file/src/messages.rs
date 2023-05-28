@@ -68,7 +68,9 @@ impl MessageSource {
     /// Note: SeqNo is regarded as the N-th beacon.
     ///
     /// Warning: This future must not be canceled.
-    pub async fn rewind(&mut self, target: SeqPos) -> Result<(), FileErr> {
+    ///
+    /// Returns the current location in terms of N-th beacon.
+    pub async fn rewind(&mut self, target: SeqPos) -> Result<u32, FileErr> {
         let pos = match target {
             SeqPos::Beginning | SeqPos::At(0) => SeqPos::At(Header::size() as u64),
             SeqPos::End => SeqPos::End,
@@ -123,7 +125,22 @@ impl MessageSource {
             self.known_size = std::cmp::max(self.known_size, self.offset);
         }
 
-        Ok(())
+        // Now we are at the first message after the last beacon,
+        // we want to consume all messages up to known size
+        if matches!(target, SeqPos::End) && self.offset < self.known_size {
+            let mut next = self.offset;
+            let bytes = self
+                .source
+                .request_bytes((self.known_size - self.offset) as usize)
+                .await?;
+            let mut buffer = ByteBuffer::one(bytes);
+            while let Ok(message) = Message::read_from(&mut buffer).await {
+                next += message.size() as u64;
+            }
+            self.offset = self.source.seek(SeqPos::At(next)).await?;
+        }
+
+        Ok((self.offset / self.beacon_interval as u64) as u32)
     }
 
     fn has_beacon(&self) -> bool {
@@ -193,6 +210,8 @@ impl MessageSink {
         })
     }
 
+    /// This message is cancel safe. If it's canceled after polled once, the message
+    /// will have been written.
     pub async fn write(&mut self, message: OwnedMessage) -> Result<Checksum, FileErr> {
         let key = (message.stream_key(), message.shard_id());
         let (seq_no, ts) = (message.sequence(), message.timestamp());
@@ -244,9 +263,10 @@ impl MessageSink {
             }
         }
 
+        let receipt = self.message_count;
         self.sink.marker(self.message_count)?;
-        assert_eq!(self.message_count, self.sink.receipt().await?);
         self.message_count += 1;
+        assert_eq!(receipt, self.sink.receipt().await?);
 
         Ok(checksum)
     }
