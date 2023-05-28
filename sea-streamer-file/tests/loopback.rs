@@ -177,21 +177,21 @@ async fn beacon() -> anyhow::Result<()> {
 
     let mut sink = FileSink::new(&path, WriteFrom::Beginning, DEFAULT_FILE_SIZE_LIMIT).await?;
     let source = FileSource::new(&path, ReadFrom::Beginning).await?;
-    let mut source = MessageSource::new_with(source, 0, 10);
+    let mut source = MessageSource::new_with(source, 0, 12);
 
-    Bytes::Bytes(vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]).write_to(&mut sink)?;
+    Bytes::Bytes(vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]).write_to(&mut sink)?;
     Beacons {
         items: Vec::new(),
         remaining_messages_bytes: 0x88,
     }
     .write_to(&mut sink)?;
-    Bytes::Bytes(vec![11, 12, 13, 14, 15]).write_to(&mut sink)?;
+    Bytes::Bytes(vec![13, 14, 15, 16, 17]).write_to(&mut sink)?;
     Beacons {
         items: Vec::new(),
         remaining_messages_bytes: 0x99,
     }
     .write_to(&mut sink)?;
-    Bytes::Bytes(vec![16, 17, 18, 19, 20]).write_to(&mut sink)?;
+    Bytes::Bytes(vec![18, 19, 20]).write_to(&mut sink)?;
 
     let read = Bytes::read_from(&mut source, 8).await?;
     assert_eq!(read.bytes(), vec![1, 2, 3, 4, 5, 6, 7, 8]);

@@ -69,36 +69,21 @@ impl FileSink {
 
                         if let Err(e) = file.write_all(&bytes.bytes()).await {
                             std::mem::drop(pending); // trigger error
-                            if let Err(e) = notify
-                                .send_async(Update::FileErr(FileErr::IoError(e)))
-                                .await
-                            {
-                                log::error!("{:?}", e.into_inner());
-                            }
+                            send_error(&notify, FileErr::IoError(e)).await;
                             break;
                         }
 
                         #[cfg(feature = "runtime-async-std")]
                         if let Err(e) = file.flush().await {
                             std::mem::drop(pending); // trigger error
-                            if let Err(e) = notify
-                                .send_async(Update::FileErr(FileErr::IoError(e)))
-                                .await
-                            {
-                                log::error!("{:?}", e.into_inner());
-                            }
+                            send_error(&notify, FileErr::IoError(e)).await;
                             break;
                         }
 
                         limit -= len;
                         if limit == 0 {
                             std::mem::drop(pending); // trigger error
-                            if let Err(e) = notify
-                                .send_async(Update::FileErr(FileErr::FileLimitExceeded))
-                                .await
-                            {
-                                log::error!("{:?}", e.into_inner());
-                            }
+                            send_error(&notify, FileErr::FileLimitExceeded).await;
                             break;
                         }
                     }
@@ -114,31 +99,17 @@ impl FileSink {
                         Ok(FileEvent::Modify) => {}
                         Ok(FileEvent::Remove) => {
                             std::mem::drop(pending); // trigger error
-                            if let Err(e) = notify
-                                .send_async(Update::FileErr(FileErr::FileRemoved))
-                                .await
-                            {
-                                log::error!("{:?}", e.into_inner());
-                            }
+                            send_error(&notify, FileErr::FileRemoved).await;
                             break 'outer;
                         }
                         Ok(FileEvent::Error(e)) => {
                             std::mem::drop(pending); // trigger error
-                            if let Err(e) = notify
-                                .send_async(Update::FileErr(FileErr::WatchError(e)))
-                                .await
-                            {
-                                log::error!("{:?}", e.into_inner());
-                            }
+                            send_error(&notify, FileErr::WatchError(e)).await;
                             break 'outer;
                         }
                         Err(TryRecvError::Disconnected) => {
                             std::mem::drop(pending); // trigger error
-                            if let Err(e) =
-                                notify.send_async(Update::FileErr(FileErr::WatchDead)).await
-                            {
-                                log::error!("{:?}", e.into_inner());
-                            }
+                            send_error(&notify, FileErr::WatchDead).await;
                             break 'outer;
                         }
                         Ok(FileEvent::Rewatch) => {
@@ -151,6 +122,12 @@ impl FileSink {
             }
             log::debug!("FileSink task finish ({})", path);
         });
+
+        async fn send_error(notify: &Sender<Update>, e: FileErr) {
+            if let Err(e) = notify.send_async(Update::FileErr(e)).await {
+                log::error!("{:?}", e.into_inner());
+            }
+        }
 
         Ok(Self {
             watcher: Some(watcher),

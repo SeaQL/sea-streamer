@@ -13,4 +13,4 @@ pub use sink::*;
 pub use source::*;
 
 pub const DEFAULT_FILE_SIZE_LIMIT: usize = 16 * 1024 * 1024 * 1024; // 16GB
-pub const DEFAULT_BEACON_INTERVAL: usize = 1 * 1024 * 1024; // 1MB
+pub const DEFAULT_BEACON_INTERVAL: usize = 1024 * 1024; // 1MB
