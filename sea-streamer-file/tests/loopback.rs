@@ -125,35 +125,39 @@ async fn seek() -> anyhow::Result<()> {
     let bytes = Bytes::from_bytes(vec![1, 2, 3, 4]);
     bytes.clone().write_to(&mut sink)?;
     let read = Bytes::read_from(&mut source, bytes.len()).await?;
-    assert_eq!(read, bytes);
+    assert_eq(read.bytes(), bytes.bytes());
 
     let bytes = Bytes::from_bytes(vec![5, 6, 7, 8]);
     bytes.write_to(&mut sink)?;
 
     let read = Bytes::read_from(&mut source, 2).await?;
-    assert_eq!(read.bytes(), vec![5, 6]);
+    assert_eq(read.bytes(), vec![5, 6]);
 
     let read = Bytes::read_from(&mut source, 2).await?;
-    assert_eq!(read.bytes(), vec![7, 8]);
+    assert_eq(read.bytes(), vec![7, 8]);
 
     source.seek(SeqPos::Beginning).await?;
     let read = Bytes::read_from(&mut source, 6).await?;
-    assert_eq!(read.bytes(), vec![1, 2, 3, 4, 5, 6]);
+    assert_eq(read.bytes(), vec![1, 2, 3, 4, 5, 6]);
 
     source.seek(SeqPos::At(4)).await?;
     let read = Bytes::read_from(&mut source, 4).await?;
-    assert_eq!(read.bytes(), vec![5, 6, 7, 8]);
+    assert_eq(read.bytes(), vec![5, 6, 7, 8]);
 
     source.seek(SeqPos::At(6)).await?;
-    let read = Bytes::read_from(&mut source, 4);
     Bytes::Bytes(vec![9, 10]).write_to(&mut sink)?;
-    let read = read.await?;
-    assert_eq!(read.bytes(), vec![7, 8, 9, 10]);
+    let read = Bytes::read_from(&mut source, 4).await?;
+    assert_eq(read.bytes(), vec![7, 8, 9, 10]);
 
     source.seek(SeqPos::End).await?;
     Bytes::Bytes(vec![11, 12]).write_to(&mut sink)?;
     let read = Bytes::read_from(&mut source, 2).await?;
-    assert_eq!(read.bytes(), vec![11, 12]);
+    assert_eq(read.bytes(), vec![11, 12]);
+
+    fn assert_eq(a: Vec<u8>, b: Vec<u8>) {
+        assert_eq!(a, b);
+        println!("{}", format!("{a:?}").replace('\n', ""));
+    }
 
     Ok(())
 }

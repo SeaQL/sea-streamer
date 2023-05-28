@@ -108,8 +108,6 @@ impl FileSink {
                             break 'outer;
                         }
                         Err(TryRecvError::Disconnected) => {
-                            std::mem::drop(pending); // trigger error
-                            send_error(&notify, FileErr::WatchDead).await;
                             break 'outer;
                         }
                         Ok(FileEvent::Rewatch) => {

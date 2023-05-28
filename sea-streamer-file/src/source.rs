@@ -188,7 +188,6 @@ impl FileSource {
                 }
             }
             log::debug!("FileSource task finish ({})", path);
-            event.drain();
             (file, event, path)
         })
     }
@@ -245,6 +244,7 @@ impl FileSource {
             .await
             .map_err(FileErr::IoError)?;
         // Spawn new task
+        event.drain();
         self.handle = Some(Self::spawn_task(file, pos, sender, event, path));
         // Clear the buffer
         self.buffer.clear();
@@ -297,7 +297,7 @@ impl<'a> Future for ReceiveFuture<'a> {
                 Ok(Err(e)) => Err(e),
                 Err(_) => {
                     // Channel closed
-                    Err(FileErr::TaskDead("source"))
+                    Err(FileErr::TaskDead("Source ReceiveFuture"))
                 }
             }),
             Pending => Pending,
@@ -339,7 +339,7 @@ impl<'a> Future for FileStream<'a> {
                     }
                     None => {
                         // Channel closed
-                        return Ready(Err(FileErr::TaskDead("source")));
+                        return Ready(Err(FileErr::TaskDead("Source FileStream")));
                     }
                 },
                 Pending => {
