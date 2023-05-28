@@ -1,23 +1,24 @@
-use crate::{FileErr, FileSink};
+use crate::{ByteSink, ByteSource, FileErr};
 use std::{
     cmp::Ordering,
     collections::VecDeque,
-    future::{ready, Future, Ready},
+    future::{ready, Ready},
 };
 
-pub trait ByteSource {
-    type Future<'a>: Future<Output = Result<Bytes, FileErr>>
-    where
-        Self: 'a;
-
-    #[allow(clippy::needless_lifetimes)]
-    fn request_bytes<'a>(&'a mut self, size: usize) -> Self::Future<'a>;
+pub trait Appendable: Default {
+    fn append(&mut self, bytes: Bytes);
 }
 
 /// A FIFO queue of Bytes.
 #[derive(Debug, Default, Clone)]
 pub struct ByteBuffer {
     buf: VecDeque<Bytes>,
+}
+
+impl Appendable for ByteBuffer {
+    fn append(&mut self, bytes: Bytes) {
+        self.append(bytes)
+    }
 }
 
 /// A blob of bytes; optimized over byte and word.
@@ -29,6 +30,12 @@ pub enum Bytes {
     Bytes(Vec<u8>),
 }
 
+impl Appendable for Bytes {
+    fn append(&mut self, bytes: Bytes) {
+        self.append(bytes)
+    }
+}
+
 impl std::fmt::Debug for Bytes {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -37,6 +44,12 @@ impl std::fmt::Debug for Bytes {
             Self::Word(w) => write!(f, "Word({w:?})"),
             Self::Bytes(b) => write!(f, "Bytes(len = {})", b.len()),
         }
+    }
+}
+
+impl Default for Bytes {
+    fn default() -> Self {
+        Self::Empty
     }
 }
 
@@ -70,9 +83,10 @@ impl ByteBuffer {
         self.buf.clear();
     }
 
-    /// Consume a specific number of bytes from the buffer.
-    pub fn consume(&mut self, size: usize) -> Bytes {
-        let mut buffer = Bytes::Empty;
+    /// Consume a specific number of bytes from the buffer,
+    /// panic if there are not enough bytes.
+    pub fn consume<T: Appendable>(&mut self, size: usize) -> T {
+        let mut buffer = T::default();
         let mut remaining = size;
         loop {
             if let Some(bytes) = self.buf.front() {
@@ -99,6 +113,37 @@ impl ByteBuffer {
             }
         }
         buffer
+    }
+}
+
+/// IO methods
+impl ByteBuffer {
+    pub fn write_to(self, sink: &mut impl ByteSink) -> Result<usize, FileErr> {
+        let mut sum = 0;
+        for bytes in self.buf {
+            sum += bytes.len();
+            sink.write(bytes)?;
+        }
+        Ok(sum)
+    }
+}
+
+impl ByteSource for ByteBuffer {
+    type Future<'a> = Ready<Result<Bytes, FileErr>>;
+
+    fn request_bytes(&mut self, size: usize) -> Self::Future<'_> {
+        if size <= self.size() {
+            ready(Ok(self.consume(size)))
+        } else {
+            ready(Err(FileErr::NotEnoughBytes))
+        }
+    }
+}
+
+impl ByteSink for ByteBuffer {
+    fn write(&mut self, bytes: Bytes) -> Result<(), FileErr> {
+        self.append(bytes);
+        Ok(())
     }
 }
 
@@ -254,20 +299,10 @@ impl Bytes {
     }
 
     #[inline]
-    pub fn write_to(self, file: &mut FileSink) -> Result<(), FileErr> {
-        file.write(self)
-    }
-}
-
-impl ByteSource for Bytes {
-    type Future<'a> = Ready<Result<Bytes, FileErr>>;
-
-    fn request_bytes(&mut self, size: usize) -> Self::Future<'_> {
-        if size <= self.len() {
-            ready(Ok(self.pop(size)))
-        } else {
-            ready(Err(FileErr::NotEnoughBytes))
-        }
+    pub fn write_to(self, sink: &mut impl ByteSink) -> Result<usize, FileErr> {
+        let size = self.len();
+        sink.write(self)?;
+        Ok(size)
     }
 }
 
@@ -336,14 +371,14 @@ mod test {
         bytes.append(Bytes::Byte(1));
         buffer.append(bytes);
         assert_eq!(buffer.size(), 1);
-        assert_eq!(buffer.consume(1).bytes(), vec![1]);
+        assert_eq(buffer.consume(1), &[1]);
         assert_eq!(buffer.size(), 0);
         buffer.append(Bytes::Byte(1));
         buffer.append(Bytes::Bytes(vec![2, 3]));
         assert_eq!(buffer.size(), 3);
-        assert_eq!(buffer.consume(2).bytes(), vec![1, 2]);
+        assert_eq(buffer.consume(2), &[1, 2]);
         assert_eq!(buffer.size(), 1);
-        assert_eq!(buffer.consume(1).bytes(), vec![3]);
+        assert_eq(buffer.consume(1), &[3]);
         assert!(buffer.is_empty());
 
         let mut buffer = ByteBuffer::new();
@@ -352,9 +387,13 @@ mod test {
         buffer.append(Bytes::Bytes(vec![4, 5, 6]));
         buffer.append(Bytes::Bytes(vec![7, 8, 9, 10]));
         assert_eq!(buffer.size(), 10);
-        assert_eq!(buffer.consume(4).bytes(), vec![1, 2, 3, 4]);
-        assert_eq!(buffer.consume(3).bytes(), vec![5, 6, 7]);
-        assert_eq!(buffer.consume(2).bytes(), vec![8, 9]);
-        assert_eq!(buffer.consume(1).bytes(), vec![10]);
+        assert_eq(buffer.consume(4), &[1, 2, 3, 4]);
+        assert_eq(buffer.consume(3), &[5, 6, 7]);
+        assert_eq(buffer.consume(2), &[8, 9]);
+        assert_eq(buffer.consume(1), &[10]);
+
+        fn assert_eq(bytes: Bytes, same: &[u8]) {
+            assert_eq!(&bytes.bytes(), same);
+        }
     }
 }

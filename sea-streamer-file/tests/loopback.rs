@@ -5,6 +5,7 @@ static INIT: std::sync::Once = std::sync::Once::new();
 
 // cargo test --test loopback --features=test,runtime-tokio -- --nocapture
 // cargo test --test loopback --features=test,runtime-async-std -- --nocapture
+
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
@@ -172,7 +173,7 @@ async fn beacon() -> anyhow::Result<()> {
 
     let mut sink = FileSink::new(&path, WriteFrom::Beginning, DEFAULT_FILE_SIZE_LIMIT).await?;
     let source = FileSource::new(&path, ReadFrom::Beginning).await?;
-    let mut source = MessageSource::new(source, 0, 10);
+    let mut source = MessageSource::new_with(source, 0, 10);
 
     Bytes::Bytes(vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]).write_to(&mut sink)?;
     Beacons {

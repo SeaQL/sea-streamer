@@ -21,7 +21,7 @@ pub struct ShardId {
 /// The tuple (StreamKey, ShardId, SeqNo) uniquely identifies a message. Aka. offset.
 pub type SeqNo = u64;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Identifies a position in a stream.
 pub enum SeqPos {
     Beginning,

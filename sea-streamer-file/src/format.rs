@@ -53,7 +53,7 @@
 //!
 //! All numbers are encoded in big endian.
 
-use crate::{ByteSource, Bytes, FileErr, FileSink};
+use crate::{ByteSink, ByteSource, Bytes, FileErr};
 use crczoo::{calculate_crc16, crc16_cdma2000, CRC16_CDMA2000_POLY};
 use sea_streamer_types::{OwnedMessage, ShardId, StreamKey, StreamKeyErr, Timestamp};
 use thiserror::Error;
@@ -170,21 +170,20 @@ impl HeaderV1 {
             beacon_interval,
         };
         let _padding = Bytes::read_from(file, ret.padding_size()).await?;
-
         Ok(ret)
     }
 
-    pub fn write_to(self, file: &mut FileSink) -> Result<(), FileErr> {
-        Bytes::Byte(0x53).write_to(file)?;
-        Bytes::Byte(0x73).write_to(file)?;
-        Bytes::Byte(0x01).write_to(file)?;
+    pub fn write_to(self, sink: &mut impl ByteSink) -> Result<usize, FileErr> {
+        let mut sum = 0;
+        sum += Bytes::Byte(0x53).write_to(sink)?;
+        sum += Bytes::Byte(0x73).write_to(sink)?;
+        sum += Bytes::Byte(0x01).write_to(sink)?;
         let padding_size = self.padding_size();
-        ShortString::new(self.file_name)?.write_to(file)?;
-        UnixTimestamp(self.created_at).write_to(file)?;
-        U32(self.beacon_interval).write_to(file)?;
-        Bytes::Bytes(vec![0; padding_size]).write_to(file)?;
-
-        Ok(())
+        sum += ShortString::new(self.file_name)?.write_to(sink)?;
+        sum += UnixTimestamp(self.created_at).write_to(sink)?;
+        sum += U32(self.beacon_interval).write_to(sink)?;
+        sum += Bytes::Bytes(vec![0; padding_size]).write_to(sink)?;
+        Ok(sum)
     }
 
     pub fn size() -> usize {
@@ -211,16 +210,17 @@ impl Message {
         Ok(Self { message, checksum })
     }
 
-    pub fn write_to(self, file: &mut FileSink) -> Result<(), FileErr> {
+    pub fn write_to(self, sink: &mut impl ByteSink) -> Result<(usize, u16), FileErr> {
+        let mut sum = 0;
         let (header, payload) = self.message.take();
-        MessageHeader(header).write_to(file)?;
+        sum += MessageHeader(header).write_to(sink)?;
         let size = payload.len().try_into().expect("Message too big");
-        U32(size).write_to(file)?;
+        sum += U32(size).write_to(sink)?;
         let checksum = crc16_cdma2000(&payload);
-        Bytes::Bytes(payload).write_to(file)?;
-        U16(checksum).write_to(file)?;
-        Bytes::Byte(0x0D).write_to(file)?;
-        Ok(())
+        sum += Bytes::Bytes(payload).write_to(sink)?;
+        sum += U16(checksum).write_to(sink)?;
+        sum += Bytes::Byte(0x0D).write_to(sink)?;
+        Ok((sum, checksum))
     }
 }
 
@@ -238,16 +238,17 @@ impl Beacons {
         })
     }
 
-    pub fn write_to(self, file: &mut FileSink) -> Result<(), FileErr> {
+    pub fn write_to(self, sink: &mut impl ByteSink) -> Result<usize, FileErr> {
+        let mut sum = 0;
         if self.items.len() > u8::MAX as usize {
             return Err(FileErr::FormatErr(FormatErr::TooManyBeacon));
         }
-        U32(self.remaining_messages_bytes).write_to(file)?;
-        Bytes::Byte(self.items.len().try_into().unwrap()).write_to(file)?;
+        sum += U32(self.remaining_messages_bytes).write_to(sink)?;
+        sum += Bytes::Byte(self.items.len().try_into().unwrap()).write_to(sink)?;
         for item in self.items {
-            item.write_to(file)?;
+            sum += item.write_to(sink)?;
         }
-        Ok(())
+        Ok(sum)
     }
 
     pub fn size(&self) -> usize {
@@ -282,10 +283,11 @@ impl Beacon {
         })
     }
 
-    pub fn write_to(self, file: &mut FileSink) -> Result<(), FileErr> {
-        MessageHeader(self.header).write_to(file)?;
-        U16(self.running_checksum).write_to(file)?;
-        Ok(())
+    pub fn write_to(self, sink: &mut impl ByteSink) -> Result<usize, FileErr> {
+        let mut sum = 0;
+        sum += MessageHeader(self.header).write_to(sink)?;
+        sum += U16(self.running_checksum).write_to(sink)?;
+        Ok(sum)
     }
 
     pub fn size(&self) -> usize {
@@ -307,13 +309,14 @@ impl MessageHeader {
         Ok(Self(Header::new(stream_key, shard_id, sequence, timestamp)))
     }
 
-    pub fn write_to(self, file: &mut FileSink) -> Result<(), FileErr> {
+    pub fn write_to(self, sink: &mut impl ByteSink) -> Result<usize, FileErr> {
+        let mut sum = 0;
         let h = self.0;
-        ShortString::new(h.stream_key().name().to_owned())?.write_to(file)?;
-        U64(h.shard_id().id()).write_to(file)?;
-        U64(*h.sequence()).write_to(file)?;
-        UnixTimestamp(*h.timestamp()).write_to(file)?;
-        Ok(())
+        sum += ShortString::new(h.stream_key().name().to_owned())?.write_to(sink)?;
+        sum += U64(h.shard_id().id()).write_to(sink)?;
+        sum += U64(*h.sequence()).write_to(sink)?;
+        sum += UnixTimestamp(*h.timestamp()).write_to(sink)?;
+        Ok(sum)
     }
 
     pub fn size_of(header: &sea_streamer_types::MessageHeader) -> usize {
@@ -361,10 +364,11 @@ mod short_string {
             ))
         }
 
-        pub fn write_to(self, file: &mut FileSink) -> Result<(), FileErr> {
-            Bytes::Byte(self.0.len() as u8).write_to(file)?;
-            Bytes::Bytes(self.0.into_bytes()).write_to(file)?;
-            Ok(())
+        pub fn write_to(self, sink: &mut impl ByteSink) -> Result<usize, FileErr> {
+            let mut sum = 0;
+            sum += Bytes::Byte(self.0.len() as u8).write_to(sink)?;
+            sum += Bytes::Bytes(self.0.into_bytes()).write_to(sink)?;
+            Ok(sum)
         }
 
         pub fn size(&self) -> usize {
@@ -396,11 +400,11 @@ impl UnixTimestamp {
         ))
     }
 
-    pub fn write_to(self, file: &mut FileSink) -> Result<(), FileErr> {
+    pub fn write_to(self, sink: &mut impl ByteSink) -> Result<usize, FileErr> {
         U64((self.0.unix_timestamp_nanos() / 1_000_000)
             .try_into()
             .expect("Should not be negative"))
-        .write_to(file)
+        .write_to(sink)
     }
 
     pub fn size() -> usize {
@@ -414,7 +418,13 @@ impl RunningChecksum {
         Self { crc: 0xFFFF }
     }
 
-    pub fn update(&mut self, byte: u8) {
+    pub fn update(&mut self, checksum: u16) {
+        let bytes = checksum.to_be_bytes();
+        self.byte(bytes[0]);
+        self.byte(bytes[1]);
+    }
+
+    fn byte(&mut self, byte: u8) {
         self.crc = calculate_crc16(&[byte], CRC16_CDMA2000_POLY, self.crc, false, false, 0);
     }
 
@@ -441,11 +451,10 @@ impl U64 {
         ])))
     }
 
-    pub fn write_to(self, file: &mut FileSink) -> Result<(), FileErr> {
+    pub fn write_to(self, sink: &mut impl ByteSink) -> Result<usize, FileErr> {
         let bytes = self.0.to_be_bytes().to_vec();
         assert_eq!(bytes.len(), 8);
-        Bytes::from_bytes(bytes).write_to(file)?;
-        Ok(())
+        Bytes::from_bytes(bytes).write_to(sink)
     }
 
     pub fn size() -> usize {
@@ -462,11 +471,10 @@ impl U32 {
         Ok(Self(u32::from_be_bytes(word)))
     }
 
-    pub fn write_to(self, file: &mut FileSink) -> Result<(), FileErr> {
+    pub fn write_to(self, sink: &mut impl ByteSink) -> Result<usize, FileErr> {
         let bytes = self.0.to_be_bytes().to_vec();
         assert_eq!(bytes.len(), 4);
-        Bytes::from_bytes(bytes).write_to(file)?;
-        Ok(())
+        Bytes::from_bytes(bytes).write_to(sink)
     }
 
     pub fn size() -> usize {
@@ -484,11 +492,10 @@ impl U16 {
         Ok(Self(u16::from_be_bytes([a, b])))
     }
 
-    pub fn write_to(self, file: &mut FileSink) -> Result<(), FileErr> {
+    pub fn write_to(self, sink: &mut impl ByteSink) -> Result<usize, FileErr> {
         let bytes = self.0.to_be_bytes().to_vec();
         assert_eq!(bytes.len(), 2);
-        Bytes::from_bytes(bytes).write_to(file)?;
-        Ok(())
+        Bytes::from_bytes(bytes).write_to(sink)
     }
 
     pub fn size() -> usize {
@@ -505,20 +512,20 @@ mod test {
     #[test]
     fn test_running_checksum() {
         let mut checksum = RunningChecksum::new();
-        checksum.update(b'1');
-        checksum.update(b'2');
-        checksum.update(b'3');
-        checksum.update(b'4');
-        checksum.update(b'5');
-        checksum.update(b'6');
-        checksum.update(b'7');
-        checksum.update(b'8');
-        checksum.update(b'9');
+        checksum.byte(b'1');
+        checksum.byte(b'2');
+        checksum.byte(b'3');
+        checksum.byte(b'4');
+        checksum.byte(b'5');
+        checksum.byte(b'6');
+        checksum.byte(b'7');
+        checksum.byte(b'8');
+        checksum.byte(b'9');
         assert_eq!(checksum.crc(), 0x4C06);
-        checksum.update(b'a');
-        checksum.update(b'b');
-        checksum.update(b'c');
-        checksum.update(b'd');
+        checksum.byte(b'a');
+        checksum.byte(b'b');
+        checksum.byte(b'c');
+        checksum.byte(b'd');
         assert_eq!(checksum.crc(), 0xA106);
         assert_eq!(
             checksum.crc(),

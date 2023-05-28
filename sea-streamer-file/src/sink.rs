@@ -1,5 +1,4 @@
 use flume::{bounded, unbounded, Receiver, Sender, TryRecvError};
-use std::sync::Mutex;
 
 use crate::{
     watcher::{new_watcher, FileEvent, Watcher},
@@ -10,11 +9,16 @@ use sea_streamer_runtime::{
     spawn_task,
 };
 
+pub trait ByteSink {
+    /// This should never block.
+    fn write(&mut self, bytes: Bytes) -> Result<(), FileErr>;
+}
+
 /// Buffered file writer.
 ///
 /// If the file is removed from the file system, the stream ends.
 pub struct FileSink {
-    watcher: Mutex<Option<Watcher>>,
+    watcher: Option<Watcher>,
     writer: Sender<Bytes>,
     error: Receiver<FileErr>,
 }
@@ -25,8 +29,6 @@ pub enum WriteFrom {
     /// Append to the file
     End,
 }
-
-pub const DEFAULT_FILE_SIZE_LIMIT: usize = 16 * 1024 * 1024 * 1024; // 16GB
 
 impl FileSink {
     pub async fn new(path: &str, write_from: WriteFrom, mut limit: usize) -> Result<Self, FileErr> {
@@ -76,6 +78,7 @@ impl FileSink {
                     }
                     break;
                 }
+
                 loop {
                     match event.try_recv() {
                         Ok(FileEvent::Modify) => {}
@@ -112,19 +115,21 @@ impl FileSink {
         });
 
         Ok(Self {
-            watcher: Mutex::new(Some(watcher)),
+            watcher: Some(watcher),
             writer,
             error,
         })
     }
+}
 
+impl ByteSink for FileSink {
     /// This method never blocks
-    pub fn write(&self, bytes: Bytes) -> Result<(), FileErr> {
+    fn write(&mut self, bytes: Bytes) -> Result<(), FileErr> {
         // never blocks
         if self.writer.send(bytes).is_err() {
-            if let Ok(mut watcher) = self.watcher.try_lock() {
+            if self.watcher.is_some() {
                 // kill the watcher so we don't leak
-                watcher.take();
+                self.watcher.take();
             }
             Err(self
                 .error

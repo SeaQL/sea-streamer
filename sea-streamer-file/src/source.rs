@@ -4,14 +4,13 @@ use flume::{
     unbounded, Receiver, Sender, TryRecvError,
 };
 use sea_streamer_types::{
-    export::futures::{FutureExt, StreamExt},
+    export::futures::{Future, FutureExt, StreamExt},
     SeqPos,
 };
-use std::future::Future;
 
 use crate::{
     watcher::{new_watcher, FileEvent, Watcher},
-    ByteBuffer, ByteSource, Bytes, FileErr,
+    ByteBuffer, Bytes, FileErr,
 };
 use sea_streamer_runtime::{
     file::{AsyncReadExt, AsyncSeekExt, File, SeekFrom},
@@ -19,6 +18,15 @@ use sea_streamer_runtime::{
 };
 
 pub const BUFFER_SIZE: usize = 1024;
+
+pub trait ByteSource {
+    type Future<'a>: Future<Output = Result<Bytes, FileErr>>
+    where
+        Self: 'a;
+
+    #[allow(clippy::needless_lifetimes)]
+    fn request_bytes<'a>(&'a mut self, size: usize) -> Self::Future<'a>;
+}
 
 /// `FileSource` treats files as a live stream of bytes.
 /// It will read til the end, and will resume reading when the file grows.
@@ -211,7 +219,7 @@ impl FileSource {
     /// Note: SeqNo is regarded as byte offset.
     ///
     /// Warning: This future must not be canceled.
-    pub async fn seek(&mut self, to: SeqPos) -> Result<(), FileErr> {
+    pub async fn seek(&mut self, to: SeqPos) -> Result<u64, FileErr> {
         // Create a fresh channel
         let (sender, receiver) = bounded(0);
         // Drops the old channel; this may stop the task
@@ -240,7 +248,7 @@ impl FileSource {
         self.handle = Some(Self::spawn_task(file, pos, sender, event, path));
         // Clear the buffer
         self.buffer.clear();
-        Ok(())
+        Ok(pos)
     }
 }
 
