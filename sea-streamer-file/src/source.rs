@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use flume::{
     bounded,
     r#async::{RecvFut, RecvStream},
@@ -10,11 +12,11 @@ use sea_streamer_types::{
 
 use crate::{
     watcher::{new_watcher, FileEvent, Watcher},
-    ByteBuffer, Bytes, FileErr,
+    ByteBuffer, Bytes, FileErr, FileId,
 };
 use sea_streamer_runtime::{
     file::{AsyncReadExt, AsyncSeekExt, File, SeekFrom},
-    spawn_task, TaskHandle,
+    spawn_task, timeout, TaskHandle,
 };
 
 pub const BUFFER_SIZE: usize = 1024;
@@ -40,7 +42,7 @@ pub struct FileSource {
     watcher: Watcher,
     receiver: Receiver<Result<Bytes, FileErr>>,
     buffer: ByteBuffer,
-    handle: Option<TaskHandle<(File, Receiver<FileEvent>, String)>>,
+    handle: Option<TaskHandle<(File, Receiver<FileEvent>, FileId)>>,
     notify: Sender<FileEvent>,
 }
 
@@ -51,8 +53,8 @@ pub enum ReadFrom {
 }
 
 impl FileSource {
-    pub async fn new(path: &str, read_from: ReadFrom) -> Result<Self, FileErr> {
-        let mut file = File::open(path).await.map_err(FileErr::IoError)?;
+    pub async fn new(file_id: FileId, read_from: ReadFrom) -> Result<Self, FileErr> {
+        let mut file = File::open(file_id.path()).await.map_err(FileErr::IoError)?;
         let mut pos = 0;
         if matches!(read_from, ReadFrom::End) {
             pos = file
@@ -63,9 +65,9 @@ impl FileSource {
         // This allows the consumer to control the pace
         let (sender, receiver) = bounded(0);
         let (notify, event) = unbounded();
-        let watcher = new_watcher(path, notify.clone())?;
+        let watcher = new_watcher(file_id.clone(), notify.clone())?;
 
-        let handle = Self::spawn_task(file, pos, sender, event, path.to_string());
+        let handle = Self::spawn_task(file, pos, sender, event, file_id);
 
         Ok(Self {
             watcher,
@@ -80,29 +82,53 @@ impl FileSource {
         mut file: File,
         #[allow(unused_variables)] mut pos: u64,
         sender: Sender<Result<Bytes, FileErr>>,
-        event: Receiver<FileEvent>,
-        path: String,
-    ) -> TaskHandle<(File, Receiver<FileEvent>, String)> {
+        events: Receiver<FileEvent>,
+        file_id: FileId,
+    ) -> TaskHandle<(File, Receiver<FileEvent>, FileId)> {
         spawn_task(async move {
-            let mut can_read = true;
+            let mut wait = 0;
             let mut buffer = vec![0u8; BUFFER_SIZE];
             'outer: while !sender.is_disconnected() {
-                if can_read {
+                #[cfg(feature = "runtime-async-std")]
+                // Not sure why, there must be a subtle implementation difference.
+                // This is needed only on async-std
+                file.seek(SeekFrom::Start(pos)).await.unwrap();
+                let bytes_read = match file.read(&mut buffer).await {
+                    Ok(bytes_read) => bytes_read,
+                    Err(e) => {
+                        send_error(&sender, FileErr::IoError(e)).await;
+                        break;
+                    }
+                };
+                if bytes_read > 0 {
+                    wait = 0;
+                    pos += bytes_read as u64;
+                    if sender
+                        .send_async(Ok(match bytes_read {
+                            1 => Bytes::Byte(buffer[0]),
+                            4 => Bytes::Word([buffer[0], buffer[1], buffer[2], buffer[3]]),
+                            _ => {
+                                let mut bytes: Vec<u8> = Vec::new();
+                                bytes.extend_from_slice(&buffer[0..bytes_read]);
+                                Bytes::Bytes(bytes)
+                            }
+                        }))
+                        .await
+                        .is_err()
+                    {
+                        break;
+                    }
+                } else {
                     // drain all remaining events
                     loop {
-                        match event.try_recv() {
+                        match events.try_recv() {
                             Ok(FileEvent::Modify) => {}
                             Ok(FileEvent::Remove) => {
-                                if let Err(e) = sender.send_async(Err(FileErr::FileRemoved)).await {
-                                    log::error!("{}", e.into_inner().err().unwrap());
-                                }
+                                send_error(&sender, FileErr::FileRemoved).await;
                                 break 'outer;
                             }
                             Ok(FileEvent::Error(e)) => {
-                                if let Err(e) = sender.send_async(Err(FileErr::WatchError(e))).await
-                                {
-                                    log::error!("{}", e.into_inner().err().unwrap());
-                                }
+                                send_error(&sender, FileErr::WatchError(e)).await;
                                 break 'outer;
                             }
                             Ok(FileEvent::Rewatch) => {
@@ -115,71 +141,45 @@ impl FileSource {
                             Err(TryRecvError::Empty) => break,
                         }
                     }
-                    #[cfg(feature = "runtime-async-std")]
-                    // Not sure why, there must be a subtle implementation difference.
-                    // This is needed only on async-std
-                    file.seek(SeekFrom::Start(pos)).await.unwrap();
-                    let bytes_read = match file.read(&mut buffer).await {
-                        Ok(bytes_read) => {
-                            if bytes_read == 0 {
-                                can_read = false;
+                    // sleep, but there is no guarantee that OS will notify us timely, or at all
+                    let result = timeout(Duration::from_millis(wait), events.recv_async()).await;
+                    match result {
+                        Ok(event) => match event {
+                            Ok(FileEvent::Modify) => {
+                                // continue;
                             }
-                            bytes_read
-                        }
-                        Err(e) => {
-                            if let Err(e) = sender.send_async(Err(FileErr::IoError(e))).await {
-                                log::error!("{}", e.into_inner().err().unwrap());
+                            Ok(FileEvent::Remove) => {
+                                send_error(&sender, FileErr::FileRemoved).await;
+                                break 'outer;
                             }
-                            break;
-                        }
-                    };
-                    if bytes_read > 0 {
-                        pos += bytes_read as u64;
-                        if sender
-                            .send_async(Ok(match bytes_read {
-                                1 => Bytes::Byte(buffer[0]),
-                                4 => Bytes::Word([buffer[0], buffer[1], buffer[2], buffer[3]]),
-                                _ => {
-                                    let mut bytes: Vec<u8> = Vec::new();
-                                    bytes.extend_from_slice(&buffer[0..bytes_read]);
-                                    Bytes::Bytes(bytes)
-                                }
-                            }))
-                            .await
-                            .is_err()
-                        {
-                            break;
-                        }
-                    }
-                } else {
-                    match event.recv_async().await {
-                        Ok(FileEvent::Modify) => {
-                            can_read = true;
-                        }
-                        Ok(FileEvent::Remove) => {
-                            if let Err(e) = sender.send_async(Err(FileErr::FileRemoved)).await {
-                                log::error!("{}", e.into_inner().err().unwrap());
+                            Ok(FileEvent::Error(e)) => {
+                                send_error(&sender, FileErr::WatchError(e)).await;
+                                break 'outer;
                             }
-                            break 'outer;
-                        }
-                        Ok(FileEvent::Error(e)) => {
-                            if let Err(e) = sender.send_async(Err(FileErr::WatchError(e))).await {
-                                log::error!("{}", e.into_inner().err().unwrap());
+                            Ok(FileEvent::Rewatch) => {
+                                log::debug!("FileSource: Rewatch");
+                                break 'outer;
                             }
-                            break 'outer;
-                        }
-                        Ok(FileEvent::Rewatch) => {
-                            log::debug!("FileSource: Rewatch");
-                            break 'outer;
-                        }
+                            Err(_) => {
+                                break 'outer;
+                            }
+                        },
                         Err(_) => {
-                            break 'outer;
+                            // timed out
+                            wait = std::cmp::min(1.max(wait * 2), 1024);
                         }
                     }
                 }
             }
-            log::debug!("FileSource task finish ({})", path);
-            (file, event, path)
+            log::debug!("FileSource task finish ({})", file_id.path());
+
+            async fn send_error(sender: &Sender<Result<Bytes, FileErr>>, e: FileErr) {
+                if let Err(e) = sender.send_async(Err(e)).await {
+                    log::error!("{}", e.into_inner().err().unwrap());
+                }
+            }
+
+            (file, events, file_id)
         })
     }
 

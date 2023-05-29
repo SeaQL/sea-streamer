@@ -1,11 +1,11 @@
 use anyhow::Result;
-use sea_streamer_file::{FileSource, ReadFrom};
+use sea_streamer_file::{FileId, FileSource, ReadFrom};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 struct Args {
     #[structopt(long, help = "File path")]
-    file: String,
+    file: FileId,
 }
 
 #[tokio::main]
@@ -13,7 +13,7 @@ async fn main() -> Result<()> {
     env_logger::init();
 
     let Args { file } = Args::from_args();
-    let mut stream = FileSource::new(&file, ReadFrom::End).await?;
+    let mut stream = FileSource::new(file, ReadFrom::End).await?;
 
     loop {
         let bytes = stream.stream_bytes().await?;

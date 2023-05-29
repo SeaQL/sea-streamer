@@ -2,7 +2,7 @@ use flume::{bounded, unbounded, Receiver, Sender, TryRecvError};
 
 use crate::{
     watcher::{new_watcher, FileEvent, Watcher},
-    Bytes, FileErr,
+    Bytes, FileErr, FileId,
 };
 use sea_streamer_runtime::{
     file::{AsyncWriteExt, OpenOptions},
@@ -43,28 +43,34 @@ pub enum WriteFrom {
 }
 
 impl FileSink {
-    pub async fn new(path: &str, write_from: WriteFrom, mut limit: usize) -> Result<Self, FileErr> {
+    pub async fn new(
+        file_id: FileId,
+        write_from: WriteFrom,
+        mut quota: usize,
+    ) -> Result<Self, FileErr> {
         let mut options = OpenOptions::new();
         options.write(true).create(true);
         match write_from {
             WriteFrom::Beginning => options.truncate(true),
             WriteFrom::End => options.append(true),
         };
-        let mut file = options.open(path).await.map_err(FileErr::IoError)?;
+        let mut file = options
+            .open(file_id.path())
+            .await
+            .map_err(FileErr::IoError)?;
         let (sender, pending) = unbounded();
         let (notify, update) = bounded(0);
         let (watch, event) = unbounded();
-        let watcher = new_watcher(path, watch)?;
-        let path = path.to_string();
+        let watcher = new_watcher(file_id.clone(), watch)?;
 
         let _handle = spawn_task(async move {
             'outer: while let Ok(request) = pending.recv_async().await {
                 match request {
                     Request::Bytes(mut bytes) => {
                         let mut len = bytes.len();
-                        if limit < len {
-                            bytes = bytes.pop(limit);
-                            len = limit;
+                        if quota < len {
+                            bytes = bytes.pop(quota);
+                            len = quota;
                         }
 
                         if let Err(e) = file.write_all(&bytes.bytes()).await {
@@ -80,8 +86,8 @@ impl FileSink {
                             break;
                         }
 
-                        limit -= len;
-                        if limit == 0 {
+                        quota -= len;
+                        if quota == 0 {
                             std::mem::drop(pending); // trigger error
                             send_error(&notify, FileErr::FileLimitExceeded).await;
                             break;
@@ -118,7 +124,7 @@ impl FileSink {
                     }
                 }
             }
-            log::debug!("FileSink task finish ({})", path);
+            log::debug!("FileSink task finish ({})", file_id.path());
         });
 
         async fn send_error(notify: &Sender<Update>, e: FileErr) {

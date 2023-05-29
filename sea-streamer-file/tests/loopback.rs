@@ -22,8 +22,9 @@ async fn loopback() -> anyhow::Result<()> {
     let path = temp_file(format!("{}-{}", TEST, now.unix_timestamp_nanos() / 1_000_000).as_str())?;
     println!("{path}");
 
-    let mut sink = FileSink::new(&path, WriteFrom::Beginning, DEFAULT_FILE_SIZE_LIMIT).await?;
-    let mut source = FileSource::new(&path, ReadFrom::Beginning).await?;
+    let mut sink =
+        FileSink::new(path.clone(), WriteFrom::Beginning, DEFAULT_FILE_SIZE_LIMIT).await?;
+    let mut source = FileSource::new(path.clone(), ReadFrom::Beginning).await?;
 
     let bytes = Bytes::from_bytes(vec![1, 2, 3, 4]);
     bytes.clone().write_to(&mut sink)?;
@@ -119,8 +120,9 @@ async fn seek() -> anyhow::Result<()> {
     let path = temp_file(format!("{}-{}", TEST, now.unix_timestamp_nanos() / 1_000_000).as_str())?;
     println!("{path}");
 
-    let mut sink = FileSink::new(&path, WriteFrom::Beginning, DEFAULT_FILE_SIZE_LIMIT).await?;
-    let mut source = FileSource::new(&path, ReadFrom::Beginning).await?;
+    let mut sink =
+        FileSink::new(path.clone(), WriteFrom::Beginning, DEFAULT_FILE_SIZE_LIMIT).await?;
+    let mut source = FileSource::new(path.clone(), ReadFrom::Beginning).await?;
 
     let bytes = Bytes::from_bytes(vec![1, 2, 3, 4]);
     bytes.clone().write_to(&mut sink)?;
@@ -179,8 +181,9 @@ async fn beacon() -> anyhow::Result<()> {
     let path = temp_file(format!("{}-{}", TEST, now.unix_timestamp_nanos() / 1_000_000).as_str())?;
     println!("{path}");
 
-    let mut sink = FileSink::new(&path, WriteFrom::Beginning, DEFAULT_FILE_SIZE_LIMIT).await?;
-    let source = FileSource::new(&path, ReadFrom::Beginning).await?;
+    let mut sink =
+        FileSink::new(path.clone(), WriteFrom::Beginning, DEFAULT_FILE_SIZE_LIMIT).await?;
+    let source = FileSource::new(path.clone(), ReadFrom::Beginning).await?;
     let mut source = MessageSource::new_with(source, 0, 12);
 
     Bytes::Bytes(vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]).write_to(&mut sink)?;
@@ -223,8 +226,8 @@ async fn messages() -> anyhow::Result<()> {
         temp_file(format!("{}-{}", TEST, now().unix_timestamp_nanos() / 1_000_000).as_str())?;
     println!("{path}");
 
-    let mut sink = MessageSink::new(&path, 640, 1024 * 1024).await?;
-    let mut source = MessageSource::new(&path).await?;
+    let mut sink = MessageSink::new(path.clone(), 640, 1024 * 1024).await?;
+    let mut source = MessageSource::new(path.clone()).await?;
 
     let stream_key = StreamKey::new("hello")?;
     let mut running_checksum = RunningChecksum::new();

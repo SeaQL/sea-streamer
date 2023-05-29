@@ -1,12 +1,12 @@
 use anyhow::{anyhow, Result};
-use sea_streamer_file::{Bytes, FileSink, WriteFrom, DEFAULT_FILE_SIZE_LIMIT};
+use sea_streamer_file::{ByteSink, Bytes, FileId, FileSink, WriteFrom, DEFAULT_FILE_SIZE_LIMIT};
 use std::time::Duration;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 struct Args {
     #[structopt(long, help = "File path")]
-    file: String,
+    file: FileId,
     #[structopt(long, parse(try_from_str = parse_duration), help = "Period of the clock. e.g. 1s, 100ms")]
     interval: Duration,
 }
@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
     env_logger::init();
 
     let Args { file, interval } = Args::from_args();
-    let stream = FileSink::new(&file, WriteFrom::End, DEFAULT_FILE_SIZE_LIMIT).await?;
+    let mut stream = FileSink::new(file, WriteFrom::End, DEFAULT_FILE_SIZE_LIMIT).await?;
 
     for i in 0..u64::MAX {
         stream.write(Bytes::Bytes(format!("{i}\n").into_bytes()))?;

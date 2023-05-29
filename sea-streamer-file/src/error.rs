@@ -10,7 +10,7 @@ pub enum FileErr {
     #[error("IO Error: {0}")]
     IoError(#[source] std::io::Error),
     #[error("Watch Error: {0}")]
-    WatchError(#[source] notify::Error),
+    WatchError(String),
     // #[error("Flume RecvError: {0}")]
     // RecvError(#[source] flume::RecvError),
     #[error("HeaderErr: {0}")]

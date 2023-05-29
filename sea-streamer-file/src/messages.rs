@@ -8,7 +8,7 @@ use sea_streamer_types::{
 
 use crate::{
     format::{Beacon, Beacons, Checksum, Header, Message, RunningChecksum},
-    ByteBuffer, ByteSource, Bytes, FileErr, FileSink, FileSource, ReadFrom, WriteFrom,
+    ByteBuffer, ByteSource, Bytes, FileErr, FileId, FileSink, FileSource, ReadFrom, WriteFrom,
 };
 
 /// A high level file reader that demux messages and beacons
@@ -40,8 +40,8 @@ struct BeaconState {
 impl MessageSource {
     /// Creates a new message source. The file must be read from beginning,
     /// because the file header is needed.
-    pub async fn new(path: &str) -> Result<Self, FileErr> {
-        let mut source = FileSource::new(path, ReadFrom::Beginning).await?;
+    pub async fn new(file_id: FileId) -> Result<Self, FileErr> {
+        let mut source = FileSource::new(file_id, ReadFrom::Beginning).await?;
         let header = Header::read_from(&mut source).await?;
         assert!(Header::size() < header.beacon_interval as usize);
         Ok(Self::new_with(
@@ -191,11 +191,12 @@ impl ByteSource for MessageSource {
 }
 
 impl MessageSink {
-    pub async fn new(path: &str, beacon_interval: u32, limit: usize) -> Result<Self, FileErr> {
-        let mut sink = FileSink::new(path, WriteFrom::Beginning, limit).await?;
-        let path: &Path = path.as_ref();
+    pub async fn new(file_id: FileId, beacon_interval: u32, limit: usize) -> Result<Self, FileErr> {
+        let path: &Path = file_id.path().as_ref();
+        let file_name = path.file_name().unwrap().to_str().unwrap().to_owned();
+        let mut sink = FileSink::new(file_id, WriteFrom::Beginning, limit).await?;
         let header = Header {
-            file_name: path.file_name().unwrap().to_str().unwrap().to_owned(),
+            file_name,
             created_at: Timestamp::now_utc(),
             beacon_interval,
         };
