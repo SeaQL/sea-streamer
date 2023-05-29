@@ -11,7 +11,9 @@ pub mod file;
 mod sleep;
 mod task;
 mod timeout;
+mod mutex;
 
 pub use sleep::*;
 pub use task::*;
 pub use timeout::*;
+pub use mutex::*;

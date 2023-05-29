@@ -117,7 +117,7 @@ pub struct U32(pub u32);
 #[repr(transparent)]
 pub struct U16(pub u16);
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone, Copy)]
 pub enum HeaderErr {
     #[error("Byte mark mismatch")]
     ByteMark,
@@ -125,7 +125,7 @@ pub enum HeaderErr {
     Version,
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone, Copy)]
 pub enum FormatErr {
     #[error("ShortStringErr: {0}")]
     ShortStringErr(#[from] ShortStringErr),
@@ -357,7 +357,7 @@ impl MessageHeader {
 mod short_string {
     use super::*;
 
-    #[derive(Error, Debug)]
+    #[derive(Error, Debug, Clone, Copy)]
     pub enum ShortStringErr {
         #[error("String too long")]
         StringTooLong,
@@ -408,7 +408,7 @@ mod short_string {
     }
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone, Copy)]
 pub enum UnixTimestampErr {
     #[error("Out of range")]
     OutOfRange,
@@ -462,7 +462,7 @@ impl Default for RunningChecksum {
     }
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone, Copy)]
 pub enum U64Err {}
 
 impl U64 {
@@ -485,7 +485,7 @@ impl U64 {
     }
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone, Copy)]
 pub enum U32Err {}
 
 impl U32 {
@@ -505,7 +505,7 @@ impl U32 {
     }
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone, Copy)]
 pub enum U16Err {}
 
 impl U16 {
