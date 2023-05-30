@@ -46,7 +46,7 @@ impl FileSink {
     pub async fn new(
         file_id: FileId,
         write_from: WriteFrom,
-        mut quota: usize,
+        mut quota: u64,
     ) -> Result<Self, FileErr> {
         let mut options = OpenOptions::new();
         options.write(true).create(true);
@@ -67,9 +67,9 @@ impl FileSink {
             'outer: while let Ok(request) = pending.recv_async().await {
                 match request {
                     Request::Bytes(mut bytes) => {
-                        let mut len = bytes.len();
+                        let mut len = bytes.len() as u64;
                         if quota < len {
-                            bytes = bytes.pop(quota);
+                            bytes = bytes.pop(quota as usize);
                             len = quota;
                         }
 

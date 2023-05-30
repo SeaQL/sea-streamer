@@ -6,7 +6,7 @@ use std::{
 };
 
 use super::FileConsumer;
-use crate::{FileErr, FileId, MessageSource, StreamPos};
+use crate::{FileErr, FileId, MessageSource, StreamMode};
 use sea_streamer_types::{ConsumerGroup, Message, SharedMessage, StreamKey};
 
 lazy_static::lazy_static! {
@@ -16,7 +16,7 @@ lazy_static::lazy_static! {
 
 struct Streamers {
     max_sid: Sid,
-    streamers: HashMap<FileId, Vec<(StreamPos, StreamerHandle)>>,
+    streamers: HashMap<FileId, Vec<(StreamMode, StreamerHandle)>>,
 }
 
 pub(crate) type Sid = u32;
@@ -30,7 +30,7 @@ enum CtrlMsg {
 
 struct StreamerHandle {
     subscribers: Subscribers,
-    pacer: Sender<Pulse>,
+    pulse: Sender<Pulse>,
 }
 
 /// This is not the Streamer of the public API
@@ -69,7 +69,7 @@ impl Streamers {
     async fn add(
         &mut self,
         file_id: FileId,
-        pos: StreamPos,
+        mode: StreamMode,
         group: Option<ConsumerGroup>,
         keys: Vec<StreamKey>,
     ) -> Result<FileConsumer, FileErr> {
@@ -80,31 +80,31 @@ impl Streamers {
             self.streamers.insert(file_id.clone(), Vec::new());
         }
         let handles = self.streamers.get_mut(&file_id).unwrap();
-        let handle = match pos {
-            StreamPos::Live => {
+        let handle = match mode {
+            StreamMode::Live => {
                 if let Some((_, handle)) = handles
                     .iter_mut()
-                    .find(|(p, _)| matches!(p, StreamPos::Live))
+                    .find(|(p, _)| matches!(p, StreamMode::Live))
                 {
                     handle
                 } else {
                     handles.push((
-                        pos,
+                        mode,
                         Streamer::new(MessageSource::new(file_id.clone()).await?),
                     ));
                     &mut handles.last_mut().unwrap().1
                 }
             }
-            StreamPos::Free => {
+            StreamMode::Replay => {
                 handles.push((
-                    pos,
+                    mode,
                     Streamer::new(MessageSource::new(file_id.clone()).await?),
                 ));
                 &mut handles.last_mut().unwrap().1
             }
         };
         handle.subscribers.add(sid, sender, group, keys);
-        Ok(FileConsumer::new(sid, receiver, handle.pacer.clone()))
+        Ok(FileConsumer::new(sid, receiver, handle.pulse.clone()))
     }
 
     fn remove(&mut self, sid: Sid) {
@@ -118,12 +118,12 @@ impl Streamers {
 
 pub(crate) async fn new_consumer(
     file_id: FileId,
-    pos: StreamPos,
+    mode: StreamMode,
     group: Option<ConsumerGroup>,
     keys: Vec<StreamKey>,
 ) -> Result<FileConsumer, FileErr> {
     let mut streamers = STREAMERS.lock().await;
-    streamers.add(file_id, pos, group, keys).await
+    streamers.add(file_id, mode, group, keys).await
 }
 
 pub(crate) fn remove_consumer(sid: Sid) {
@@ -136,12 +136,12 @@ pub(crate) fn remove_consumer(sid: Sid) {
 impl Streamer {
     fn new(mut source: MessageSource) -> StreamerHandle {
         let subscribers = Subscribers::new();
-        let (sender, pacer) = bounded(0);
+        let (sender, pulse) = bounded(0);
         let ret = subscribers.clone();
 
         let _handle = spawn_task(async move {
             loop {
-                _ = pacer.recv_async().await;
+                _ = pulse.recv_async().await;
                 let res = source.next().await;
                 let is_err = res.is_err();
                 subscribers.dispatch(match res {
@@ -156,7 +156,7 @@ impl Streamer {
 
         StreamerHandle {
             subscribers: ret,
-            pacer: sender,
+            pulse: sender,
         }
     }
 }

@@ -7,7 +7,7 @@ use sea_streamer_runtime::file::File;
 use sea_streamer_types::{
     export::async_trait, ConnectOptions as ConnectOptionsTrait, ConsumerGroup, ConsumerMode,
     ConsumerOptions as ConsumerOptionsTrait, ProducerOptions as ProducerOptionsTrait, StreamErr,
-    StreamKey, Streamer as StreamerTrait, StreamerUri,
+    StreamKey, StreamUrlErr, Streamer as StreamerTrait, StreamerUri,
 };
 
 #[derive(Debug, Clone)]
@@ -36,9 +36,9 @@ pub enum AutoStreamReset {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum StreamPos {
-    Free,
+pub(crate) enum StreamMode {
     Live,
+    Replay,
 }
 
 #[async_trait]
@@ -51,8 +51,22 @@ impl StreamerTrait for FileStreamer {
     type ProducerOptions = FileProducerOptions;
 
     /// First check whether the file exists.
-    async fn connect(_: StreamerUri, _: Self::ConnectOptions) -> FileResult<Self> {
-        todo!()
+    async fn connect(uri: StreamerUri, _: Self::ConnectOptions) -> FileResult<Self> {
+        // TODO
+        if uri.nodes().is_empty() {
+            return Err(StreamErr::StreamUrlErr(StreamUrlErr::ZeroNode));
+        }
+        let path = uri
+            .nodes()
+            .first()
+            .unwrap()
+            .as_str()
+            .trim_start_matches("file://")
+            .trim_end_matches('/');
+        dbg!(path);
+        Ok(Self {
+            file_id: FileId::new(path),
+        })
     }
 
     async fn disconnect(self) -> FileResult<()> {
@@ -95,12 +109,12 @@ impl StreamerTrait for FileStreamer {
                     .map_err(FileErr::IoError)?;
                 if file.metadata().await.map_err(FileErr::IoError)?.size() <= Header::size() as u64
                 {
-                    StreamPos::Live
+                    StreamMode::Live
                 } else {
-                    StreamPos::Free
+                    StreamMode::Replay
                 }
             }
-            AutoStreamReset::Latest => StreamPos::Live,
+            AutoStreamReset::Latest => StreamMode::Live,
         };
         let consumer = new_consumer(
             self.file_id.clone(),

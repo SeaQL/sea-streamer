@@ -1,12 +1,13 @@
 use anyhow::{anyhow, Result};
-use sea_streamer_file::{ByteSink, Bytes, FileId, FileSink, WriteFrom, DEFAULT_FILE_SIZE_LIMIT};
+use sea_streamer_file::{FileId, MessageSink, DEFAULT_BEACON_INTERVAL, DEFAULT_FILE_SIZE_LIMIT};
+use sea_streamer_types::{MessageHeader, OwnedMessage, ShardId, StreamKey, Timestamp};
 use std::time::Duration;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 struct Args {
-    #[structopt(long, help = "File path")]
-    file: FileId,
+    #[structopt(long, help = "Stream to this file")]
+    file: StreamerUri,
     #[structopt(long, parse(try_from_str = parse_duration), help = "Period of the clock. e.g. 1s, 100ms")]
     interval: Duration,
 }
@@ -32,10 +33,19 @@ async fn main() -> Result<()> {
     env_logger::init();
 
     let Args { file, interval } = Args::from_args();
-    let mut stream = FileSink::new(file, WriteFrom::End, DEFAULT_FILE_SIZE_LIMIT).await?;
+    let mut sink = MessageSink::new(
+        file.clone(),
+        DEFAULT_BEACON_INTERVAL,
+        DEFAULT_FILE_SIZE_LIMIT,
+    )
+    .await?;
+    let stream_key = StreamKey::new("hello")?;
+    let shard = ShardId::new(1);
 
     for i in 0..u64::MAX {
-        stream.write(Bytes::Bytes(format!("{i}\n").into_bytes()))?;
+        let header = MessageHeader::new(stream_key.clone(), shard, i, Timestamp::now_utc());
+        let message = OwnedMessage::new(header, format!("hello-{i}").into_bytes());
+        sink.write(message).await?;
         tokio::time::sleep(interval).await;
     }
 

@@ -51,3 +51,8 @@ required-features = ["executables"]
 name = "clock"
 path = "src/bin/clock.rs"
 required-features = ["executables"]
+
+[[bin]]
+name = "consumer"
+path = "src/bin/consumer.rs"
+required-features = ["executables"]

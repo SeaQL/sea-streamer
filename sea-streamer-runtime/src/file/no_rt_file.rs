@@ -1,6 +1,7 @@
 use super::SeekFrom;
 use futures::future::{ready, Future, Ready};
 use std::{
+    fs::Metadata,
     io::{Error as IoError, ErrorKind},
     path::Path,
 };
@@ -29,6 +30,10 @@ pub trait AsyncSeekExt {
 
 impl File {
     pub async fn open<P: AsRef<std::path::Path>>(_: P) -> Result<Self, IoError> {
+        unimplemented!("Please enable a runtime")
+    }
+
+    pub async fn metadata(&self) -> Result<Metadata, IoError> {
         unimplemented!("Please enable a runtime")
     }
 }

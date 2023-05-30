@@ -20,5 +20,5 @@ pub use sink::*;
 pub use source::*;
 pub use streamer::*;
 
-pub const DEFAULT_FILE_SIZE_LIMIT: usize = 16 * 1024 * 1024 * 1024; // 16GB
-pub const DEFAULT_BEACON_INTERVAL: usize = 1024 * 1024; // 1MB
+pub const DEFAULT_BEACON_INTERVAL: u32 = 1024 * 1024; // 1MB
+pub const DEFAULT_FILE_SIZE_LIMIT: u64 = 16 * 1024 * 1024 * 1024; // 16GB

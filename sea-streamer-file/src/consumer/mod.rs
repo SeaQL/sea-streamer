@@ -1,13 +1,13 @@
 mod group;
 
 use flume::{
-    r#async::{RecvFut, RecvStream},
-    Receiver, RecvError, Sender,
+    r#async::{RecvStream, SendFut},
+    Receiver, Sender, TryRecvError,
 };
 use sea_streamer_types::{
     export::{
         async_trait,
-        futures::{future::Map as FutureMap, FutureExt},
+        futures::{Future, FutureExt},
     },
     Consumer as ConsumerTrait, SeqPos, ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
 };
@@ -21,14 +21,13 @@ use self::group::remove_consumer;
 pub struct FileConsumer {
     sid: Sid,
     receiver: Receiver<Result<SharedMessage, FileErr>>,
-    pacer: Sender<Pulse>,
+    pulse: Sender<Pulse>,
 }
 
-type ReceiveResult = Result<Result<SharedMessage, FileErr>, RecvError>;
-pub type NextFuture<'a> = FutureMap<
-    RecvFut<'a, Result<SharedMessage, FileErr>>,
-    fn(ReceiveResult) -> FileResult<SharedMessage>,
->;
+pub struct NextFuture<'a> {
+    inner: &'a FileConsumer,
+    future: Option<SendFut<'a, Pulse>>,
+}
 
 pub type FileMessageStream<'a> = RecvStream<'a, FileResult<SharedMessage>>;
 
@@ -38,12 +37,12 @@ impl FileConsumer {
     pub(crate) fn new(
         sid: Sid,
         receiver: Receiver<Result<SharedMessage, FileErr>>,
-        pacer: Sender<Pulse>,
+        pulse: Sender<Pulse>,
     ) -> Self {
         Self {
             sid,
             receiver,
-            pacer,
+            pulse,
         }
     }
 }
@@ -79,10 +78,10 @@ impl ConsumerTrait for FileConsumer {
     }
 
     fn next(&self) -> Self::NextFuture<'_> {
-        if self.receiver.is_empty() {
-            self.pacer.try_send(Pulse).ok();
+        NextFuture {
+            inner: self,
+            future: None,
         }
-        self.receiver.recv_async().map(map_res)
     }
 
     fn stream<'a, 'b: 'a>(&'b mut self) -> Self::Stream<'a> {
@@ -90,10 +89,46 @@ impl ConsumerTrait for FileConsumer {
     }
 }
 
-fn map_res(res: ReceiveResult) -> FileResult<SharedMessage> {
-    match res {
-        Ok(Ok(m)) => Ok(m),
-        Ok(Err(e)) => Err(StreamErr::Backend(e)),
-        Err(e) => Err(StreamErr::Backend(FileErr::RecvError(e))),
+/// Hand-unrolled of the following:
+/// ```ignore
+/// loop {
+///     if let Ok(m) = receiver.try_recv() {
+///         return Ok(m);
+///     }
+///     pulse.send_async().await?;
+/// }
+/// ```
+impl<'a> Future for NextFuture<'a> {
+    type Output = FileResult<SharedMessage>;
+
+    fn poll(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        use std::task::Poll::{Pending, Ready};
+        loop {
+            match self.inner.receiver.try_recv() {
+                Ok(Ok(m)) => return Ready(Ok(m)),
+                Ok(Err(e)) => return Ready(Err(StreamErr::Backend(e))),
+                Err(TryRecvError::Disconnected) => {
+                    return Ready(Err(StreamErr::Backend(FileErr::TaskDead("Streamer Recv"))))
+                }
+                Err(TryRecvError::Empty) => (),
+            }
+            if self.future.is_none() {
+                self.future = Some(self.inner.pulse.send_async(Pulse));
+            }
+            match self.future.as_mut().unwrap().poll_unpin(cx) {
+                Ready(res) => match res {
+                    Ok(_) => {
+                        self.future = None;
+                    }
+                    Err(_) => {
+                        return Ready(Err(StreamErr::Backend(FileErr::TaskDead("Streamer Pulse"))))
+                    }
+                },
+                Pending => return Pending,
+            }
+        }
     }
 }

@@ -63,6 +63,8 @@ pub enum StreamUrlErr {
     ZeroNode,
     #[error("Protocol is required")]
     ProtocolRequired,
+    #[error("URL must have an ending slash, even when streams is empty")]
+    NoEndingSlash,
 }
 
 #[derive(Error, Debug, Clone, Copy)]

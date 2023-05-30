@@ -8,12 +8,12 @@ compile_error!("'runtime-async-std' and 'runtime-tokio' cannot be enabled at the
 
 #[cfg(feature = "file")]
 pub mod file;
+mod mutex;
 mod sleep;
 mod task;
 mod timeout;
-mod mutex;
 
+pub use mutex::*;
 pub use sleep::*;
 pub use task::*;
 pub use timeout::*;
-pub use mutex::*;

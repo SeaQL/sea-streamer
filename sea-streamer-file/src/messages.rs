@@ -191,7 +191,7 @@ impl ByteSource for MessageSource {
 }
 
 impl MessageSink {
-    pub async fn new(file_id: FileId, beacon_interval: u32, limit: usize) -> Result<Self, FileErr> {
+    pub async fn new(file_id: FileId, beacon_interval: u32, limit: u64) -> Result<Self, FileErr> {
         let path: &Path = file_id.path().as_ref();
         let file_name = path.file_name().unwrap().to_str().unwrap().to_owned();
         let mut sink = FileSink::new(file_id, WriteFrom::Beginning, limit).await?;

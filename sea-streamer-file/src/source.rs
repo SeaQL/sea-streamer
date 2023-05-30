@@ -12,14 +12,12 @@ use sea_streamer_types::{
 
 use crate::{
     watcher::{new_watcher, FileEvent, Watcher},
-    ByteBuffer, Bytes, FileErr, FileId,
+    ByteBuffer, Bytes, FileErr, FileId, ReadFrom, BUFFER_SIZE,
 };
 use sea_streamer_runtime::{
     file::{AsyncReadExt, AsyncSeekExt, File, SeekFrom},
     spawn_task, timeout, TaskHandle,
 };
-
-pub const BUFFER_SIZE: usize = 1024;
 
 pub trait ByteSource {
     type Future<'a>: Future<Output = Result<Bytes, FileErr>>
@@ -44,12 +42,6 @@ pub struct FileSource {
     buffer: ByteBuffer,
     handle: Option<TaskHandle<(File, Receiver<FileEvent>, FileId)>>,
     notify: Sender<FileEvent>,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum ReadFrom {
-    Beginning,
-    End,
 }
 
 impl FileSource {
@@ -204,9 +196,9 @@ impl FileSource {
         }
     }
 
-    /// Seek the file stream to a different position.
+    /// Seek the file stream to a different position. SeqNo is regarded as byte offset.
     ///
-    /// Note: SeqNo is regarded as byte offset.
+    /// Returns the file offset after sought.
     ///
     /// Warning: This future must not be canceled.
     pub async fn seek(&mut self, to: SeqPos) -> Result<u64, FileErr> {
@@ -244,14 +236,14 @@ impl FileSource {
 }
 
 impl ByteSource for FileSource {
-    type Future<'a> = FileStream<'a>;
+    type Future<'a> = FileByteStream<'a>;
 
     /// Stream N bytes from file. If there is not enough bytes, it will wait until there are,
     /// like `tail -f`.
     ///
     /// If there are enough bytes in the buffer, it yields immediately.
     fn request_bytes(&mut self, size: usize) -> Self::Future<'_> {
-        FileStream {
+        FileByteStream {
             size,
             buffer: &mut self.buffer,
             stream: self.receiver.stream(),
@@ -264,7 +256,7 @@ pub struct ReceiveFuture<'a> {
     future: RecvFut<'a, Result<Bytes, FileErr>>,
 }
 
-pub struct FileStream<'a> {
+pub struct FileByteStream<'a> {
     size: usize,
     buffer: &'a mut ByteBuffer,
     stream: RecvStream<'a, Result<Bytes, FileErr>>,
@@ -305,7 +297,7 @@ impl<'a> Future for ReceiveFuture<'a> {
 ///     self.receive().await?;
 /// }
 /// ```
-impl<'a> Future for FileStream<'a> {
+impl<'a> Future for FileByteStream<'a> {
     type Output = Result<Bytes, FileErr>;
 
     fn poll(
@@ -330,7 +322,7 @@ impl<'a> Future for FileStream<'a> {
                     }
                     None => {
                         // Channel closed
-                        return Ready(Err(FileErr::TaskDead("Source FileStream")));
+                        return Ready(Err(FileErr::TaskDead("Source FileByteStream")));
                     }
                 },
                 Pending => {

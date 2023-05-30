@@ -33,7 +33,7 @@ struct Watchers {
 }
 
 #[derive(Debug)]
-/// A handle of a Watcher, shared in the same process
+/// A handle of a Watcher. The actual watchers are pooled are shared among the process.
 pub struct Watcher {
     wid: Wid,
 }
