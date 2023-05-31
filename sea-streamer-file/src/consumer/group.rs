@@ -14,6 +14,12 @@ lazy_static::lazy_static! {
     static ref CONTROL: (Sender<CtrlMsg>, Receiver<CtrlMsg>) = unbounded();
 }
 
+/// This is a process-wide singleton Streamer manager. It allows multiple stream consumers
+/// to share the same FileSource, and thus has the same pace.
+///
+/// Most importantly, it manages consumer groups and dispatches messages fairly.
+/// This behaviour is very similar to stdio, but there is no broadcast channel.
+/// In stdio there is only one global Streamer, where in file, each file is a Streamer.
 struct Streamers {
     max_sid: Sid,
     streamers: HashMap<FileId, Vec<(StreamMode, StreamerHandle)>>,
@@ -155,6 +161,7 @@ impl Streamer {
                 };
                 subscribers.dispatch(res);
                 if end {
+                    // when this ends, source will be dropped as well
                     break;
                 }
             }

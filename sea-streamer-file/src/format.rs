@@ -2,7 +2,7 @@
 //! It has internal checksum to ensure integrity.
 //! It is a binary file format, but is readable with a plain text editor (if the payload is UTF-8).
 //!
-//! There is a header. Every N bytes there will be a beacon summarizing the streams so far.
+//! There is a header. Every N bytes there will be a Beacon summarizing the streams so far.
 //! A message can be spliced by one or more beacons.
 //!
 //! ```ignore
@@ -51,7 +51,8 @@
 //! +---------+--------+
 //! ```
 //!
-//! All numbers are encoded in big endian.
+//! All numbers are encoded in big endian. Note that there are 0x0D so that it will not mess up
+//! plain text editors. And it's semi-human-readable.
 //!
 //! A SeaStream can be terminated by a End-of-Stream Message,
 //! with the stream key `SEA_STREAMER_INTERNAL` and payload `EOS`.
@@ -121,15 +122,11 @@ pub struct U32(pub u32);
 pub struct U16(pub u16);
 
 #[derive(Error, Debug, Clone, Copy)]
-pub enum HeaderErr {
+pub enum FormatErr {
     #[error("Byte mark mismatch")]
     ByteMark,
     #[error("Version mismatch")]
     Version,
-}
-
-#[derive(Error, Debug, Clone, Copy)]
-pub enum FormatErr {
     #[error("ShortStringErr: {0}")]
     ShortStringErr(#[from] ShortStringErr),
     #[error("UnixTimestampErr: {0}")]
@@ -162,13 +159,13 @@ impl HeaderV1 {
     pub async fn read_from(file: &mut impl ByteSource) -> Result<Self, FileErr> {
         let bytes = Bytes::read_from(file, 3).await?.bytes();
         if bytes[0] != 0x53 {
-            return Err(FileErr::HeaderErr(HeaderErr::ByteMark));
+            return Err(FileErr::FormatErr(FormatErr::ByteMark));
         }
         if bytes[1] != 0x73 {
-            return Err(FileErr::HeaderErr(HeaderErr::ByteMark));
+            return Err(FileErr::FormatErr(FormatErr::ByteMark));
         }
         if bytes[2] != 0x01 {
-            return Err(FileErr::HeaderErr(HeaderErr::Version));
+            return Err(FileErr::FormatErr(FormatErr::Version));
         }
         let file_name = ShortString::read_from(file).await?.string();
         let created_at = UnixTimestamp::read_from(file).await?.0;

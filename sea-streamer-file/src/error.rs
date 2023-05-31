@@ -1,7 +1,4 @@
-use crate::{
-    format::{FormatErr, HeaderErr},
-    ConfigErr,
-};
+use crate::{format::FormatErr, ConfigErr};
 use sea_streamer_types::{StreamErr, StreamResult};
 use std::str::Utf8Error;
 use thiserror::Error;
@@ -20,8 +17,6 @@ pub enum FileErr {
     DuplicateIoError,
     #[error("Watch Error: {0}")]
     WatchError(String),
-    #[error("HeaderErr: {0}")]
-    HeaderErr(#[source] HeaderErr),
     #[error("FormatErr: {0}")]
     FormatErr(#[source] FormatErr),
     #[error("File Removed")]
@@ -48,7 +43,6 @@ impl FileErr {
             FileErr::IoError(_) => FileErr::DuplicateIoError,
             FileErr::DuplicateIoError => FileErr::DuplicateIoError,
             FileErr::WatchError(e) => FileErr::WatchError(e.clone()),
-            FileErr::HeaderErr(e) => FileErr::HeaderErr(*e),
             FileErr::FormatErr(e) => FileErr::FormatErr(*e),
             FileErr::FileRemoved => FileErr::FileRemoved,
             FileErr::FileLimitExceeded => FileErr::FileLimitExceeded,

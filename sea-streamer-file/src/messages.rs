@@ -40,8 +40,11 @@ struct BeaconState {
 }
 
 impl MessageSource {
-    /// Creates a new message source. The file must be read from beginning,
-    /// because the file header is needed.
+    /// Creates a new message source. First, the stream Header is read
+    /// from the file's beginning.
+    ///
+    /// If StreamMode is `Live`, it will fast forward to the file's end.
+    /// Thanks to SeaStreamer's Beacon system, this is pretty efficient.
     pub async fn new(file_id: FileId, mode: StreamMode) -> Result<Self, FileErr> {
         let mut source = DynFileSource::new(
             file_id,
@@ -190,6 +193,8 @@ impl MessageSource {
         Ok(mess)
     }
 
+    /// Get the most recent set of Beacon. Note that it clears (rather than accumulate)
+    /// on each Beacon point.
     pub fn beacons(&self) -> &[Beacon] {
         &self.beacons
     }
@@ -201,8 +206,11 @@ impl MessageSource {
 }
 
 impl ByteSource for MessageSource {
-    type Future<'a> = BoxFuture<'a, Result<Bytes, FileErr>>; // Too complex to unroll by hand, I give up. Just box it.
+    /// Too complex to unroll by hand. Let's just box it.
+    type Future<'a> = BoxFuture<'a, Result<Bytes, FileErr>>;
 
+    /// Although this is exposed as public. Do not call this directly,
+    /// this will interfere the Message Stream.
     fn request_bytes(&mut self, size: usize) -> Self::Future<'_> {
         self.request_bytes(size).boxed()
     }

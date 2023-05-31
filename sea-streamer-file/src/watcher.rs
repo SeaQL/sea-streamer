@@ -6,7 +6,7 @@ use notify::{
 };
 use sea_streamer_runtime::spawn_task;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeSet, HashMap},
     sync::Mutex,
 };
 
@@ -24,10 +24,14 @@ lazy_static::lazy_static! {
 
 type Wid = u32;
 
+/// This is a process-wide singleton Watcher pool. No matter how many File handle
+/// we have in the process, each file only has one Watcher registered with the OS.
+///
+/// The file system events are shared, which gives consistent behaviour.
 struct Watchers {
     max_wid: Wid,
     watchers: HashMap<FileId, RecommendedWatcher>,
-    listeners: HashSet<(FileId, Wid)>,
+    listeners: BTreeSet<(FileId, Wid)>, // we want consistent iteration order
     senders: HashMap<Wid, Sender<FileEvent>>,
     sender: Sender<(FileId, FileEvent)>,
 }
@@ -69,7 +73,7 @@ impl Watchers {
         }
     }
 
-    /// Warning: `Sender` should be unbounded, and never blocks.
+    /// `Sender` should be unbounded, and never blocks.
     fn add(&mut self, file_id: FileId, sender: Sender<FileEvent>) -> Result<Watcher, FileErr> {
         assert!(sender.capacity().is_none());
         if self.watchers.get(&file_id).is_none() {
@@ -102,7 +106,7 @@ impl Watchers {
             if count == 0 {
                 // no one is watching this file anymore
                 self.watchers.remove(&file_id);
-                log::info!("Stopped watching {file_id}");
+                log::debug!("Stopped watching {file_id}");
             }
         }
     }

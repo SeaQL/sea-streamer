@@ -9,18 +9,19 @@ use sea_streamer_types::{
 
 pub(crate) const BUFFER_SIZE: usize = 1024;
 
-/// A simple buffered file reader. The implementation is much simpler than `FileSource`.
+/// A simple buffered and bounded file reader.
+/// The implementation is much simpler than `FileSource`.
 ///
 /// `FileReader` treats file as a fixed depot of bytes.
 /// Attempt to read beyond the end will result in a `NotEnoughBytes` error.
 pub struct FileReader {
     file: AsyncFile,
-    /// This is the user's read offset, not same as file's read pos
+    /// This is the user's read offset, not the same as file's read pos
     offset: u64,
     buffer: ByteBuffer,
 }
 
-/// A minimal wrapper over File
+/// A minimal wrapper over async runtime's File.
 pub struct AsyncFile {
     id: FileId,
     file: File,

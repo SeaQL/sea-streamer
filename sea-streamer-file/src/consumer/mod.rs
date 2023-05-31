@@ -59,11 +59,11 @@ impl ConsumerTrait for FileConsumer {
     type Stream<'a> = FileMessageStream<'a>;
 
     async fn seek(&mut self, _: Timestamp) -> FileResult<()> {
-        Err(StreamErr::Unsupported("FileConsumer::seek".to_owned()))
+        todo!()
     }
 
     async fn rewind(&mut self, _: SeqPos) -> FileResult<()> {
-        Err(StreamErr::Unsupported("FileConsumer::rewind".to_owned()))
+        todo!()
     }
 
     fn assign(&mut self, _: (StreamKey, ShardId)) -> FileResult<()> {
