@@ -94,3 +94,86 @@ async fn consumer() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[cfg(feature = "test")]
+#[cfg_attr(feature = "runtime-tokio", tokio::test)]
+#[cfg_attr(feature = "runtime-async-std", async_std::test)]
+async fn demux() -> anyhow::Result<()> {
+    use sea_streamer_file::{
+        AutoStreamReset, FileConsumerOptions, FileStreamer, MessageSink, DEFAULT_FILE_SIZE_LIMIT,
+    };
+    use sea_streamer_types::{
+        Buffer, Consumer, Message, MessageHeader, OwnedMessage, ShardId, SharedMessage, StreamKey,
+        Streamer, Timestamp,
+    };
+
+    const TEST: &str = "demux";
+    INIT.call_once(env_logger::init);
+
+    let now = Timestamp::now_utc();
+    let file_id =
+        temp_file(format!("{}-{}", TEST, now.unix_timestamp_nanos() / 1_000_000).as_str())?;
+    println!("{file_id}");
+    let cat_key = StreamKey::new("cat")?;
+    let dog_key = StreamKey::new("dog")?;
+    let shard = ShardId::new(1);
+
+    let cat = |i: u64| -> OwnedMessage {
+        let header = MessageHeader::new(cat_key.clone(), shard, i, Timestamp::now_utc());
+        OwnedMessage::new(header, format!("{}", i).into_bytes())
+    };
+    let dog = |i: u64| -> OwnedMessage {
+        let header = MessageHeader::new(dog_key.clone(), shard, i, Timestamp::now_utc());
+        OwnedMessage::new(header, format!("{}", i).into_bytes())
+    };
+    let check = |i: u64, mess: &SharedMessage| {
+        assert_eq!(mess.header().shard_id(), &shard);
+        assert_eq!(mess.header().sequence(), &i);
+        assert_eq!(mess.message().as_str().unwrap(), format!("{}", i));
+    };
+    let is_cat = |i: u64, m: SharedMessage| {
+        assert_eq!(m.header().stream_key(), &cat_key);
+        check(i, &m);
+    };
+    let is_dog = |i: u64, m: SharedMessage| {
+        assert_eq!(m.header().stream_key(), &dog_key);
+        check(i, &m);
+    };
+
+    let streamer = FileStreamer::connect(file_id.to_streamer_uri()?, Default::default()).await?;
+
+    let mut sink = MessageSink::new(
+        file_id.clone(),
+        1024, // 1KB
+        DEFAULT_FILE_SIZE_LIMIT,
+    )
+    .await?;
+
+    for i in 0..100 {
+        if i % 2 == 0 {
+            sink.write(cat(i)).await?;
+        } else {
+            sink.write(dog(i)).await?;
+        }
+    }
+
+    let mut options = FileConsumerOptions::default();
+    options.set_auto_stream_reset(AutoStreamReset::Earliest);
+
+    let cat_stream = streamer
+        .create_consumer(&[cat_key.clone()], options.clone())
+        .await?;
+    let dog_stream = streamer
+        .create_consumer(&[dog_key.clone()], options.clone())
+        .await?;
+
+    for i in 0..100 {
+        if i % 2 == 0 {
+            is_cat(i, cat_stream.next().await?);
+        } else {
+            is_dog(i, dog_stream.next().await?);
+        }
+    }
+
+    Ok(())
+}
