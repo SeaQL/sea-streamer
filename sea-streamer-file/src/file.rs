@@ -191,6 +191,12 @@ impl AsyncFile {
     }
 }
 
+impl Drop for AsyncFile {
+    fn drop(&mut self) {
+        log::debug!("AsyncFile Close ({})", self.id.path());
+    }
+}
+
 impl FileId {
     pub fn new<T: Into<String>>(path: T) -> Self {
         Self {

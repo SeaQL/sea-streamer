@@ -10,11 +10,9 @@ use sea_streamer_runtime::{sleep, spawn_task};
 use sea_streamer_types::{
     export::{async_trait, futures::FutureExt},
     Buffer, MessageHeader, Producer, ProducerOptions, Receipt, ShardId, StreamErr, StreamKey,
-    Timestamp,
+    Timestamp, SEA_STREAMER_INTERNAL,
 };
 
-/// Avoid using this StreamKey
-pub const SEA_STREAMER_INTERNAL: &str = "SEA_STREAMER_INTERNAL";
 const MAX_RETRY: usize = 100;
 
 #[derive(Debug, Clone)]

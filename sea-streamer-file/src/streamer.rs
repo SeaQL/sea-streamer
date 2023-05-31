@@ -64,7 +64,6 @@ impl StreamerTrait for FileStreamer {
 
     /// First check whether the file exists.
     async fn connect(uri: StreamerUri, _: Self::ConnectOptions) -> FileResult<Self> {
-        // TODO
         if uri.nodes().is_empty() {
             return Err(StreamErr::StreamUrlErr(StreamUrlErr::ZeroNode));
         }
@@ -75,9 +74,9 @@ impl StreamerTrait for FileStreamer {
             .as_str()
             .trim_start_matches("file://")
             .trim_end_matches('/');
-        Ok(Self {
-            file_id: FileId::new(path),
-        })
+        let file_id = FileId::new(path);
+        AsyncFile::new(file_id.clone()).await?;
+        Ok(Self { file_id })
     }
 
     async fn disconnect(self) -> FileResult<()> {

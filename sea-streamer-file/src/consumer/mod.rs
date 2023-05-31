@@ -120,9 +120,7 @@ impl<'a> Future for NextFuture<'a> {
                     Ok(_) => {
                         self.future = None;
                     }
-                    Err(_) => {
-                        return Ready(Err(StreamErr::Backend(FileErr::TaskDead("Streamer Pulse"))))
-                    }
+                    Err(_) => return Ready(Err(StreamErr::Backend(FileErr::StreamEnded))),
                 },
                 Pending => return Pending,
             }

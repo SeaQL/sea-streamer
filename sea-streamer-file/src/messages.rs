@@ -2,8 +2,8 @@ use std::{collections::BTreeMap, path::Path};
 
 use sea_streamer_types::{
     export::futures::{future::BoxFuture, FutureExt},
-    Message as MessageTrait, MessageHeader, OwnedMessage, SeqNo, SeqPos, ShardId, StreamKey,
-    Timestamp,
+    Buffer, Message as MessageTrait, MessageHeader, OwnedMessage, SeqNo, SeqPos, ShardId,
+    SharedMessage, StreamKey, Timestamp, SEA_STREAMER_INTERNAL,
 };
 
 use crate::{
@@ -11,6 +11,8 @@ use crate::{
     ByteBuffer, ByteSource, Bytes, DynFileSource, FileErr, FileId, FileSink, FileSourceType,
     StreamMode, WriteFrom,
 };
+
+pub const END_OF_STREAM: &str = "EOS";
 
 /// A high level file reader that demux messages and beacons
 pub struct MessageSource {
@@ -287,4 +289,19 @@ impl MessageSink {
 
         Ok(checksum)
     }
+}
+
+pub fn end_of_stream() -> OwnedMessage {
+    let header = MessageHeader::new(
+        StreamKey::new(SEA_STREAMER_INTERNAL).unwrap(),
+        ShardId::new(0),
+        0,
+        Timestamp::now_utc(),
+    );
+    OwnedMessage::new(header, END_OF_STREAM.into_bytes())
+}
+
+pub fn is_end_of_stream(mess: &SharedMessage) -> bool {
+    mess.header().stream_key().name() == SEA_STREAMER_INTERNAL
+        && mess.message().as_bytes() == END_OF_STREAM.as_bytes()
 }

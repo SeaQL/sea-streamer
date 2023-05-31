@@ -11,11 +11,12 @@ static INIT: std::sync::Once = std::sync::Once::new();
 async fn consumer() -> anyhow::Result<()> {
     use anyhow::Context;
     use sea_streamer_file::{
-        AutoStreamReset, FileConsumerOptions, FileStreamer, MessageSink, DEFAULT_FILE_SIZE_LIMIT,
+        end_of_stream, AutoStreamReset, FileConsumerOptions, FileErr, FileStreamer, MessageSink,
+        DEFAULT_FILE_SIZE_LIMIT,
     };
     use sea_streamer_types::{
         export::futures::TryStreamExt, Buffer, Consumer, Message, MessageHeader, OwnedMessage,
-        ShardId, SharedMessage, StreamKey, Streamer, Timestamp,
+        ShardId, SharedMessage, StreamErr, StreamKey, Streamer, Timestamp,
     };
 
     const TEST: &str = "consumer";
@@ -85,6 +86,11 @@ async fn consumer() -> anyhow::Result<()> {
         check(i, latest.next().await?);
     }
     println!("Stream from latest ... ok");
+
+    sink.write(end_of_stream()).await?;
+    let ended = |e| matches!(e, Err(StreamErr::Backend(FileErr::StreamEnded)));
+    assert!(ended(earliest.next().await));
+    assert!(ended(latest.next().await));
 
     Ok(())
 }

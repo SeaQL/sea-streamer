@@ -52,6 +52,9 @@
 //! ```
 //!
 //! All numbers are encoded in big endian.
+//!
+//! A SeaStream can be terminated by a End-of-Stream Message,
+//! with the stream key `SEA_STREAMER_INTERNAL` and payload `EOS`.
 
 use crate::{ByteSink, ByteSource, Bytes, FileErr};
 use crczoo::{calculate_crc16, crc16_cdma2000, CRC16_CDMA2000_POLY};

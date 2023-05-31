@@ -6,7 +6,7 @@ use std::{
 };
 
 use super::FileConsumer;
-use crate::{FileErr, FileId, MessageSource, StreamMode};
+use crate::{is_end_of_stream, FileErr, FileId, MessageSource, StreamMode};
 use sea_streamer_types::{ConsumerGroup, Message, SharedMessage, StreamKey};
 
 lazy_static::lazy_static! {
@@ -114,6 +114,7 @@ impl Streamers {
             for (_, handle) in handles.iter_mut() {
                 handle.subscribers.remove(sid);
             }
+            handles.retain(|(_, h)| !h.subscribers.is_empty());
         }
     }
 }
@@ -143,14 +144,17 @@ impl Streamer {
 
         let _handle = spawn_task(async move {
             loop {
-                _ = pulse.recv_async().await;
+                if pulse.recv_async().await.is_err() {
+                    break;
+                }
                 let res = source.next().await;
-                let is_err = res.is_err();
-                subscribers.dispatch(match res {
-                    Ok(m) => Ok(m.message.to_shared()),
-                    Err(e) => Err(e),
-                });
-                if is_err {
+                let res: Result<SharedMessage, FileErr> = res.map(|m| m.message.to_shared());
+                let end = match &res {
+                    Ok(m) => is_end_of_stream(m),
+                    Err(_) => true,
+                };
+                subscribers.dispatch(res);
+                if end {
                     break;
                 }
             }
@@ -172,6 +176,15 @@ impl Subscribers {
                 ungrouped: Default::default(),
             })),
         }
+    }
+
+    fn len(&self) -> usize {
+        let map = self.subscribers.lock().unwrap();
+        map.senders.len()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     fn add(
