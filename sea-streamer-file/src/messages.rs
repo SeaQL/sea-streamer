@@ -227,8 +227,8 @@ impl MessageSink {
         })
     }
 
-    /// This message is cancel safe. If it's canceled after polled once, the message
-    /// will have been written.
+    /// This future is cancel safe. If it's canceled after polled once, the message
+    /// will have been written. Otherwise it will be dropped.
     pub async fn write(&mut self, message: OwnedMessage) -> Result<Checksum, FileErr> {
         let key = (message.stream_key(), message.shard_id());
         let (seq_no, ts) = (message.sequence(), message.timestamp());

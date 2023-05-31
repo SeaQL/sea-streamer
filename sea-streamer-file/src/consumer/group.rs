@@ -91,7 +91,7 @@ impl Streamers {
                 } else {
                     handles.push((
                         mode,
-                        Streamer::new(MessageSource::new(file_id.clone(), mode).await?),
+                        Streamer::create(MessageSource::new(file_id.clone(), mode).await?),
                     ));
                     &mut handles.last_mut().unwrap().1
                 }
@@ -100,7 +100,7 @@ impl Streamers {
                 // otherwise each consumer 'owns' a streamer
                 handles.push((
                     mode,
-                    Streamer::new(MessageSource::new(file_id.clone(), mode).await?),
+                    Streamer::create(MessageSource::new(file_id.clone(), mode).await?),
                 ));
                 &mut handles.last_mut().unwrap().1
             }
@@ -136,7 +136,7 @@ pub(crate) fn remove_consumer(sid: Sid) {
 }
 
 impl Streamer {
-    fn new(mut source: MessageSource) -> StreamerHandle {
+    fn create(mut source: MessageSource) -> StreamerHandle {
         let subscribers = Subscribers::new();
         let (sender, pulse) = bounded(0);
         let ret = subscribers.clone();
@@ -204,9 +204,7 @@ impl Subscribers {
 
     fn remove(&self, sid: Sid) {
         let mut map = self.subscribers.lock().unwrap();
-        if map.senders.remove(&sid).is_none() {
-            panic!("Unknown Subscriber {sid}");
-        }
+        map.senders.remove(&sid);
         map.ungrouped.retain(|(_, s)| s != &sid);
         for (_, sids) in map.groups.iter_mut() {
             if sids.contains(&sid) {
@@ -232,7 +230,7 @@ impl Subscribers {
 
                 for (stream_key, sid) in map.ungrouped.iter() {
                     if stream_key == message.header().stream_key() {
-                        let sender = map.senders.get(&sid).unwrap();
+                        let sender = map.senders.get(sid).unwrap();
                         sender.send(Ok(message.clone())).ok();
                     }
                 }
@@ -241,13 +239,13 @@ impl Subscribers {
                 // broadcast the error
                 for (_, sids) in map.groups.iter() {
                     for sid in sids.iter() {
-                        let sender = map.senders.get(&sid).unwrap();
+                        let sender = map.senders.get(sid).unwrap();
                         sender.send(Err(err.take())).ok();
                     }
                 }
 
                 for (_, sid) in map.ungrouped.iter() {
-                    let sender = map.senders.get(&sid).unwrap();
+                    let sender = map.senders.get(sid).unwrap();
                     sender.send(Err(err.take())).ok();
                 }
             }

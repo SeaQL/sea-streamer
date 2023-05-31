@@ -40,18 +40,18 @@ impl FileErr {
     /// Take ownership of this Err, leaving a clone in place.
     pub fn take(&mut self) -> Self {
         let mut copy = match self {
-            FileErr::ConfigErr(e) => FileErr::ConfigErr(e.clone()),
-            FileErr::Utf8Error(e) => FileErr::Utf8Error(e.clone()),
+            FileErr::ConfigErr(e) => FileErr::ConfigErr(*e),
+            FileErr::Utf8Error(e) => FileErr::Utf8Error(*e),
             FileErr::IoError(_) => FileErr::DuplicateIoError,
             FileErr::DuplicateIoError => FileErr::DuplicateIoError,
             FileErr::WatchError(e) => FileErr::WatchError(e.clone()),
-            FileErr::HeaderErr(e) => FileErr::HeaderErr(e.clone()),
-            FileErr::FormatErr(e) => FileErr::FormatErr(e.clone()),
+            FileErr::HeaderErr(e) => FileErr::HeaderErr(*e),
+            FileErr::FormatErr(e) => FileErr::FormatErr(*e),
             FileErr::FileRemoved => FileErr::FileRemoved,
             FileErr::FileLimitExceeded => FileErr::FileLimitExceeded,
-            FileErr::TaskDead(e) => FileErr::TaskDead(e.clone()),
+            FileErr::TaskDead(e) => FileErr::TaskDead(e),
             FileErr::NotEnoughBytes => FileErr::NotEnoughBytes,
-            FileErr::RecvError(e) => FileErr::RecvError(e.clone()),
+            FileErr::RecvError(e) => FileErr::RecvError(*e),
         };
         std::mem::swap(self, &mut copy);
         copy

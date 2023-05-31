@@ -75,7 +75,6 @@ impl StreamerTrait for FileStreamer {
             .as_str()
             .trim_start_matches("file://")
             .trim_end_matches('/');
-        dbg!(path);
         Ok(Self {
             file_id: FileId::new(path),
         })

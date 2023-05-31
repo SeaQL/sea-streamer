@@ -1,9 +1,9 @@
+mod future;
 mod group;
 
-use flume::{
-    r#async::{RecvStream, SendFut},
-    Receiver, Sender, TryRecvError,
-};
+pub use future::StreamFuture as FileMessageStream;
+
+use flume::{r#async::SendFut, Receiver, Sender, TryRecvError};
 use sea_streamer_types::{
     export::{
         async_trait,
@@ -28,8 +28,6 @@ pub struct NextFuture<'a> {
     inner: &'a FileConsumer,
     future: Option<SendFut<'a, Pulse>>,
 }
-
-pub type FileMessageStream<'a> = RecvStream<'a, FileResult<SharedMessage>>;
 
 pub type FileMessage = SharedMessage;
 
@@ -57,7 +55,6 @@ impl Drop for FileConsumer {
 impl ConsumerTrait for FileConsumer {
     type Error = FileErr;
     type Message<'a> = SharedMessage;
-    // See we don't actually have to Box these! Looking forward to `type_alias_impl_trait`
     type NextFuture<'a> = NextFuture<'a>;
     type Stream<'a> = FileMessageStream<'a>;
 
@@ -85,7 +82,7 @@ impl ConsumerTrait for FileConsumer {
     }
 
     fn stream<'a, 'b: 'a>(&'b mut self) -> Self::Stream<'a> {
-        todo!()
+        FileMessageStream::new(self)
     }
 }
 

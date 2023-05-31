@@ -19,17 +19,6 @@ impl<'a> Debug for NextFuture<'a> {
     }
 }
 
-pub struct StreamFuture<'a> {
-    con: &'a RedisConsumer,
-    fut: NextFuture<'a>,
-}
-
-impl<'a> Debug for StreamFuture<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("StreamFuture").finish()
-    }
-}
-
 impl<'a> Future for NextFuture<'a> {
     type Output = RedisResult<SharedMessage>;
 
@@ -64,6 +53,17 @@ impl<'a> Drop for NextFuture<'a> {
         if self.read {
             self.con.handle.try_send(CtrlMsg::Unread).ok();
         }
+    }
+}
+
+pub struct StreamFuture<'a> {
+    con: &'a RedisConsumer,
+    fut: NextFuture<'a>,
+}
+
+impl<'a> Debug for StreamFuture<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StreamFuture").finish()
     }
 }
 

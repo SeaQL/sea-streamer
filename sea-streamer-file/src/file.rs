@@ -4,7 +4,7 @@ use crate::{ByteBuffer, ByteSource, Bytes, FileErr};
 use sea_streamer_runtime::file::{AsyncReadExt, AsyncSeekExt, File, SeekFrom};
 use sea_streamer_types::{
     export::futures::{future::BoxFuture, FutureExt},
-    SeqPos,
+    SeqPos, StreamUrlErr, StreamerUri,
 };
 
 pub(crate) const BUFFER_SIZE: usize = 1024;
@@ -200,6 +200,10 @@ impl FileId {
 
     pub fn path(&self) -> &str {
         &self.path
+    }
+
+    pub fn to_streamer_uri(&self) -> Result<StreamerUri, StreamUrlErr> {
+        format!("file://{}", self.path()).parse()
     }
 }
 

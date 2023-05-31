@@ -103,7 +103,7 @@ impl FileSource {
                         break;
                     }
                 };
-                if bytes.len() > 0 {
+                if !bytes.is_empty() {
                     wait = 0;
                     if sender.send_async(Ok(bytes)).await.is_err() {
                         break;
