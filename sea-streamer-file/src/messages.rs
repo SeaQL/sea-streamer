@@ -8,15 +8,15 @@ use sea_streamer_types::{
 
 use crate::{
     format::{Beacon, Beacons, Checksum, Header, Message, RunningChecksum},
-    ByteBuffer, ByteSource, Bytes, FileErr, FileId, FileSink, FileSource, ReadFrom, WriteFrom,
+    ByteBuffer, ByteSource, Bytes, DynFileSource, FileErr, FileId, FileSink, FileSourceType,
+    StreamMode, WriteFrom,
 };
 
 /// A high level file reader that demux messages and beacons
 pub struct MessageSource {
-    source: FileSource,
+    source: DynFileSource,
     buffer: ByteBuffer,
     offset: u64,
-    known_size: u64,
     beacon_interval: u32,
     beacons: Vec<Beacon>,
 }
@@ -40,43 +40,47 @@ struct BeaconState {
 impl MessageSource {
     /// Creates a new message source. The file must be read from beginning,
     /// because the file header is needed.
-    pub async fn new(file_id: FileId) -> Result<Self, FileErr> {
-        let mut source = FileSource::new(file_id, ReadFrom::Beginning).await?;
+    pub async fn new(file_id: FileId, mode: StreamMode) -> Result<Self, FileErr> {
+        let mut source = DynFileSource::new(
+            file_id,
+            match mode {
+                StreamMode::Live | StreamMode::LiveReplay => FileSourceType::FileSource,
+                StreamMode::Replay => FileSourceType::FileReader,
+            },
+        )
+        .await?;
         let header = Header::read_from(&mut source).await?;
         assert!(Header::size() < header.beacon_interval as usize);
-        Ok(Self::new_with(
-            source,
-            Header::size() as u64,
-            header.beacon_interval,
-        ))
+        let mut stream = Self::new_with(source, Header::size() as u64, header.beacon_interval);
+        if mode == StreamMode::Live {
+            stream.rewind(SeqPos::End).await?;
+        }
+        Ok(stream)
     }
 
     /// Creates a new message source with the header read and skipped.
-    pub fn new_with(source: FileSource, offset: u64, beacon_interval: u32) -> Self {
+    pub fn new_with(source: DynFileSource, offset: u64, beacon_interval: u32) -> Self {
         Self {
             source,
             buffer: ByteBuffer::new(),
             offset,
-            known_size: offset,
             beacon_interval,
             beacons: Vec::new(),
         }
     }
 
     /// Rewind the message stream to a coarse position.
-    ///
-    /// Note: SeqNo is regarded as the N-th beacon.
+    /// SeqNo is regarded as the N-th beacon.
+    /// Returns the current location in terms of N-th beacon.
     ///
     /// Warning: This future must not be canceled.
-    ///
-    /// Returns the current location in terms of N-th beacon.
     pub async fn rewind(&mut self, target: SeqPos) -> Result<u32, FileErr> {
         let pos = match target {
             SeqPos::Beginning | SeqPos::At(0) => SeqPos::At(Header::size() as u64),
             SeqPos::End => SeqPos::End,
             SeqPos::At(nth) => {
                 let at = nth * self.beacon_interval as u64;
-                if at < self.known_size {
+                if at < self.known_size() {
                     SeqPos::At(at)
                 } else {
                     SeqPos::End
@@ -84,17 +88,16 @@ impl MessageSource {
             }
         };
         self.offset = self.source.seek(pos).await?;
-        self.known_size = std::cmp::max(self.known_size, self.offset);
 
         // Align at a beacon
         if pos == SeqPos::End {
-            let max = self.known_size - (self.known_size % self.beacon_interval as u64);
+            let max = self.known_size() - (self.known_size() % self.beacon_interval as u64);
             let pos = match target {
                 SeqPos::Beginning | SeqPos::At(0) => unreachable!(),
                 SeqPos::End => max,
                 SeqPos::At(nth) => {
                     let at = nth * self.beacon_interval as u64;
-                    if at < self.known_size {
+                    if at < self.known_size() {
                         at
                     } else {
                         max
@@ -122,16 +125,15 @@ impl MessageSource {
                 ))
                 .await?;
             self.offset += bytes.len() as u64;
-            self.known_size = std::cmp::max(self.known_size, self.offset);
         }
 
         // Now we are at the first message after the last beacon,
         // we want to consume all messages up to known size
-        if matches!(target, SeqPos::End) && self.offset < self.known_size {
+        if matches!(target, SeqPos::End) && self.offset < self.known_size() {
             let mut next = self.offset;
             let bytes = self
                 .source
-                .request_bytes((self.known_size - self.offset) as usize)
+                .request_bytes((self.known_size() - self.offset) as usize)
                 .await?;
             let mut buffer = ByteBuffer::one(bytes);
             while let Ok(message) = Message::read_from(&mut buffer).await {
@@ -162,7 +164,6 @@ impl MessageSource {
             );
             let bytes = self.source.request_bytes(chunk).await?;
             self.offset += chunk as u64;
-            self.known_size = std::cmp::max(self.known_size, self.offset);
             self.buffer.append(bytes); // these are message bytes
 
             debug_assert!(!self.buffer.size() > size, "we should never over-read");
@@ -172,6 +173,16 @@ impl MessageSource {
         }
     }
 
+    /// Switch the file source type.
+    ///
+    /// Warning: This future must not be canceled.
+    pub async fn switch_to(&mut self, stype: FileSourceType) -> Result<(), FileErr> {
+        let source = std::mem::replace(&mut self.source, DynFileSource::Dead);
+        self.source = source.switch_to(stype).await?;
+        Ok(())
+    }
+
+    /// Read the next message.
     pub async fn next(&mut self) -> Result<Message, FileErr> {
         let mess = Message::read_from(self).await?;
         Ok(mess)
@@ -179,6 +190,11 @@ impl MessageSource {
 
     pub fn beacons(&self) -> &[Beacon] {
         &self.beacons
+    }
+
+    #[inline]
+    fn known_size(&self) -> u64 {
+        self.source.file_size()
     }
 }
 

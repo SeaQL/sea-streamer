@@ -157,6 +157,14 @@ impl FileSink {
         })
     }
 
+    pub fn marker(&mut self, marker: u32) -> Result<(), FileErr> {
+        if self.sender.send(Request::Marker(marker)).is_err() {
+            self.return_err()
+        } else {
+            Ok(())
+        }
+    }
+
     pub async fn receipt(&mut self) -> Result<u32, FileErr> {
         match self.update.recv_async().await {
             Ok(Update::Receipt(receipt)) => Ok(receipt),
@@ -165,12 +173,11 @@ impl FileSink {
         }
     }
 
-    pub fn marker(&mut self, marker: u32) -> Result<(), FileErr> {
-        if self.sender.send(Request::Marker(marker)).is_err() {
-            self.return_err()
-        } else {
-            Ok(())
-        }
+    /// End this file after flushing all pending bytes.
+    pub async fn end(mut self) -> Result<(), FileErr> {
+        self.marker(u32::MAX)?;
+        while self.receipt().await? < u32::MAX {}
+        Ok(())
     }
 }
 

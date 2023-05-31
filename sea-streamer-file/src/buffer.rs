@@ -90,6 +90,12 @@ impl ByteBuffer {
         self.buf.clear();
     }
 
+    /// Take ownership of all bytes; leaving self Empty.
+    pub fn take(&mut self) -> Self {
+        let buf = std::mem::take(&mut self.buf);
+        Self { buf }
+    }
+
     /// Consume a specific number of bytes from the buffer,
     /// panic if there are not enough bytes.
     pub fn consume<T: Appendable>(&mut self, size: usize) -> T {

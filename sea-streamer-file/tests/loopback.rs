@@ -169,10 +169,10 @@ async fn seek() -> anyhow::Result<()> {
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
 async fn beacon() -> anyhow::Result<()> {
     use sea_streamer_file::{
-        format::Beacons, Bytes, FileSink, FileSource, MessageSource, ReadFrom, WriteFrom,
-        DEFAULT_FILE_SIZE_LIMIT,
+        format::Beacons, Bytes, DynFileSource, FileErr, FileSink, FileSourceType, MessageSource,
+        WriteFrom, DEFAULT_FILE_SIZE_LIMIT,
     };
-    use sea_streamer_types::Timestamp;
+    use sea_streamer_types::{SeqPos, Timestamp};
 
     const TEST: &str = "beacon";
     INIT.call_once(env_logger::init);
@@ -183,19 +183,20 @@ async fn beacon() -> anyhow::Result<()> {
 
     let mut sink =
         FileSink::new(path.clone(), WriteFrom::Beginning, DEFAULT_FILE_SIZE_LIMIT).await?;
-    let source = FileSource::new(path.clone(), ReadFrom::Beginning).await?;
+    let source = DynFileSource::new(path.clone(), FileSourceType::FileSource).await?;
     let mut source = MessageSource::new_with(source, 0, 12);
 
     Bytes::Bytes(vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]).write_to(&mut sink)?;
     Beacons {
         items: Vec::new(),
-        remaining_messages_bytes: 0x88,
+        remaining_messages_bytes: 0,
     }
     .write_to(&mut sink)?;
+    // The empty beacon is 7 bytes, so we have only 5 bytes left for data
     Bytes::Bytes(vec![13, 14, 15, 16, 17]).write_to(&mut sink)?;
     Beacons {
         items: Vec::new(),
-        remaining_messages_bytes: 0x99,
+        remaining_messages_bytes: 2, // !
     }
     .write_to(&mut sink)?;
     Bytes::Bytes(vec![18, 19, 20]).write_to(&mut sink)?;
@@ -207,6 +208,31 @@ async fn beacon() -> anyhow::Result<()> {
     let read = Bytes::read_from(&mut source, 4).await?;
     assert_eq!(read.bytes(), vec![17, 18, 19, 20]);
 
+    // Rewind the file and read again
+    assert_eq!(1, source.rewind(SeqPos::At(1)).await?);
+    let read = Bytes::read_from(&mut source, 7).await?;
+    assert_eq!(read.bytes(), vec![13, 14, 15, 16, 17, 18, 19]);
+    let read = Bytes::read_from(&mut source, 1).await?;
+    assert_eq!(read.bytes(), vec![20]);
+
+    // Rewind the file and switch to dead mode
+    assert_eq!(1, source.rewind(SeqPos::At(1)).await?);
+    source.switch_to(FileSourceType::FileReader).await?;
+    let read = Bytes::read_from(&mut source, 4).await?;
+    assert_eq!(read.bytes(), vec![13, 14, 15, 16]);
+    let read = Bytes::read_from(&mut source, 4).await?;
+    assert_eq!(read.bytes(), vec![17, 18, 19, 20]);
+    // Now it should error
+    let error = Bytes::read_from(&mut source, 1).await.err().unwrap();
+    assert!(matches!(error, FileErr::NotEnoughBytes));
+
+    // Rewind to the 2nd beacon, and skip two remaining bytes
+    assert_eq!(2, source.rewind(SeqPos::At(2)).await?);
+    let read = Bytes::read_from(&mut source, 1).await?;
+    assert_eq!(read.bytes(), vec![20]);
+    let error = Bytes::read_from(&mut source, 1).await.err().unwrap();
+    assert!(matches!(error, FileErr::NotEnoughBytes));
+
     Ok(())
 }
 
@@ -214,7 +240,7 @@ async fn beacon() -> anyhow::Result<()> {
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
 async fn messages() -> anyhow::Result<()> {
-    use sea_streamer_file::{format::RunningChecksum, MessageSink, MessageSource};
+    use sea_streamer_file::{format::RunningChecksum, MessageSink, MessageSource, StreamMode};
     use sea_streamer_types::{
         Buffer, MessageHeader, OwnedMessage, SeqPos, ShardId, StreamKey, Timestamp,
     };
@@ -227,7 +253,7 @@ async fn messages() -> anyhow::Result<()> {
     println!("{path}");
 
     let mut sink = MessageSink::new(path.clone(), 640, 1024 * 1024).await?;
-    let mut source = MessageSource::new(path.clone()).await?;
+    let mut source = MessageSource::new(path.clone(), StreamMode::LiveReplay).await?;
 
     let stream_key = StreamKey::new("hello")?;
     let mut running_checksum = RunningChecksum::new();

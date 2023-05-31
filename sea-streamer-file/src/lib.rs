@@ -1,5 +1,6 @@
 mod buffer;
 mod consumer;
+mod dyn_file;
 mod error;
 mod file;
 pub mod format;
@@ -12,6 +13,7 @@ mod watcher;
 
 pub use buffer::*;
 pub use consumer::*;
+pub use dyn_file::*;
 pub use error::*;
 pub use file::*;
 pub use messages::*;

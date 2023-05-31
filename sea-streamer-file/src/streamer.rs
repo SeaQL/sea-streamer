@@ -1,9 +1,10 @@
-use std::{os::unix::prelude::MetadataExt, time::Duration};
+use std::time::Duration;
+use thiserror::Error;
 
 use crate::{
-    consumer::new_consumer, format::Header, FileConsumer, FileErr, FileId, FileProducer, FileResult,
+    consumer::new_consumer, format::Header, AsyncFile, FileConsumer, FileErr, FileId, FileProducer,
+    FileResult,
 };
-use sea_streamer_runtime::file::File;
 use sea_streamer_types::{
     export::async_trait, ConnectOptions as ConnectOptionsTrait, ConsumerGroup, ConsumerMode,
     ConsumerOptions as ConsumerOptionsTrait, ProducerOptions as ProducerOptionsTrait, StreamErr,
@@ -23,6 +24,7 @@ pub struct FileConsumerOptions {
     mode: ConsumerMode,
     group: Option<ConsumerGroup>,
     auto_stream_reset: AutoStreamReset,
+    live_streaming: bool,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -35,10 +37,20 @@ pub enum AutoStreamReset {
     Latest,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum StreamMode {
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum StreamMode {
+    /// Streaming from a file at the end
     Live,
+    /// Replaying a dead file
     Replay,
+    /// Replaying a live file, might catch up to live
+    LiveReplay,
+}
+
+#[derive(Error, Debug, Clone, Copy)]
+pub enum ConfigErr {
+    #[error("Cannot stream from a non-live file at the end")]
+    LatestButNotLive,
 }
 
 #[async_trait]
@@ -102,23 +114,27 @@ impl StreamerTrait for FileStreamer {
                 }
             }
         }
-        let stream_pos = match options.auto_stream_reset {
-            AutoStreamReset::Earliest => {
-                let file = File::open(self.file_id.path())
-                    .await
-                    .map_err(FileErr::IoError)?;
-                if file.metadata().await.map_err(FileErr::IoError)?.size() <= Header::size() as u64
-                {
+        let stream_mode = match (options.auto_stream_reset, options.live_streaming) {
+            (AutoStreamReset::Latest, true) => StreamMode::Live,
+            (AutoStreamReset::Earliest, true) => {
+                let file = AsyncFile::new(self.file_id.clone()).await?;
+                if file.size() <= Header::size() as u64 {
+                    // special case when the file has no data
                     StreamMode::Live
                 } else {
-                    StreamMode::Replay
+                    StreamMode::LiveReplay
                 }
             }
-            AutoStreamReset::Latest => StreamMode::Live,
+            (AutoStreamReset::Earliest, false) => StreamMode::Replay,
+            (AutoStreamReset::Latest, false) => {
+                return Err(StreamErr::Backend(FileErr::ConfigErr(
+                    ConfigErr::LatestButNotLive,
+                )))
+            }
         };
         let consumer = new_consumer(
             self.file_id.clone(),
-            stream_pos,
+            stream_mode,
             options.group,
             streams.to_vec(),
         )
@@ -148,6 +164,7 @@ impl ConsumerOptionsTrait for FileConsumerOptions {
             mode,
             group: None,
             auto_stream_reset: AutoStreamReset::Latest,
+            live_streaming: true,
         }
     }
 
@@ -177,6 +194,17 @@ impl FileConsumerOptions {
     }
     pub fn auto_stream_reset(&self) -> &AutoStreamReset {
         &self.auto_stream_reset
+    }
+
+    /// If true, follow the file like `tail -f` and read new messages as there is more data.
+    ///
+    /// If unset, defaults to `true`.
+    pub fn set_live_streaming(&mut self, v: bool) -> &mut Self {
+        self.live_streaming = v;
+        self
+    }
+    pub fn live_streaming(&self) -> &bool {
+        &self.live_streaming
     }
 }
 

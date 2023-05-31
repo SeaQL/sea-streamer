@@ -1,10 +1,15 @@
-use crate::format::{FormatErr, HeaderErr};
+use crate::{
+    format::{FormatErr, HeaderErr},
+    ConfigErr,
+};
 use sea_streamer_types::{StreamErr, StreamResult};
 use std::str::Utf8Error;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum FileErr {
+    #[error("ConfigErr: {0}")]
+    ConfigErr(#[source] ConfigErr),
     #[error("Utf8Error: {0}")]
     Utf8Error(#[source] Utf8Error),
     #[error("IO Error: {0}")]
@@ -35,6 +40,7 @@ impl FileErr {
     /// Take ownership of this Err, leaving a clone in place.
     pub fn take(&mut self) -> Self {
         let mut copy = match self {
+            FileErr::ConfigErr(e) => FileErr::ConfigErr(e.clone()),
             FileErr::Utf8Error(e) => FileErr::Utf8Error(e.clone()),
             FileErr::IoError(_) => FileErr::DuplicateIoError,
             FileErr::DuplicateIoError => FileErr::DuplicateIoError,

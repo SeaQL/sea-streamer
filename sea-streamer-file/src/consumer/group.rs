@@ -82,6 +82,7 @@ impl Streamers {
         let handles = self.streamers.get_mut(&file_id).unwrap();
         let handle = match mode {
             StreamMode::Live => {
+                // live stream can be shared among consumers
                 if let Some((_, handle)) = handles
                     .iter_mut()
                     .find(|(p, _)| matches!(p, StreamMode::Live))
@@ -90,15 +91,16 @@ impl Streamers {
                 } else {
                     handles.push((
                         mode,
-                        Streamer::new(MessageSource::new(file_id.clone()).await?),
+                        Streamer::new(MessageSource::new(file_id.clone(), mode).await?),
                     ));
                     &mut handles.last_mut().unwrap().1
                 }
             }
-            StreamMode::Replay => {
+            StreamMode::LiveReplay | StreamMode::Replay => {
+                // otherwise each consumer 'owns' a streamer
                 handles.push((
                     mode,
-                    Streamer::new(MessageSource::new(file_id.clone()).await?),
+                    Streamer::new(MessageSource::new(file_id.clone(), mode).await?),
                 ));
                 &mut handles.last_mut().unwrap().1
             }
