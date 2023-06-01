@@ -6,7 +6,7 @@ use std::{
 };
 
 use super::FileConsumer;
-use crate::{is_end_of_stream, FileErr, FileId, MessageSource, StreamMode};
+use crate::{is_end_of_stream, ConfigErr, FileErr, FileId, MessageSource, StreamMode};
 use sea_streamer_types::{ConsumerGroup, Message, SharedMessage, StreamKey};
 
 lazy_static::lazy_static! {
@@ -97,31 +97,44 @@ impl Streamers {
             self.streamers.insert(file_id.clone(), Vec::new());
         }
         let handles = self.streamers.get_mut(&file_id).unwrap();
-        let handle = match mode {
-            StreamMode::Live => {
-                // live stream can be shared among consumers
-                if let Some((_, handle)) = handles
-                    .iter_mut()
-                    .find(|(p, _)| matches!(p, StreamMode::Live))
-                {
-                    handle
+        let mut handle = if let Some(group) = &group {
+            // consumers in the same group always share a stream
+            if let Some((m, h)) = handles
+                .iter_mut()
+                .find(|(_, h)| h.subscribers.has_group(group))
+            {
+                if *m == mode {
+                    // consumers in the same group must use the same mode
+                    Some(h)
                 } else {
-                    handles.push((
-                        mode,
-                        Streamer::create(MessageSource::new(file_id.clone(), mode).await?),
-                    ));
-                    &mut handles.last_mut().unwrap().1
+                    // you are wrong
+                    return Err(FileErr::ConfigErr(ConfigErr::SameGroupSameMode));
+                }
+            } else {
+                // no existing members yet, so whatever is asked for
+                None
+            }
+        } else {
+            // no group
+            match mode {
+                StreamMode::Live => {
+                    // live stream can be shared among consumers
+                    handles.iter_mut().find(|(p, _)| p == &mode).map(|(_, h)| h)
+                }
+                StreamMode::LiveReplay | StreamMode::Replay => {
+                    // otherwise each consumer 'owns' a streamer
+                    None
                 }
             }
-            StreamMode::LiveReplay | StreamMode::Replay => {
-                // otherwise each consumer 'owns' a streamer
-                handles.push((
-                    mode,
-                    Streamer::create(MessageSource::new(file_id.clone(), mode).await?),
-                ));
-                &mut handles.last_mut().unwrap().1
-            }
         };
+        if handle.is_none() {
+            handles.push((
+                mode,
+                Streamer::create(MessageSource::new(file_id.clone(), mode).await?),
+            ));
+            handle = Some(&mut handles.last_mut().unwrap().1);
+        }
+        let handle = handle.unwrap();
         handle.subscribers.add(sid, sender, group, keys);
         Ok(FileConsumer::new(sid, receiver, handle.pulse.clone()))
     }
@@ -221,6 +234,11 @@ impl Subscribers {
 
     fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    fn has_group(&self, group: &ConsumerGroup) -> bool {
+        let map = self.subscribers.lock().unwrap();
+        map.groups.iter().any(|((g, _), _)| g == group)
     }
 
     fn info(&self) -> Vec<SubscriberInfo> {

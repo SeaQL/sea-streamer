@@ -248,8 +248,7 @@ async fn messages() -> anyhow::Result<()> {
     const TEST: &str = "messages";
     INIT.call_once(env_logger::init);
 
-    let path =
-        temp_file(format!("{}-{}", TEST, now().unix_timestamp_nanos() / 1_000_000).as_str())?;
+    let path = temp_file(format!("{}-{}", TEST, millis_of(&now())).as_str())?;
     println!("{path}");
 
     let mut sink = MessageSink::new(path.clone(), 640, 1024 * 1024).await?;
@@ -282,8 +281,11 @@ async fn messages() -> anyhow::Result<()> {
     assert_eq(&read.message, &message);
 
     // There should be a beacon here
-    assert_eq!(source.beacons()[0].running_checksum, running_checksum.crc());
-    dbg!(source.beacons());
+    assert_eq!(source.beacon().0, 1);
+    assert_eq!(
+        source.beacon().1[0].running_checksum,
+        running_checksum.crc()
+    );
 
     let header = MessageHeader::new(stream_key.clone(), ShardId::new(2), 4, now());
     let message = OwnedMessage::new(header, payload.clone());

@@ -51,6 +51,8 @@ pub enum StreamMode {
 pub enum ConfigErr {
     #[error("Cannot stream from a non-live file at the end")]
     LatestButNotLive,
+    #[error("Consumers in the same ConsumerGroup must use the same ConsumerMode")]
+    SameGroupSameMode,
 }
 
 #[async_trait]
@@ -115,10 +117,14 @@ impl StreamerTrait for FileStreamer {
         let stream_mode = match (options.auto_stream_reset, options.live_streaming) {
             (AutoStreamReset::Latest, true) => StreamMode::Live,
             (AutoStreamReset::Earliest, true) => {
-                let file = AsyncFile::new(self.file_id.clone()).await?;
-                if file.size() <= Header::size() as u64 {
-                    // special case when the file has no data
-                    StreamMode::Live
+                if options.group.is_none() {
+                    let file = AsyncFile::new(self.file_id.clone()).await?;
+                    if file.size() <= Header::size() as u64 {
+                        // special case when the file has no data
+                        StreamMode::Live
+                    } else {
+                        StreamMode::LiveReplay
+                    }
                 } else {
                     StreamMode::LiveReplay
                 }
