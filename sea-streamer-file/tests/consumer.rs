@@ -100,7 +100,8 @@ async fn consumer() -> anyhow::Result<()> {
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
 async fn demux() -> anyhow::Result<()> {
     use sea_streamer_file::{
-        AutoStreamReset, FileConsumerOptions, FileStreamer, MessageSink, DEFAULT_FILE_SIZE_LIMIT,
+        query_streamer, AutoStreamReset, FileConsumerOptions, FileStreamer, MessageSink,
+        DEFAULT_FILE_SIZE_LIMIT,
     };
     use sea_streamer_types::{
         Buffer, Consumer, Message, MessageHeader, OwnedMessage, ShardId, SharedMessage, StreamKey,
@@ -149,16 +150,8 @@ async fn demux() -> anyhow::Result<()> {
     )
     .await?;
 
-    for i in 0..100 {
-        if i % 2 == 0 {
-            sink.write(cat(i)).await?;
-        } else {
-            sink.write(dog(i)).await?;
-        }
-    }
-
     let mut options = FileConsumerOptions::default();
-    options.set_auto_stream_reset(AutoStreamReset::Earliest);
+    options.set_auto_stream_reset(AutoStreamReset::Latest);
 
     let cat_stream = streamer
         .create_consumer(&[cat_key.clone()], options.clone())
@@ -166,6 +159,17 @@ async fn demux() -> anyhow::Result<()> {
     let dog_stream = streamer
         .create_consumer(&[dog_key.clone()], options.clone())
         .await?;
+
+    // cat & dog should share the same Streamer
+    assert_eq!(query_streamer(&file_id).await.unwrap().len(), 1);
+
+    for i in 0..100 {
+        if i % 2 == 0 {
+            sink.write(cat(i)).await?;
+        } else {
+            sink.write(dog(i)).await?;
+        }
+    }
 
     for i in 0..100 {
         if i % 2 == 0 {

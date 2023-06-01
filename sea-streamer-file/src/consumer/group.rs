@@ -42,6 +42,17 @@ struct StreamerHandle {
 /// This is not the Streamer of the public API
 struct Streamer {}
 
+pub struct StreamerInfo {
+    pub mode: StreamMode,
+    pub subscribers: Vec<SubscriberInfo>,
+}
+
+pub struct SubscriberInfo {
+    pub sid: Sid,
+    pub group: Option<ConsumerGroup>,
+    pub stream_key: StreamKey,
+}
+
 #[derive(Clone)]
 struct Subscribers {
     subscribers: Arc<Mutex<SubscriberMap>>,
@@ -123,6 +134,18 @@ impl Streamers {
             handles.retain(|(_, h)| !h.subscribers.is_empty());
         }
     }
+
+    fn query(&self, file_id: &FileId) -> Option<Vec<StreamerInfo>> {
+        self.streamers.get(file_id).map(|handles| {
+            handles
+                .iter()
+                .map(|(m, h)| StreamerInfo {
+                    mode: *m,
+                    subscribers: h.subscribers.info(),
+                })
+                .collect()
+        })
+    }
 }
 
 pub(crate) async fn new_consumer(
@@ -140,6 +163,12 @@ pub(crate) fn remove_consumer(sid: Sid) {
         .0
         .send(CtrlMsg::Drop(sid))
         .expect("Should never die");
+}
+
+/// Query info about global Streamer(s) topology
+pub async fn query_streamer(file_id: &FileId) -> Option<Vec<StreamerInfo>> {
+    let streamers = STREAMERS.lock().await;
+    streamers.query(file_id)
 }
 
 impl Streamer {
@@ -192,6 +221,28 @@ impl Subscribers {
 
     fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    fn info(&self) -> Vec<SubscriberInfo> {
+        let map = self.subscribers.lock().unwrap();
+        let mut subs = Vec::new();
+        for ((group, stream_key), sids) in map.groups.iter() {
+            for sid in sids.iter() {
+                subs.push(SubscriberInfo {
+                    sid: *sid,
+                    group: Some(group.clone()),
+                    stream_key: stream_key.clone(),
+                });
+            }
+        }
+        for (stream_key, sid) in map.ungrouped.iter() {
+            subs.push(SubscriberInfo {
+                sid: *sid,
+                group: None,
+                stream_key: stream_key.clone(),
+            });
+        }
+        subs
     }
 
     fn add(

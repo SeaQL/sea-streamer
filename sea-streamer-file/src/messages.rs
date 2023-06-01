@@ -97,6 +97,7 @@ impl MessageSource {
         // Align at a beacon
         if pos == SeqPos::End {
             let max = self.known_size() - (self.known_size() % self.beacon_interval as u64);
+            let max = std::cmp::max(max, Header::size() as u64);
             let pos = match target {
                 SeqPos::Beginning | SeqPos::At(0) => unreachable!(),
                 SeqPos::End => max,
@@ -190,6 +191,7 @@ impl MessageSource {
     /// Read the next message.
     pub async fn next(&mut self) -> Result<Message, FileErr> {
         let mess = Message::read_from(self).await?;
+        // TODO verify checksum
         Ok(mess)
     }
 

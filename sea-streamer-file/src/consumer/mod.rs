@@ -16,6 +16,7 @@ use crate::{FileErr, FileResult};
 pub(crate) use group::new_consumer;
 use group::{Pulse, Sid};
 
+pub use self::group::query_streamer;
 use self::group::remove_consumer;
 
 pub struct FileConsumer {

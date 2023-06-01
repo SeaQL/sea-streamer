@@ -115,6 +115,7 @@ impl ByteSource for FileReader {
 impl AsyncFile {
     pub async fn new(id: FileId) -> Result<Self, FileErr> {
         let file = File::open(id.path()).await.map_err(FileErr::IoError)?;
+        log::debug!("AsyncFile Open ({})", id.path());
         let size = file_size_of(&file).await?;
         let pos = 0;
         let buf = vec![0u8; BUFFER_SIZE];
