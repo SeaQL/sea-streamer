@@ -36,6 +36,10 @@ impl File {
     pub async fn metadata(&self) -> Result<Metadata, IoError> {
         unimplemented!("Please enable a runtime")
     }
+
+    pub async fn flush(&self) -> Result<(), IoError> {
+        unimplemented!("Please enable a runtime")
+    }
 }
 
 impl AsyncReadExt for File {

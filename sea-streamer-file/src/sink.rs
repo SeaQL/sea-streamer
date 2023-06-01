@@ -26,7 +26,7 @@ pub struct FileSink {
 #[derive(Debug)]
 enum Request {
     Bytes(Bytes),
-    Marker(u32),
+    Flush(u32),
 }
 
 #[derive(Debug)]
@@ -79,13 +79,6 @@ impl FileSink {
                             break;
                         }
 
-                        #[cfg(feature = "runtime-async-std")]
-                        if let Err(e) = file.flush().await {
-                            std::mem::drop(pending); // trigger error
-                            send_error(&notify, FileErr::IoError(e)).await;
-                            break;
-                        }
-
                         quota -= len;
                         if quota == 0 {
                             std::mem::drop(pending); // trigger error
@@ -93,7 +86,12 @@ impl FileSink {
                             break;
                         }
                     }
-                    Request::Marker(marker) => {
+                    Request::Flush(marker) => {
+                        if let Err(e) = file.flush().await {
+                            std::mem::drop(pending); // trigger error
+                            send_error(&notify, FileErr::IoError(e)).await;
+                            break;
+                        }
                         if notify.send_async(Update::Receipt(marker)).await.is_err() {
                             break;
                         }
@@ -157,27 +155,19 @@ impl FileSink {
         })
     }
 
-    pub fn marker(&mut self, marker: u32) -> Result<(), FileErr> {
-        if self.sender.send(Request::Marker(marker)).is_err() {
+    pub async fn flush(&mut self, marker: u32) -> Result<(), FileErr> {
+        if self.sender.send(Request::Flush(marker)).is_err() {
             self.return_err()
         } else {
-            Ok(())
+            match self.update.recv_async().await {
+                Ok(Update::Receipt(receipt)) => {
+                    assert_eq!(receipt, marker);
+                    Ok(())
+                }
+                Ok(Update::FileErr(err)) => Err(err),
+                Err(_) => Err(FileErr::TaskDead("sink")),
+            }
         }
-    }
-
-    pub async fn receipt(&mut self) -> Result<u32, FileErr> {
-        match self.update.recv_async().await {
-            Ok(Update::Receipt(receipt)) => Ok(receipt),
-            Ok(Update::FileErr(err)) => Err(err),
-            Err(_) => Err(FileErr::TaskDead("sink")),
-        }
-    }
-
-    /// End this file after flushing all pending bytes.
-    pub async fn end(mut self) -> Result<(), FileErr> {
-        self.marker(u32::MAX)?;
-        while self.receipt().await? < u32::MAX {}
-        Ok(())
     }
 }
 

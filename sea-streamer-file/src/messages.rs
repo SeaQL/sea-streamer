@@ -252,13 +252,16 @@ impl MessageSink {
             beacon_interval,
         };
         let size = header.write_to(&mut sink)?;
+        let message_count = 0;
+        sink.flush(message_count).await?;
+
         Ok(Self {
             sink,
             offset: size as u64,
             beacon_interval,
             beacons: Default::default(),
             beacon_count: 0,
-            message_count: 0,
+            message_count,
         })
     }
 
@@ -315,10 +318,8 @@ impl MessageSink {
             }
         }
 
-        let receipt = self.message_count;
-        self.sink.marker(self.message_count)?;
         self.message_count += 1;
-        assert_eq!(receipt, self.sink.receipt().await?);
+        self.sink.flush(self.message_count).await?;
 
         Ok(checksum)
     }

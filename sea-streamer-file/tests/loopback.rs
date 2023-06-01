@@ -28,11 +28,14 @@ async fn loopback() -> anyhow::Result<()> {
 
     let bytes = Bytes::from_bytes(vec![1, 2, 3, 4]);
     bytes.clone().write_to(&mut sink)?;
+    sink.flush(1).await?;
+
     let read = Bytes::read_from(&mut source, bytes.len()).await?;
     assert_eq!(read, bytes);
 
     let bytes = Bytes::from_bytes(vec![5, 6, 7, 8]);
     bytes.write_to(&mut sink)?;
+    sink.flush(2).await?;
 
     let read = Bytes::read_from(&mut source, 2).await?;
     assert_eq!(read.bytes(), vec![5, 6]);
@@ -59,6 +62,7 @@ async fn loopback() -> anyhow::Result<()> {
     };
     let size = HeaderV1::size();
     assert_eq!(size, header.clone().write_to(&mut sink)?);
+    sink.flush(3).await?;
     let read = HeaderV1::read_from(&mut source).await?;
     assert_eq!(header, read);
 
@@ -70,6 +74,7 @@ async fn loopback() -> anyhow::Result<()> {
     ));
     let size = mess_header.size();
     assert_eq!(size, mess_header.clone().write_to(&mut sink)?);
+    sink.flush(4).await?;
     let read = format::MessageHeader::read_from(&mut source).await?;
     assert_eq!(mess_header, read);
 
@@ -79,6 +84,7 @@ async fn loopback() -> anyhow::Result<()> {
     };
     let size = message.size();
     assert_eq!(size, message.clone().write_to(&mut sink)?.0);
+    sink.flush(5).await?;
     let read = format::Message::read_from(&mut source).await?;
     message.checksum = 0x4C06;
     assert_eq!(message, read);
@@ -98,6 +104,7 @@ async fn loopback() -> anyhow::Result<()> {
     };
     let size = beacon.size();
     assert_eq!(size, beacon.clone().write_to(&mut sink)?);
+    sink.flush(6).await?;
     let read = Beacons::read_from(&mut source).await?;
     assert_eq!(beacon, read);
 
@@ -126,11 +133,13 @@ async fn seek() -> anyhow::Result<()> {
 
     let bytes = Bytes::from_bytes(vec![1, 2, 3, 4]);
     bytes.clone().write_to(&mut sink)?;
+    sink.flush(1).await?;
     let read = Bytes::read_from(&mut source, bytes.len()).await?;
     assert_eq(read.bytes(), bytes.bytes());
 
     let bytes = Bytes::from_bytes(vec![5, 6, 7, 8]);
     bytes.write_to(&mut sink)?;
+    sink.flush(2).await?;
 
     let read = Bytes::read_from(&mut source, 2).await?;
     assert_eq(read.bytes(), vec![5, 6]);
@@ -148,11 +157,13 @@ async fn seek() -> anyhow::Result<()> {
 
     source.seek(SeqPos::At(6)).await?;
     Bytes::Bytes(vec![9, 10]).write_to(&mut sink)?;
+    sink.flush(3).await?;
     let read = Bytes::read_from(&mut source, 4).await?;
     assert_eq(read.bytes(), vec![7, 8, 9, 10]);
 
     source.seek(SeqPos::End).await?;
     Bytes::Bytes(vec![11, 12]).write_to(&mut sink)?;
+    sink.flush(4).await?;
     let read = Bytes::read_from(&mut source, 2).await?;
     assert_eq(read.bytes(), vec![11, 12]);
 
@@ -200,6 +211,7 @@ async fn beacon() -> anyhow::Result<()> {
     }
     .write_to(&mut sink)?;
     Bytes::Bytes(vec![18, 19, 20]).write_to(&mut sink)?;
+    sink.flush(1).await?;
 
     let read = Bytes::read_from(&mut source, 8).await?;
     assert_eq!(read.bytes(), vec![1, 2, 3, 4, 5, 6, 7, 8]);
