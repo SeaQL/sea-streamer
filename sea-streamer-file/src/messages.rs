@@ -7,7 +7,7 @@ use sea_streamer_types::{
 };
 
 use crate::{
-    format::{Beacon, Beacons, Checksum, Header, Message, RunningChecksum},
+    format::{Beacon, Beacons, Checksum, FormatErr, Header, Message, RunningChecksum},
     ByteBuffer, ByteSource, Bytes, DynFileSource, FileErr, FileId, FileSink, FileSourceType,
     StreamMode, WriteFrom,
 };
@@ -20,7 +20,7 @@ pub struct MessageSource {
     buffer: ByteBuffer,
     offset: u64,
     beacon_interval: u32,
-    beacons: Vec<Beacon>,
+    beacons: (u32, Vec<Beacon>),
 }
 
 /// A high level file writer that mux messages and beacons
@@ -70,7 +70,7 @@ impl MessageSource {
             buffer: ByteBuffer::new(),
             offset,
             beacon_interval,
-            beacons: Vec::new(),
+            beacons: (0, Vec::new()),
         }
     }
 
@@ -114,14 +114,14 @@ impl MessageSource {
         }
 
         self.buffer.clear();
-        self.beacons.clear();
+        self.clear_beacons();
 
         // Read until the start of the next message
-        while self.has_beacon() {
+        while let Some(i) = self.has_beacon() {
             let beacons = Beacons::read_from(&mut self.source).await?;
             let beacons_size = beacons.size();
             self.offset += beacons_size as u64;
-            self.beacons = beacons.items;
+            self.beacons = (i, beacons.items);
 
             let bytes = self
                 .source
@@ -151,16 +151,20 @@ impl MessageSource {
         Ok((self.offset / self.beacon_interval as u64) as u32)
     }
 
-    fn has_beacon(&self) -> bool {
-        self.offset > 0 && self.offset % self.beacon_interval as u64 == 0
+    fn has_beacon(&self) -> Option<u32> {
+        if self.offset > 0 && self.offset % self.beacon_interval as u64 == 0 {
+            Some((self.offset / self.beacon_interval as u64) as u32)
+        } else {
+            None
+        }
     }
 
     async fn request_bytes(&mut self, size: usize) -> Result<Bytes, FileErr> {
         loop {
-            if self.has_beacon() {
+            if let Some(i) = self.has_beacon() {
                 let beacons = Beacons::read_from(&mut self.source).await?;
                 self.offset += beacons.size() as u64;
-                self.beacons = beacons.items;
+                self.beacons = (i, beacons.items);
             }
 
             let chunk = std::cmp::min(
@@ -190,15 +194,34 @@ impl MessageSource {
 
     /// Read the next message.
     pub async fn next(&mut self) -> Result<Message, FileErr> {
-        let mess = Message::read_from(self).await?;
-        // TODO verify checksum
-        Ok(mess)
+        let message = Message::read_from(self).await?;
+        let computed = message.compute_checksum();
+        if message.checksum != computed {
+            Err(FileErr::FormatErr(FormatErr::ChecksumErr {
+                received: message.checksum,
+                computed,
+            }))
+        } else {
+            Ok(message)
+        }
     }
 
-    /// Get the most recent set of Beacon. Note that it clears (rather than accumulate)
+    /// Get the most recent Beacon and it's index. Note that it is cleared (rather than carry-over)
     /// on each Beacon point.
-    pub fn beacons(&self) -> &[Beacon] {
-        &self.beacons
+    ///
+    /// Beacon index starts from 1 (don't wary, because 0 is the header), and we have the following
+    /// equation:
+    ///
+    /// ```ignore
+    /// file offset = beacon index * beacon interval
+    /// ```
+    pub fn beacon(&self) -> (u32, &[Beacon]) {
+        (self.beacons.0, &self.beacons.1)
+    }
+
+    fn clear_beacons(&mut self) {
+        self.beacons.0 = 0;
+        self.beacons.1.clear();
     }
 
     #[inline]

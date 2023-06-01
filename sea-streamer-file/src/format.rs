@@ -135,6 +135,8 @@ pub enum FormatErr {
     StreamKeyErr(#[from] StreamKeyErr),
     #[error("TooManyBeacon")]
     TooManyBeacon,
+    #[error("Checksum error: received {received}, computed {computed}")]
+    ChecksumErr { received: u16, computed: u16 },
 }
 
 impl From<ShortStringErr> for FileErr {
@@ -236,6 +238,10 @@ impl Message {
             + self.message.message().size()
             + U16::size()
             + 1
+    }
+
+    pub fn compute_checksum(&self) -> u16 {
+        crc16_cdma2000(self.message.message().as_bytes())
     }
 }
 
