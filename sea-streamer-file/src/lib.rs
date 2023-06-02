@@ -9,6 +9,7 @@ mod producer;
 mod sink;
 mod source;
 mod streamer;
+mod surveyor;
 mod watcher;
 
 pub use buffer::*;
@@ -21,6 +22,7 @@ pub use producer::*;
 pub use sink::*;
 pub use source::*;
 pub use streamer::*;
+pub use surveyor::*;
 
 pub const DEFAULT_BEACON_INTERVAL: u32 = 1024 * 1024; // 1MB
 pub const DEFAULT_FILE_SIZE_LIMIT: u64 = 16 * 1024 * 1024 * 1024; // 16GB

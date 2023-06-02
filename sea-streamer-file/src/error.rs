@@ -19,6 +19,8 @@ pub enum FileErr {
     WatchError(String),
     #[error("FormatErr: {0}")]
     FormatErr(#[source] FormatErr),
+    #[error("SeekErr: {0}")]
+    SeekErr(#[source] SeekErr),
     #[error("File Removed")]
     FileRemoved,
     #[error("File Limit Exceeded")]
@@ -29,6 +31,14 @@ pub enum FileErr {
     NotEnoughBytes,
     #[error("Stream Ended: the stream might have encountered an error or an EOS message.")]
     StreamEnded,
+}
+
+#[derive(Error, Debug, Clone, Copy)]
+pub enum SeekErr {
+    #[error("Out Of Bound: what you are seeking is probably not in this file")]
+    OutOfBound,
+    #[error("Exhausted: there must be an algorithmic error")]
+    Exhausted,
 }
 
 pub type FileResult<T> = StreamResult<T, FileErr>;
@@ -44,6 +54,7 @@ impl FileErr {
             FileErr::DuplicateIoError => FileErr::DuplicateIoError,
             FileErr::WatchError(e) => FileErr::WatchError(e.clone()),
             FileErr::FormatErr(e) => FileErr::FormatErr(*e),
+            FileErr::SeekErr(e) => FileErr::SeekErr(*e),
             FileErr::FileRemoved => FileErr::FileRemoved,
             FileErr::FileLimitExceeded => FileErr::FileLimitExceeded,
             FileErr::TaskDead(e) => FileErr::TaskDead(e),

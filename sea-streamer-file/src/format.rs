@@ -246,6 +246,13 @@ impl Message {
 }
 
 impl Beacons {
+    pub fn empty() -> Self {
+        Self {
+            remaining_messages_bytes: 0,
+            items: Vec::new(),
+        }
+    }
+
     pub async fn read_from(file: &mut impl ByteSource) -> Result<Self, FileErr> {
         _ = Bytes::read_from(file, 1).await?;
         let remaining_messages_bytes = U32::read_from(file).await?.0;
