@@ -11,7 +11,7 @@ static INIT: std::sync::Once = std::sync::Once::new();
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
 async fn loopback() -> anyhow::Result<()> {
     use sea_streamer_file::{
-        format::{self, Beacon, Beacons, Checksum, HeaderV1, ShortString},
+        format::{self, Beacon, Checksum, HeaderV1, Marker, ShortString},
         Bytes, FileSink, FileSource, ReadFrom, WriteFrom, DEFAULT_FILE_SIZE_LIMIT,
     };
     use sea_streamer_types::{Buffer, MessageHeader, OwnedMessage, ShardId, StreamKey, Timestamp};
@@ -89,14 +89,14 @@ async fn loopback() -> anyhow::Result<()> {
     message.checksum = 0x4C06;
     assert_eq!(message, read);
 
-    let beacon = Beacons {
+    let beacon = Beacon {
         remaining_messages_bytes: 1234,
         items: vec![
-            Beacon {
+            Marker {
                 header: mess_header.0.clone(),
                 running_checksum: Checksum(5678),
             },
-            Beacon {
+            Marker {
                 header: mess_header.0.clone(),
                 running_checksum: Checksum(9876),
             },
@@ -105,7 +105,7 @@ async fn loopback() -> anyhow::Result<()> {
     let size = beacon.size();
     assert_eq!(size, beacon.clone().write_to(&mut sink)?);
     sink.flush(6).await?;
-    let read = Beacons::read_from(&mut source).await?;
+    let read = Beacon::read_from(&mut source).await?;
     assert_eq!(beacon, read);
 
     Ok(())
@@ -180,7 +180,7 @@ async fn seek() -> anyhow::Result<()> {
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
 async fn beacon() -> anyhow::Result<()> {
     use sea_streamer_file::{
-        format::Beacons, Bytes, DynFileSource, FileErr, FileSink, FileSourceType, MessageSource,
+        format::Beacon, Bytes, DynFileSource, FileErr, FileSink, FileSourceType, MessageSource,
         WriteFrom, DEFAULT_FILE_SIZE_LIMIT,
     };
     use sea_streamer_types::{SeqPos, Timestamp};
@@ -198,14 +198,14 @@ async fn beacon() -> anyhow::Result<()> {
     let mut source = MessageSource::new_with(source, 0, 12);
 
     Bytes::Bytes(vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]).write_to(&mut sink)?;
-    Beacons {
+    Beacon {
         items: Vec::new(),
         remaining_messages_bytes: 0,
     }
     .write_to(&mut sink)?;
     // The empty beacon is 7 bytes, so we have only 5 bytes left for data
     Bytes::Bytes(vec![13, 14, 15, 16, 17]).write_to(&mut sink)?;
-    Beacons {
+    Beacon {
         items: Vec::new(),
         remaining_messages_bytes: 2, // !
     }

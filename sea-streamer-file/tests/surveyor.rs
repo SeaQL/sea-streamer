@@ -3,13 +3,13 @@
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
 async fn surveyor() -> anyhow::Result<()> {
-    use sea_streamer_file::{format::Beacons, MockBeacons, SurveyResult, Surveyor};
+    use sea_streamer_file::{format::Beacon, MockBeacon, SurveyResult, Surveyor};
     use std::cmp::Ordering;
 
     env_logger::init();
 
     const TARGET: u32 = 3;
-    let finder = |b: &Beacons| {
+    let finder = |b: &Beacon| {
         if b.remaining_messages_bytes == 0 {
             SurveyResult::Undecided
         } else {
@@ -21,69 +21,69 @@ async fn surveyor() -> anyhow::Result<()> {
     };
 
     // baseline, no beacon at all
-    let beacons = MockBeacons::new(10);
-    let surveyor = Surveyor::new(beacons, finder).await?;
+    let beacon = MockBeacon::new(10);
+    let surveyor = Surveyor::new(beacon, finder).await?;
     assert_eq!(surveyor.run().await?, (0, u32::MAX)); // no scope at all
 
     // what we are looking for is between 3 & 4
-    let mut beacons = MockBeacons::new(10);
+    let mut beacon = MockBeacon::new(10);
     for i in 1..=10 {
-        add(&mut beacons, i);
+        add(&mut beacon, i);
     }
-    let surveyor = Surveyor::new(beacons, finder).await?;
+    let surveyor = Surveyor::new(beacon, finder).await?;
     assert_eq!(surveyor.run().await?, (3, 4));
 
     // 4 is left empty
-    let mut beacons = MockBeacons::new(10);
+    let mut beacon = MockBeacon::new(10);
     for i in 1..=10 {
         if i != 4 {
-            add(&mut beacons, i);
+            add(&mut beacon, i);
         }
     }
-    let surveyor = Surveyor::new(beacons, finder).await?;
+    let surveyor = Surveyor::new(beacon, finder).await?;
     assert_eq!(surveyor.run().await?, (3, 5));
 
     // 3 & 4 is left empty
-    let mut beacons = MockBeacons::new(10);
+    let mut beacon = MockBeacon::new(10);
     for i in 1..=10 {
         if !matches!(i, 3 | 4) {
-            add(&mut beacons, i);
+            add(&mut beacon, i);
         }
     }
-    let surveyor = Surveyor::new(beacons, finder).await?;
+    let surveyor = Surveyor::new(beacon, finder).await?;
     assert_eq!(surveyor.run().await?, (2, 5));
 
     // there is only 1, 8 & 9
-    let mut beacons = MockBeacons::new(10);
-    add(&mut beacons, 1);
-    add(&mut beacons, 8);
-    add(&mut beacons, 9);
-    let surveyor = Surveyor::new(beacons, finder).await?;
+    let mut beacon = MockBeacon::new(10);
+    add(&mut beacon, 1);
+    add(&mut beacon, 8);
+    add(&mut beacon, 9);
+    let surveyor = Surveyor::new(beacon, finder).await?;
     assert_eq!(surveyor.run().await?, (1, 8));
 
     // there is only 8 & 9
-    let mut beacons = MockBeacons::new(10);
-    add(&mut beacons, 8);
-    add(&mut beacons, 9);
-    let surveyor = Surveyor::new(beacons, finder).await?;
+    let mut beacon = MockBeacon::new(10);
+    add(&mut beacon, 8);
+    add(&mut beacon, 9);
+    let surveyor = Surveyor::new(beacon, finder).await?;
     assert_eq!(surveyor.run().await?, (0, 8));
 
     // there is only 1 beacon
-    let mut beacons = MockBeacons::new(10);
-    add(&mut beacons, 3);
-    let surveyor = Surveyor::new(beacons, finder).await?;
+    let mut beacon = MockBeacon::new(10);
+    add(&mut beacon, 3);
+    let surveyor = Surveyor::new(beacon, finder).await?;
     assert_eq!(surveyor.run().await?, (3, u32::MAX));
 
     // there is only 1 beacon
-    let mut beacons = MockBeacons::new(10);
-    add(&mut beacons, 8);
-    let surveyor = Surveyor::new(beacons, finder).await?;
+    let mut beacon = MockBeacon::new(10);
+    add(&mut beacon, 8);
+    let surveyor = Surveyor::new(beacon, finder).await?;
     assert_eq!(surveyor.run().await?, (0, 8));
 
-    fn add(beacons: &mut MockBeacons, i: u32) {
-        beacons.add(
+    fn add(beacon: &mut MockBeacon, i: u32) {
+        beacon.add(
             i,
-            Beacons {
+            Beacon {
                 remaining_messages_bytes: i,
                 items: Vec::new(),
             },

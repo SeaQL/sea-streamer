@@ -7,30 +7,35 @@ use sea_streamer_types::{
 };
 
 use crate::{
-    format::{Beacon, Beacons, Checksum, FormatErr, Header, Message, RunningChecksum},
+    format::{Beacon, Checksum, FormatErr, Header, Marker, Message, RunningChecksum},
     ByteBuffer, ByteSource, Bytes, DynFileSource, FileErr, FileId, FileSink, FileSourceType,
     StreamMode, WriteFrom,
 };
 
 pub const END_OF_STREAM: &str = "EOS";
 
-/// A high level file reader that demux messages and beacons
+/// A high level file reader that demux messages and beacon
 pub struct MessageSource {
     source: DynFileSource,
     buffer: ByteBuffer,
     offset: u64,
     beacon_interval: u32,
-    beacons: (u32, Vec<Beacon>),
+    beacon: (u32, Vec<Marker>),
 }
 
-/// A high level file writer that mux messages and beacons
+/// A high level file writer that mux messages and beacon
 pub struct MessageSink {
     sink: FileSink,
     offset: u64,
     beacon_interval: u32,
-    beacons: BTreeMap<(StreamKey, ShardId), BeaconState>,
+    beacon: BTreeMap<(StreamKey, ShardId), BeaconState>,
     beacon_count: u32,
     message_count: u32,
+}
+
+pub enum SeekTarget {
+    SeqNo(SeqNo),
+    Timestamp(Timestamp),
 }
 
 struct BeaconState {
@@ -70,7 +75,7 @@ impl MessageSource {
             buffer: ByteBuffer::new(),
             offset,
             beacon_interval,
-            beacons: (0, Vec::new()),
+            beacon: (0, Vec::new()),
         }
     }
 
@@ -114,20 +119,20 @@ impl MessageSource {
         }
 
         self.buffer.clear();
-        self.clear_beacons();
+        self.clear_beacon();
 
         // Read until the start of the next message
         while let Some(i) = self.has_beacon() {
-            let beacons = Beacons::read_from(&mut self.source).await?;
-            let beacons_size = beacons.size();
-            self.offset += beacons_size as u64;
-            self.beacons = (i, beacons.items);
+            let beacon = Beacon::read_from(&mut self.source).await?;
+            let beacon_size = beacon.size();
+            self.offset += beacon_size as u64;
+            self.beacon = (i, beacon.items);
 
             let bytes = self
                 .source
                 .request_bytes(std::cmp::min(
-                    beacons.remaining_messages_bytes as usize,
-                    self.beacon_interval as usize - beacons_size,
+                    beacon.remaining_messages_bytes as usize,
+                    self.beacon_interval as usize - beacon_size,
                 ))
                 .await?;
             self.offset += bytes.len() as u64;
@@ -151,6 +156,11 @@ impl MessageSource {
         Ok((self.offset / self.beacon_interval as u64) as u32)
     }
 
+    /// Warning: This future must not be canceled.
+    pub async fn seek(&mut self, target: SeekTarget) -> Result<(), FileErr> {
+        todo!()
+    }
+
     fn has_beacon(&self) -> Option<u32> {
         if self.offset > 0 && self.offset % self.beacon_interval as u64 == 0 {
             Some((self.offset / self.beacon_interval as u64) as u32)
@@ -162,9 +172,9 @@ impl MessageSource {
     async fn request_bytes(&mut self, size: usize) -> Result<Bytes, FileErr> {
         loop {
             if let Some(i) = self.has_beacon() {
-                let beacons = Beacons::read_from(&mut self.source).await?;
-                self.offset += beacons.size() as u64;
-                self.beacons = (i, beacons.items);
+                let beacon = Beacon::read_from(&mut self.source).await?;
+                self.offset += beacon.size() as u64;
+                self.beacon = (i, beacon.items);
             }
 
             let chunk = std::cmp::min(
@@ -215,13 +225,13 @@ impl MessageSource {
     /// ```ignore
     /// file offset = beacon index * beacon interval
     /// ```
-    pub fn beacon(&self) -> (u32, &[Beacon]) {
-        (self.beacons.0, &self.beacons.1)
+    pub fn beacon(&self) -> (u32, &[Marker]) {
+        (self.beacon.0, &self.beacon.1)
     }
 
-    fn clear_beacons(&mut self) {
-        self.beacons.0 = 0;
-        self.beacons.1.clear();
+    fn clear_beacon(&mut self) {
+        self.beacon.0 = 0;
+        self.beacon.1.clear();
     }
 
     #[inline]
@@ -259,7 +269,7 @@ impl MessageSink {
             sink,
             offset: size as u64,
             beacon_interval,
-            beacons: Default::default(),
+            beacon: Default::default(),
             beacon_count: 0,
             message_count,
         })
@@ -276,7 +286,7 @@ impl MessageSink {
         };
         let mut buffer = ByteBuffer::new();
         let (_, checksum) = message.write_to(&mut buffer)?;
-        let entry = self.beacons.entry(key).or_insert(BeaconState {
+        let entry = self.beacon.entry(key).or_insert(BeaconState {
             seq_no,
             ts,
             running_checksum: RunningChecksum::new(),
@@ -292,28 +302,28 @@ impl MessageSink {
             self.offset += chunk.write_to(&mut self.sink)? as u64;
 
             if self.offset > 0 && self.offset % self.beacon_interval as u64 == 0 {
-                let num_beacons = Beacons::num_beacons(self.beacon_interval as usize);
+                let num_markers = Beacon::num_markers(self.beacon_interval as usize);
                 let mut items = Vec::new();
-                // We may not have enough space to fit in all beacons for every stream.
+                // We may not have enough space to fit in all beacon for every stream.
                 // In which case, we'll round-robin among them.
                 for ((key, sid), beacon) in self
-                    .beacons
+                    .beacon
                     .iter()
-                    .skip(self.beacon_count as usize % self.beacons.len())
-                    .chain(self.beacons.iter())
-                    .take(std::cmp::min(self.beacons.len(), num_beacons))
+                    .skip(self.beacon_count as usize % self.beacon.len())
+                    .chain(self.beacon.iter())
+                    .take(std::cmp::min(self.beacon.len(), num_markers))
                 {
-                    items.push(Beacon {
+                    items.push(Marker {
                         header: MessageHeader::new(key.to_owned(), *sid, beacon.seq_no, beacon.ts),
                         running_checksum: beacon.running_checksum.crc(),
                     });
                 }
                 let beacon_count = items.len();
-                let beacons = Beacons {
+                let beacon = Beacon {
                     remaining_messages_bytes: buffer.size() as u32,
                     items,
                 };
-                self.offset += beacons.write_to(&mut self.sink)? as u64;
+                self.offset += beacon.write_to(&mut self.sink)? as u64;
                 self.beacon_count += beacon_count as u32;
             }
         }

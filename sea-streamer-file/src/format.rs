@@ -86,13 +86,13 @@ pub struct Message {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Beacons {
+pub struct Beacon {
     pub remaining_messages_bytes: u32,
-    pub items: Vec<Beacon>,
+    pub items: Vec<Marker>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Beacon {
+pub struct Marker {
     pub header: sea_streamer_types::MessageHeader,
     pub running_checksum: Checksum,
 }
@@ -245,7 +245,7 @@ impl Message {
     }
 }
 
-impl Beacons {
+impl Beacon {
     pub fn empty() -> Self {
         Self {
             remaining_messages_bytes: 0,
@@ -259,7 +259,7 @@ impl Beacons {
         let mut items = Vec::new();
         let num = Bytes::read_from(file, 1).await?.byte().unwrap();
         for _ in 0..num {
-            items.push(Beacon::read_from(file).await?);
+            items.push(Marker::read_from(file).await?);
         }
         _ = Bytes::read_from(file, 1).await?;
         Ok(Self {
@@ -291,21 +291,21 @@ impl Beacons {
         size + 1
     }
 
-    /// Calculate the maximum number of beacons that can be fitted in the given space
-    pub fn max_beacons(space: usize) -> usize {
+    /// Calculate the maximum number of markers that can be fitted in the given space
+    pub fn max_markers(space: usize) -> usize {
         if space < 7 {
             return 0;
         }
-        std::cmp::min(u8::MAX as usize, (space - 7) / Beacon::max_size())
+        std::cmp::min(u8::MAX as usize, (space - 7) / Marker::max_size())
     }
 
-    /// The reasonable number of beacons to use, given the beacon_interval
-    pub fn num_beacons(beacon_interval: usize) -> usize {
-        Self::max_beacons(beacon_interval) / 2
+    /// The reasonable number of markers to use, given the beacon_interval
+    pub fn num_markers(beacon_interval: usize) -> usize {
+        Self::max_markers(beacon_interval) / 2
     }
 }
 
-impl Beacon {
+impl Marker {
     pub async fn read_from(file: &mut impl ByteSource) -> Result<Self, FileErr> {
         let header = MessageHeader::read_from(file).await?.0;
         let running_checksum = Checksum(U16::read_from(file).await?.0);
@@ -570,9 +570,9 @@ mod test {
     }
 
     #[test]
-    fn test_num_beacons() {
-        assert_eq!(Beacons::num_beacons(640), 1);
-        // we can only fit 1 beacon in 1kb
-        assert_eq!(Beacons::num_beacons(1024), 1);
+    fn test_num_markers() {
+        assert_eq!(Beacon::num_markers(640), 1);
+        // we can only fit 1 marker in 1kb
+        assert_eq!(Beacon::num_markers(1024), 1);
     }
 }

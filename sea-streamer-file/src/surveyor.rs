@@ -1,9 +1,9 @@
 use std::{collections::HashSet, future::Future, num::NonZeroU32};
 
-use crate::{format::Beacons, FileErr, SeekErr};
+use crate::{format::Beacon, FileErr, SeekErr};
 
 pub trait BeaconReader {
-    type Future: Future<Output = Result<Beacons, FileErr>>;
+    type Future: Future<Output = Result<Beacon, FileErr>>;
 
     fn survey(&mut self, at: NonZeroU32) -> Self::Future;
 
@@ -17,7 +17,7 @@ pub trait BeaconReader {
 pub struct Surveyor<B, F>
 where
     B: BeaconReader,
-    F: Fn(&Beacons) -> SurveyResult,
+    F: Fn(&Beacon) -> SurveyResult,
 {
     reader: B,
     visitor: Visitor,
@@ -36,13 +36,13 @@ pub enum SurveyResult {
 use SurveyResult::{Left, Right, Undecided};
 
 #[derive(Clone)]
-pub struct MockBeacons {
+pub struct MockBeacon {
     // the 0th item is ignored
-    beacons: Vec<Option<Beacons>>,
+    beacons: Vec<Option<Beacon>>,
 }
 
 /// The goal of Visitor is to make sure that we have either visited, or by induction,
-/// eliminated all potential Beacons.
+/// eliminated all potential Beacon.
 struct Visitor {
     min: u32, // we visited all N <= min already
     max: u32, // we visited all N >= max already
@@ -52,7 +52,7 @@ struct Visitor {
 impl<B, F> Surveyor<B, F>
 where
     B: BeaconReader,
-    F: Fn(&Beacons) -> SurveyResult,
+    F: Fn(&Beacon) -> SurveyResult,
 {
     pub async fn new(mut reader: B, func: F) -> Result<Self, FileErr> {
         let mut min = 0;
@@ -167,7 +167,7 @@ impl Visitor {
     }
 }
 
-impl MockBeacons {
+impl MockBeacon {
     pub fn new(size: usize) -> Self {
         assert!(size > 0);
         Self {
@@ -175,18 +175,18 @@ impl MockBeacons {
         }
     }
 
-    pub fn add(&mut self, n: u32, b: Beacons) {
+    pub fn add(&mut self, n: u32, b: Beacon) {
         self.beacons[n as usize] = Some(b);
     }
 }
 
-impl BeaconReader for MockBeacons {
-    type Future = std::future::Ready<Result<Beacons, FileErr>>;
+impl BeaconReader for MockBeacon {
+    type Future = std::future::Ready<Result<Beacon, FileErr>>;
 
     fn survey(&mut self, at: NonZeroU32) -> Self::Future {
         std::future::ready(Ok(self.beacons[at.get() as usize]
             .clone()
-            .unwrap_or_else(|| Beacons::empty())))
+            .unwrap_or_else(|| Beacon::empty())))
     }
 
     fn max(&self) -> u32 {
