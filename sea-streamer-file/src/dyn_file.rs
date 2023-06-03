@@ -92,6 +92,19 @@ impl DynFileSource {
             Self::Dead => panic!("DynFileSource: Dead"),
         }
     }
+
+    #[inline]
+    pub(crate) async fn resize(&mut self) -> Result<u64, FileErr> {
+        match self {
+            Self::FileReader(file) => file.resize().await,
+            Self::FileSource(_) => panic!("DynFileSource: FileSource cannot be resized"),
+            Self::Dead => panic!("DynFileSource: Dead"),
+        }
+    }
+
+    pub fn is_dead(&self) -> bool {
+        matches!(self, Self::Dead)
+    }
 }
 
 impl ByteSource for DynFileSource {

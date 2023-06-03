@@ -114,13 +114,13 @@ async fn loopback() -> anyhow::Result<()> {
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
-async fn seek() -> anyhow::Result<()> {
+async fn file() -> anyhow::Result<()> {
     use sea_streamer_file::{
         Bytes, FileSink, FileSource, ReadFrom, WriteFrom, DEFAULT_FILE_SIZE_LIMIT,
     };
     use sea_streamer_types::{SeqPos, Timestamp};
 
-    const TEST: &str = "seek";
+    const TEST: &str = "file";
     INIT.call_once(env_logger::init);
 
     let now = Timestamp::now_utc();
@@ -251,13 +251,13 @@ async fn beacon() -> anyhow::Result<()> {
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
-async fn messages() -> anyhow::Result<()> {
+async fn rewind() -> anyhow::Result<()> {
     use sea_streamer_file::{format::RunningChecksum, MessageSink, MessageSource, StreamMode};
     use sea_streamer_types::{
         Buffer, MessageHeader, OwnedMessage, SeqPos, ShardId, StreamKey, Timestamp,
     };
 
-    const TEST: &str = "messages";
+    const TEST: &str = "rewind";
     INIT.call_once(env_logger::init);
 
     let path = temp_file(format!("{}-{}", TEST, millis_of(&now())).as_str())?;
@@ -353,6 +353,103 @@ async fn messages() -> anyhow::Result<()> {
         let now = Timestamp::now_utc();
         let now = now.replace_millisecond(now.millisecond()).unwrap();
         now
+    }
+
+    Ok(())
+}
+
+#[cfg(feature = "test")]
+#[cfg_attr(feature = "runtime-tokio", tokio::test)]
+#[cfg_attr(feature = "runtime-async-std", async_std::test)]
+async fn seek() -> anyhow::Result<()> {
+    use sea_streamer_file::{
+        BeaconReader, FileErr, MessageSink, MessageSource, SeekErr, SeekTarget, StreamMode,
+    };
+    use sea_streamer_types::{
+        Buffer, Message, MessageHeader, OwnedMessage, ShardId, StreamKey, Timestamp,
+    };
+
+    const TEST: &str = "seek";
+    INIT.call_once(env_logger::init);
+
+    for t in 0..2 {
+        let path = temp_file(format!("{}-{}", TEST, millis_of(&now())).as_str())?;
+        println!("{path}");
+
+        let suffix = match t {
+            0 => 0,   // baseline; there is no beacons
+            1 => 250, // there should be 5 beacons
+            _ => unreachable!(),
+        };
+        let mut sink = MessageSink::new(path.clone(), 640, 1024 * 1024).await?;
+        let mut source = MessageSource::new(path.clone(), StreamMode::LiveReplay).await?;
+
+        let stream_key = StreamKey::new("hello")?;
+        let shard_id = ShardId::new(0);
+
+        for i in 1..=10 {
+            let header = MessageHeader::new(stream_key.clone(), shard_id, i, now());
+            let message = OwnedMessage::new(
+                header,
+                format!(
+                    "message-{}{}",
+                    i,
+                    String::from_utf8(vec![b' '; suffix]).unwrap()
+                )
+                .into_bytes(),
+            );
+            sink.write(message).await?;
+        }
+
+        source
+            .seek(&stream_key, &shard_id, SeekTarget::SeqNo(0))
+            .await?;
+        let m = source.next().await?;
+        assert_eq!(m.message.header().sequence(), &1);
+
+        assert_eq!(
+            source.max_beacons(),
+            match t {
+                0 => 0,
+                1 => 5,
+                _ => unreachable!(),
+            }
+        );
+
+        source
+            .seek(&stream_key, &shard_id, SeekTarget::SeqNo(1))
+            .await?;
+        let m = source.next().await?;
+        assert_eq!(m.message.header().sequence(), &1);
+
+        source
+            .seek(&stream_key, &shard_id, SeekTarget::SeqNo(5))
+            .await?;
+        for i in 5..=10 {
+            let m = source.next().await?;
+            assert_eq!(m.message.header().stream_key(), &stream_key);
+            assert_eq!(m.message.header().shard_id(), &shard_id);
+            assert_eq!(m.message.header().sequence(), &i);
+            assert_eq!(
+                m.message.message().as_str().unwrap().trim_end(),
+                format!("message-{i}").as_str()
+            );
+        }
+
+        source
+            .seek(&stream_key, &shard_id, SeekTarget::SeqNo(10))
+            .await?;
+        let m = source.next().await?;
+        assert_eq!(m.message.header().sequence(), &10);
+
+        let err = source
+            .seek(&stream_key, &shard_id, SeekTarget::SeqNo(11))
+            .await;
+        assert!(matches!(err, Err(FileErr::SeekErr(SeekErr::OutOfBound))));
+    }
+
+    fn now() -> Timestamp {
+        Timestamp::now_utc()
     }
 
     Ok(())

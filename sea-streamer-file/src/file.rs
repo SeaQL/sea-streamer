@@ -84,6 +84,11 @@ impl FileReader {
     pub(crate) fn end(self) -> (AsyncFile, u64, ByteBuffer) {
         (self.file, self.offset, self.buffer)
     }
+
+    #[inline]
+    pub async fn resize(&mut self) -> Result<u64, FileErr> {
+        self.file.resize().await
+    }
 }
 
 impl ByteSource for FileReader {
@@ -190,6 +195,11 @@ impl AsyncFile {
     #[inline]
     pub fn pos(&self) -> u64 {
         self.pos
+    }
+
+    pub async fn resize(&mut self) -> Result<u64, FileErr> {
+        self.size = file_size_of(&self.file).await?;
+        Ok(self.size)
     }
 }
 

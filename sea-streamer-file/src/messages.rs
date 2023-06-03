@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, path::Path};
+use std::{cmp::Ordering, collections::BTreeMap, num::NonZeroU32, path::Path};
 
 use sea_streamer_types::{
     export::futures::{future::BoxFuture, FutureExt},
@@ -8,8 +8,8 @@ use sea_streamer_types::{
 
 use crate::{
     format::{Beacon, Checksum, FormatErr, Header, Marker, Message, RunningChecksum},
-    ByteBuffer, ByteSource, Bytes, DynFileSource, FileErr, FileId, FileSink, FileSourceType,
-    StreamMode, WriteFrom,
+    BeaconReader, ByteBuffer, ByteSource, Bytes, DynFileSource, FileErr, FileId, FileSink,
+    FileSourceType, SeekErr, StreamMode, SurveyResult, Surveyor, WriteFrom,
 };
 
 pub const END_OF_STREAM: &str = "EOS";
@@ -21,6 +21,7 @@ pub struct MessageSource {
     offset: u64,
     beacon_interval: u32,
     beacon: (u32, Vec<Marker>),
+    pending: Option<Message>,
 }
 
 /// A high level file writer that mux messages and beacon
@@ -76,6 +77,7 @@ impl MessageSource {
             offset,
             beacon_interval,
             beacon: (0, Vec::new()),
+            pending: None,
         }
     }
 
@@ -122,7 +124,7 @@ impl MessageSource {
         self.clear_beacon();
 
         // Read until the start of the next message
-        while let Some(i) = self.has_beacon() {
+        while let Some(i) = self.has_beacon(self.offset) {
             let beacon = Beacon::read_from(&mut self.source).await?;
             let beacon_size = beacon.size();
             self.offset += beacon_size as u64;
@@ -157,13 +159,98 @@ impl MessageSource {
     }
 
     /// Warning: This future must not be canceled.
-    pub async fn seek(&mut self, target: SeekTarget) -> Result<(), FileErr> {
-        todo!()
+    pub async fn seek(
+        &mut self,
+        stream_key: &StreamKey,
+        shard_id: &ShardId,
+        to: SeekTarget,
+    ) -> Result<(), FileErr> {
+        let savepoint = self.offset;
+        let source_type = self.source.source_type();
+        let source = std::mem::replace(&mut self.source, DynFileSource::Dead);
+        self.source = source.switch_to(FileSourceType::FileReader).await?;
+        self.source.resize().await?;
+        #[allow(clippy::never_loop)]
+        let res = 'outer: loop {
+            // survey the beacons to narrow down the scope of search
+            let surveyor = match Surveyor::new(self, |b: &Beacon| {
+                for item in b.items.iter() {
+                    if (stream_key, shard_id) == (item.header.stream_key(), item.header.shard_id())
+                    {
+                        return compare(&to, &item.header);
+                    }
+                }
+                SurveyResult::Undecided
+            })
+            .await
+            {
+                Ok(s) => s,
+                Err(e) => {
+                    break Err(e);
+                }
+            };
+            let (pos, _) = match surveyor.run().await {
+                Ok(s) => s,
+                Err(e) => {
+                    break Err(e);
+                }
+            };
+            // now we know roughly where's the message
+            match self.rewind(SeqPos::At(pos as u64)).await {
+                Ok(_) => (),
+                Err(e) => {
+                    break Err(e);
+                }
+            };
+            // read until we found what we want
+            loop {
+                let mess = match self.next().await {
+                    Ok(m) => m,
+                    Err(e) => {
+                        break 'outer match e {
+                            FileErr::NotEnoughBytes => Err(FileErr::SeekErr(SeekErr::OutOfBound)),
+                            e => Err(e),
+                        }
+                    }
+                };
+                if let SurveyResult::Right = compare(&to, mess.message.header()) {
+                    // This is a wanted message!
+                    self.pending = Some(mess);
+                    break;
+                }
+            }
+            break Ok(());
+        };
+
+        // Restore file source to original state
+        let source = std::mem::replace(&mut self.source, DynFileSource::Dead);
+        self.source = source.switch_to(source_type).await?;
+
+        if res.is_err() {
+            self.source.seek(SeqPos::At(savepoint)).await?;
+            self.buffer.clear();
+            self.pending.take();
+        }
+
+        fn compare(to: &SeekTarget, header: &MessageHeader) -> SurveyResult {
+            match to {
+                SeekTarget::SeqNo(no) => match header.sequence().cmp(no) {
+                    Ordering::Less => SurveyResult::Left,
+                    Ordering::Greater | Ordering::Equal => SurveyResult::Right,
+                },
+                SeekTarget::Timestamp(ts) => match header.timestamp().cmp(ts) {
+                    Ordering::Less | Ordering::Equal => SurveyResult::Left,
+                    Ordering::Greater => SurveyResult::Right,
+                },
+            }
+        }
+
+        res
     }
 
-    fn has_beacon(&self) -> Option<u32> {
-        if self.offset > 0 && self.offset % self.beacon_interval as u64 == 0 {
-            Some((self.offset / self.beacon_interval as u64) as u32)
+    fn has_beacon(&self, offset: u64) -> Option<u32> {
+        if offset > 0 && offset % self.beacon_interval as u64 == 0 {
+            Some((offset / self.beacon_interval as u64) as u32)
         } else {
             None
         }
@@ -171,7 +258,7 @@ impl MessageSource {
 
     async fn request_bytes(&mut self, size: usize) -> Result<Bytes, FileErr> {
         loop {
-            if let Some(i) = self.has_beacon() {
+            if let Some(i) = self.has_beacon(self.offset) {
                 let beacon = Beacon::read_from(&mut self.source).await?;
                 self.offset += beacon.size() as u64;
                 self.beacon = (i, beacon.items);
@@ -204,7 +291,10 @@ impl MessageSource {
 
     /// Read the next message.
     pub async fn next(&mut self) -> Result<Message, FileErr> {
-        let message = Message::read_from(self).await?;
+        let message = match self.pending.take() {
+            Some(m) => m,
+            None => Message::read_from(self).await?,
+        };
         let computed = message.compute_checksum();
         if message.checksum != computed {
             Err(FileErr::FormatErr(FormatErr::ChecksumErr {
@@ -248,6 +338,28 @@ impl ByteSource for MessageSource {
     /// this will interfere the Message Stream.
     fn request_bytes(&mut self, size: usize) -> Self::Future<'_> {
         self.request_bytes(size).boxed()
+    }
+}
+
+impl BeaconReader for MessageSource {
+    type Future<'a> = BoxFuture<'a, Result<Beacon, FileErr>>;
+
+    fn survey(&mut self, at: NonZeroU32) -> Self::Future<'_> {
+        async move {
+            let at = at.get() as u64 * self.beacon_interval as u64;
+            let offset = self.source.seek(SeqPos::At(at)).await?;
+            if at == offset {
+                let beacon = Beacon::read_from(&mut self.source).await?;
+                Ok(beacon)
+            } else {
+                Err(FileErr::NotEnoughBytes)
+            }
+        }
+        .boxed()
+    }
+
+    fn max_beacons(&self) -> u32 {
+        (self.source.file_size() / self.beacon_interval as u64) as u32
     }
 }
 

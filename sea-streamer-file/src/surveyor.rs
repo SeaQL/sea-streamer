@@ -3,23 +3,25 @@ use std::{collections::HashSet, future::Future, num::NonZeroU32};
 use crate::{format::Beacon, FileErr, SeekErr};
 
 pub trait BeaconReader {
-    type Future: Future<Output = Result<Beacon, FileErr>>;
+    type Future<'a>: Future<Output = Result<Beacon, FileErr>>
+    where
+        Self: 'a;
 
-    fn survey(&mut self, at: NonZeroU32) -> Self::Future;
+    fn survey(&mut self, at: NonZeroU32) -> Self::Future<'_>;
 
     /// Returns the max N-th Beacon
-    fn max(&self) -> u32;
+    fn max_beacons(&self) -> u32;
 }
 
 /// The goal of Surveyor is to find the two closest Beacons that pince our search target.
 /// If would be pretty simple, if not for the fact that a given location may not contain
 /// a relevant Beacon, which could yield Undecided.
-pub struct Surveyor<B, F>
+pub struct Surveyor<'a, B, F>
 where
     B: BeaconReader,
     F: Fn(&Beacon) -> SurveyResult,
 {
-    reader: B,
+    reader: &'a mut B,
     visitor: Visitor,
     left: u32,
     right: u32,
@@ -49,23 +51,25 @@ struct Visitor {
     visited: HashSet<u32>,
 }
 
-impl<B, F> Surveyor<B, F>
+impl<'a, B, F> Surveyor<'a, B, F>
 where
     B: BeaconReader,
     F: Fn(&Beacon) -> SurveyResult,
 {
-    pub async fn new(mut reader: B, func: F) -> Result<Self, FileErr> {
+    pub async fn new(reader: &'a mut B, func: F) -> Result<Surveyor<'a, B, F>, FileErr> {
         let mut min = 0;
-        let mut max = reader.max();
-        let left = reader.survey(NonZeroU32::new(1).unwrap()).await?;
-        if func(&left) == Right {
-            // it is still possible that the target is between the file header and the 1st beacon
-            max = 1;
-        }
-        let right = reader.survey(NonZeroU32::new(max).unwrap()).await?;
-        if func(&right) == Left {
-            // it is still possible that the target is between the last beacon and remaining bytes
-            min = max;
+        let mut max = reader.max_beacons();
+        if max > 0 {
+            let left = reader.survey(NonZeroU32::new(1).unwrap()).await?;
+            if func(&left) == Right {
+                // it is still possible that the target is between the file header and the 1st beacon
+                max = 1;
+            }
+            let right = reader.survey(NonZeroU32::new(max).unwrap()).await?;
+            if func(&right) == Left {
+                // it is still possible that the target is between the last beacon and remaining bytes
+                min = max;
+            }
         }
         Ok(Self {
             reader,
@@ -77,13 +81,15 @@ where
     }
 
     pub async fn run(mut self) -> Result<(u32, u32), FileErr> {
-        let max_steps = self.reader.max();
+        let max_steps = self.reader.max_beacons();
         let mut i = 0;
-        while i < max_steps && self.step().await? {
+        while i < max_steps {
             i += 1;
-        }
-        if i == max_steps {
-            return Err(FileErr::SeekErr(SeekErr::Exhausted));
+            if !self.step().await? {
+                break;
+            } else if i == max_steps {
+                return Err(FileErr::SeekErr(SeekErr::Exhausted));
+            }
         }
         Ok(self.result())
     }
@@ -181,15 +187,15 @@ impl MockBeacon {
 }
 
 impl BeaconReader for MockBeacon {
-    type Future = std::future::Ready<Result<Beacon, FileErr>>;
+    type Future<'a> = std::future::Ready<Result<Beacon, FileErr>>;
 
-    fn survey(&mut self, at: NonZeroU32) -> Self::Future {
+    fn survey(&mut self, at: NonZeroU32) -> Self::Future<'_> {
         std::future::ready(Ok(self.beacons[at.get() as usize]
             .clone()
-            .unwrap_or_else(|| Beacon::empty())))
+            .unwrap_or_else(Beacon::empty)))
     }
 
-    fn max(&self) -> u32 {
+    fn max_beacons(&self) -> u32 {
         (self.beacons.len() - 1) as u32
     }
 }
