@@ -62,11 +62,15 @@ use crczoo::{calculate_crc16, crc16_cdma2000, CRC16_CDMA2000_POLY};
 use sea_streamer_types::{
     Buffer, Message as MessageTrait, OwnedMessage, ShardId, StreamKey, StreamKeyErr, Timestamp,
 };
+#[cfg(feature = "serde")]
+use serde::Serialize;
 use thiserror::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct HeaderV1 {
     pub file_name: String,
+    #[cfg_attr(feature = "serde", serde(serialize_with = "serialize_timestamp"))]
     pub created_at: Timestamp,
     pub beacon_interval: u32,
 }
@@ -85,6 +89,13 @@ pub struct Message {
     pub checksum: u16,
 }
 
+#[cfg(feature = "serde_json")]
+#[derive(Serialize)]
+pub struct MessageJson<'a> {
+    pub header: &'a sea_streamer_types::MessageHeader,
+    pub payload: Option<serde_json::Value>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Beacon {
     pub remaining_messages_bytes: u32,
@@ -92,6 +103,7 @@ pub struct Beacon {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct Marker {
     pub header: sea_streamer_types::MessageHeader,
     pub running_checksum: Checksum,
@@ -102,6 +114,7 @@ pub struct RunningChecksum {
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 #[repr(transparent)]
 pub struct Checksum(pub u16);
 
@@ -537,6 +550,18 @@ impl U16 {
     pub fn size() -> usize {
         2
     }
+}
+
+#[cfg(feature = "serde")]
+pub fn serialize_timestamp<S>(ts: &Timestamp, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(
+        ts.format(sea_streamer_types::TIMESTAMP_FORMAT)
+            .unwrap()
+            .as_str(),
+    )
 }
 
 #[cfg(test)]

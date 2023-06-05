@@ -24,14 +24,13 @@ fastrand = { version = "1" }
 flume = { version = "0.10", default-features = false, features = ["async"] }
 lazy_static = { version = "1.4" }
 log = { version = "0.4", default-features = false }
-# nom = { version = "7" }
 notify = { version = "6" }
 sea-streamer-types = { version = "0.2", path = "../sea-streamer-types" }
 sea-streamer-runtime = { version = "0.2", path = "../sea-streamer-runtime", features = ["file"]}
-# serde_json = { version = "1", optional = true }
+serde = { version = "1", optional = true, features = ["derive"] }
+serde_json = { version = "1", optional = true }
 structopt = { version = "0.3", optional = true }
 thiserror = { version = "1", default-features = false }
-# time = { version = "0.3", default-features = false, features = ["std", "macros", "parsing", "formatting"] }
 tokio = { version = "1.10.0", optional = true }
 
 [dev-dependencies]
@@ -39,7 +38,7 @@ tokio = { version = "1.10.0", optional = true }
 [features]
 default = ["test"]
 test = ["anyhow", "async-std?/attributes", "tokio?/full", "env_logger"]
-executables = ["anyhow", "tokio/full", "env_logger", "structopt", "sea-streamer-runtime/runtime-tokio"] # "serde_json", "sea-streamer-types/json"
+executables = ["anyhow", "tokio/full", "env_logger", "structopt", "sea-streamer-runtime/runtime-tokio", "serde", "serde_json", "sea-streamer-types/serde"]
 runtime-async-std = ["async-std", "sea-streamer-runtime/runtime-async-std"]
 runtime-tokio = ["tokio", "sea-streamer-runtime/runtime-tokio"]
 
@@ -54,6 +53,6 @@ path = "src/bin/clock.rs"
 required-features = ["executables"]
 
 [[bin]]
-name = "consumer"
-path = "src/bin/consumer.rs"
+name = "decoder"
+path = "src/bin/decoder.rs"
 required-features = ["executables"]

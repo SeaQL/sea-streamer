@@ -16,10 +16,10 @@ pub const END_OF_STREAM: &str = "EOS";
 
 /// A high level file reader that demux messages and beacon
 pub struct MessageSource {
+    header: Header,
     source: DynFileSource,
     buffer: ByteBuffer,
     offset: u64,
-    beacon_interval: u32,
     beacon: (u32, Vec<Marker>),
     pending: Option<Message>,
 }
@@ -62,7 +62,7 @@ impl MessageSource {
         .await?;
         let header = Header::read_from(&mut source).await?;
         assert!(Header::size() < header.beacon_interval as usize);
-        let mut stream = Self::new_with(source, Header::size() as u64, header.beacon_interval);
+        let mut stream = Self::new_with(source, header, Header::size() as u64);
         if mode == StreamMode::Live {
             stream.rewind(SeqPos::End).await?;
         }
@@ -70,15 +70,19 @@ impl MessageSource {
     }
 
     /// Creates a new message source with the header read and skipped.
-    pub fn new_with(source: DynFileSource, offset: u64, beacon_interval: u32) -> Self {
+    pub fn new_with(source: DynFileSource, header: Header, offset: u64) -> Self {
         Self {
+            header,
             source,
             buffer: ByteBuffer::new(),
             offset,
-            beacon_interval,
             beacon: (0, Vec::new()),
             pending: None,
         }
+    }
+
+    pub fn file_header(&self) -> &Header {
+        &self.header
     }
 
     /// Rewind the message stream to a coarse position.
@@ -91,7 +95,7 @@ impl MessageSource {
             SeqPos::Beginning | SeqPos::At(0) => SeqPos::At(Header::size() as u64),
             SeqPos::End => SeqPos::End,
             SeqPos::At(nth) => {
-                let at = nth * self.beacon_interval as u64;
+                let at = nth * self.beacon_interval();
                 if at < self.known_size() {
                     SeqPos::At(at)
                 } else {
@@ -103,13 +107,13 @@ impl MessageSource {
 
         // Align at a beacon
         if pos == SeqPos::End {
-            let max = self.known_size() - (self.known_size() % self.beacon_interval as u64);
+            let max = self.known_size() - (self.known_size() % self.beacon_interval());
             let max = std::cmp::max(max, Header::size() as u64);
             let pos = match target {
                 SeqPos::Beginning | SeqPos::At(0) => unreachable!(),
                 SeqPos::End => max,
                 SeqPos::At(nth) => {
-                    let at = nth * self.beacon_interval as u64;
+                    let at = nth * self.beacon_interval();
                     if at < self.known_size() {
                         at
                     } else {
@@ -134,7 +138,7 @@ impl MessageSource {
                 .source
                 .request_bytes(std::cmp::min(
                     beacon.remaining_messages_bytes as usize,
-                    self.beacon_interval as usize - beacon_size,
+                    self.beacon_interval() as usize - beacon_size,
                 ))
                 .await?;
             self.offset += bytes.len() as u64;
@@ -155,7 +159,7 @@ impl MessageSource {
             self.offset = self.source.seek(SeqPos::At(next)).await?;
         }
 
-        Ok((self.offset / self.beacon_interval as u64) as u32)
+        Ok((self.offset / self.beacon_interval()) as u32)
     }
 
     /// Warning: This future must not be canceled.
@@ -256,9 +260,14 @@ impl MessageSource {
         res
     }
 
+    #[inline]
+    fn beacon_interval(&self) -> u64 {
+        self.header.beacon_interval as u64
+    }
+
     fn has_beacon(&self, offset: u64) -> Option<u32> {
-        if offset > 0 && offset % self.beacon_interval as u64 == 0 {
-            Some((offset / self.beacon_interval as u64) as u32)
+        if offset > 0 && offset % self.beacon_interval() == 0 {
+            Some((offset / self.beacon_interval()) as u32)
         } else {
             None
         }
@@ -274,8 +283,7 @@ impl MessageSource {
 
             let chunk = std::cmp::min(
                 size - self.buffer.size(), // remaining size
-                self.beacon_interval as usize
-                    - (self.offset % self.beacon_interval as u64) as usize, // should not read past the next beacon
+                self.beacon_interval() as usize - (self.offset % self.beacon_interval()) as usize, // should not read past the next beacon
             );
             let bytes = self.source.request_bytes(chunk).await?;
             self.offset += chunk as u64;
@@ -354,7 +362,7 @@ impl BeaconReader for MessageSource {
 
     fn survey(&mut self, at: NonZeroU32) -> Self::Future<'_> {
         async move {
-            let at = at.get() as u64 * self.beacon_interval as u64;
+            let at = at.get() as u64 * self.beacon_interval();
             let offset = self.source.seek(SeqPos::At(at)).await?;
             if at == offset {
                 let beacon = Beacon::read_from(&mut self.source).await?;
@@ -367,7 +375,7 @@ impl BeaconReader for MessageSource {
     }
 
     fn max_beacons(&self) -> u32 {
-        (self.source.file_size() / self.beacon_interval as u64) as u32
+        (self.source.file_size() / self.beacon_interval()) as u32
     }
 }
 

@@ -180,8 +180,9 @@ async fn file() -> anyhow::Result<()> {
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
 async fn beacon() -> anyhow::Result<()> {
     use sea_streamer_file::{
-        format::Beacon, Bytes, DynFileSource, FileErr, FileSink, FileSourceType, MessageSource,
-        WriteFrom, DEFAULT_FILE_SIZE_LIMIT,
+        format::{Beacon, Header},
+        Bytes, DynFileSource, FileErr, FileSink, FileSourceType, MessageSource, WriteFrom,
+        DEFAULT_FILE_SIZE_LIMIT,
     };
     use sea_streamer_types::{SeqPos, Timestamp};
 
@@ -195,7 +196,12 @@ async fn beacon() -> anyhow::Result<()> {
     let mut sink =
         FileSink::new(path.clone(), WriteFrom::Beginning, DEFAULT_FILE_SIZE_LIMIT).await?;
     let source = DynFileSource::new(path.clone(), FileSourceType::FileSource).await?;
-    let mut source = MessageSource::new_with(source, 0, 12);
+    let header = Header {
+        file_name: path.to_string(),
+        created_at: now,
+        beacon_interval: 12,
+    };
+    let mut source = MessageSource::new_with(source, header, 0);
 
     Bytes::Bytes(vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]).write_to(&mut sink)?;
     Beacon {

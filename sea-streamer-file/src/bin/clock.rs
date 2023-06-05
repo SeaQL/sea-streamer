@@ -7,7 +7,7 @@ use structopt::StructOpt;
 #[derive(Debug, StructOpt)]
 struct Args {
     #[structopt(long, help = "Stream to this file")]
-    file: StreamerUri,
+    file: FileId,
     #[structopt(long, parse(try_from_str = parse_duration), help = "Period of the clock. e.g. 1s, 100ms")]
     interval: Duration,
 }

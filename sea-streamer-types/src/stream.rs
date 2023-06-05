@@ -9,6 +9,10 @@ pub const MAX_STREAM_KEY_LEN: usize = 249;
 /// Reserved by SeaStreamer. Avoid using this as StreamKey.
 pub const SEA_STREAMER_INTERNAL: &str = "SEA_STREAMER_INTERNAL";
 
+/// Canonical display format for Timestamp.
+pub const TIMESTAMP_FORMAT: &[time::format_description::FormatItem<'static>] =
+    time::macros::format_description!("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond]");
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// Identifies a stream. Aka. topic.
 pub struct StreamKey {
