@@ -387,8 +387,10 @@ async fn seek() -> anyhow::Result<()> {
         let stream_key = StreamKey::new("hello")?;
         let shard_id = ShardId::new(0);
 
+        let start = now().unix_timestamp() * 1000;
         for i in 1..=10 {
-            let header = MessageHeader::new(stream_key.clone(), shard_id, i, now());
+            let ts = Timestamp::from_unix_timestamp_nanos((start + i as i64) as i128 * 1_000_000)?;
+            let header = MessageHeader::new(stream_key.clone(), shard_id, i, ts);
             let message = OwnedMessage::new(
                 header,
                 format!(
@@ -416,6 +418,7 @@ async fn seek() -> anyhow::Result<()> {
             }
         );
 
+        // Seek by SeqNo
         source
             .seek(&stream_key, &shard_id, SeekTarget::SeqNo(1))
             .await?;
@@ -446,6 +449,32 @@ async fn seek() -> anyhow::Result<()> {
             .seek(&stream_key, &shard_id, SeekTarget::SeqNo(11))
             .await;
         assert!(matches!(err, Err(FileErr::SeekErr(SeekErr::OutOfBound))));
+        println!("Seek by SeqNo ... ok");
+
+        // Seek by Timestamp
+        let ts = Timestamp::from_unix_timestamp_nanos((start + 0) as i128 * 1_000_000)?;
+        source
+            .seek(&stream_key, &shard_id, SeekTarget::Timestamp(ts))
+            .await?;
+        let m = source.next().await?;
+        assert_eq!(m.message.header().sequence(), &1);
+
+        let ts = Timestamp::from_unix_timestamp_nanos((start + 5) as i128 * 1_000_000)?;
+        source
+            .seek(&stream_key, &shard_id, SeekTarget::Timestamp(ts))
+            .await?;
+        for i in 6..=10 {
+            let m = source.next().await?;
+            assert_eq!(m.message.header().stream_key(), &stream_key);
+            assert_eq!(m.message.header().shard_id(), &shard_id);
+            assert_eq!(m.message.header().sequence(), &i);
+        }
+        let ts = Timestamp::from_unix_timestamp_nanos((start + 10) as i128 * 1_000_000)?;
+        let err = source
+            .seek(&stream_key, &shard_id, SeekTarget::Timestamp(ts))
+            .await;
+        assert!(matches!(err, Err(FileErr::SeekErr(SeekErr::OutOfBound))));
+        println!("Seek by Timestamp ... ok");
     }
 
     fn now() -> Timestamp {

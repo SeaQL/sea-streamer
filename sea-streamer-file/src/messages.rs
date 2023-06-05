@@ -199,7 +199,10 @@ impl MessageSource {
             match self.rewind(SeqPos::At(pos as u64)).await {
                 Ok(_) => (),
                 Err(e) => {
-                    break Err(e);
+                    break 'outer match e {
+                        FileErr::NotEnoughBytes => Err(FileErr::SeekErr(SeekErr::OutOfBound)),
+                        e => Err(e),
+                    }
                 }
             };
             // read until we found what we want
@@ -232,6 +235,11 @@ impl MessageSource {
             self.pending.take();
         }
 
+        /// In the nutshell, for SeqNo the condition is >= N.
+        /// While for Timestamp, the condition is > N.
+        ///
+        /// Reason being, SeqNo is a discrete time thus precise;
+        /// Timestamp is a continuous time, thus, should be treated as a real number.
         fn compare(to: &SeekTarget, header: &MessageHeader) -> SurveyResult {
             match to {
                 SeekTarget::SeqNo(no) => match header.sequence().cmp(no) {
