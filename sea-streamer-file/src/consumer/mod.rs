@@ -12,36 +12,50 @@ use sea_streamer_types::{
     Consumer as ConsumerTrait, SeqPos, ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
 };
 
-use crate::{FileErr, FileResult};
+use crate::{is_pulse, FileErr, FileId, FileResult, SeekTarget};
 pub(crate) use group::new_consumer;
-use group::{Pulse, Sid};
+use group::Sid;
 
 pub use self::group::query_streamer;
-use self::group::remove_consumer;
+use self::group::{preseek_consumer, remove_consumer};
 
 pub struct FileConsumer {
+    file_id: FileId,
     sid: Sid,
     receiver: Receiver<Result<SharedMessage, FileErr>>,
-    pulse: Sender<Pulse>,
+    ctrl: Sender<CtrlMsg>,
+}
+
+impl std::fmt::Debug for FileConsumer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "FileConsumer {{ sid: {} }}", self.sid)
+    }
+}
+
+enum CtrlMsg {
+    Read,
+    Seek(SeekTarget),
 }
 
 pub struct NextFuture<'a> {
     inner: &'a FileConsumer,
-    future: Option<SendFut<'a, Pulse>>,
+    future: Option<SendFut<'a, CtrlMsg>>,
 }
 
 pub type FileMessage = SharedMessage;
 
 impl FileConsumer {
-    pub(crate) fn new(
+    fn new(
+        file_id: FileId,
         sid: Sid,
         receiver: Receiver<Result<SharedMessage, FileErr>>,
-        pulse: Sender<Pulse>,
+        ctrl: Sender<CtrlMsg>,
     ) -> Self {
         Self {
+            file_id,
             sid,
             receiver,
-            pulse,
+            ctrl,
         }
     }
 }
@@ -59,22 +73,44 @@ impl ConsumerTrait for FileConsumer {
     type NextFuture<'a> = NextFuture<'a>;
     type Stream<'a> = FileMessageStream<'a>;
 
-    async fn seek(&mut self, _: Timestamp) -> FileResult<()> {
-        todo!()
+    /// Affects all streams.
+    /// If the consumer is subscribing to multiple streams, it will be sought by the first stream key.
+    async fn seek(&mut self, ts: Timestamp) -> FileResult<()> {
+        self.seek(SeekTarget::Timestamp(ts))
+            .await
+            .map_err(StreamErr::Backend)
     }
 
-    async fn rewind(&mut self, _: SeqPos) -> FileResult<()> {
-        todo!()
+    /// Affects all streams.
+    /// If the consumer is subscribing to multiple streams, it will be sought by the first stream key.
+    async fn rewind(&mut self, to: SeqPos) -> FileResult<()> {
+        self.seek(match to {
+            SeqPos::Beginning => SeekTarget::Beginning,
+            SeqPos::End => SeekTarget::End,
+            SeqPos::At(at) => SeekTarget::SeqNo(at),
+        })
+        .await
+        .map_err(StreamErr::Backend)
     }
 
+    /// Currently unimplemented; always error.
     fn assign(&mut self, _: (StreamKey, ShardId)) -> FileResult<()> {
-        todo!()
+        Err(StreamErr::Unsupported(
+            "Cannot manually assign shards".to_owned(),
+        ))
     }
 
+    /// Currently unimplemented; always error.
     fn unassign(&mut self, _: (StreamKey, ShardId)) -> FileResult<()> {
-        todo!()
+        Err(StreamErr::Unsupported(
+            "Cannot manually assign shards".to_owned(),
+        ))
     }
 
+    /// If this future is canceled, a Message might still be read.
+    /// It will be queued for you to consume on the next next() call,
+    /// which yields immediately. In a nutshell, cancelling this
+    /// future does not undo the read, but it will not cause any error.
     fn next(&self) -> Self::NextFuture<'_> {
         NextFuture {
             inner: self,
@@ -87,13 +123,40 @@ impl ConsumerTrait for FileConsumer {
     }
 }
 
+impl FileConsumer {
+    /// Seeking removes the group membership of the Consumer
+    pub async fn seek(&mut self, target: SeekTarget) -> Result<(), FileErr> {
+        // prepare the streamer
+        preseek_consumer(&self.file_id, self.sid).await?;
+        self.receiver.drain();
+        // send a request
+        self.ctrl
+            .send_async(CtrlMsg::Seek(target))
+            .await
+            .map_err(|_| FileErr::TaskDead("FileConsumer seek"))?;
+        // drain until we get a pulse
+        loop {
+            match self.receiver.recv_async().await {
+                Ok(Ok(msg)) => {
+                    if is_pulse(&msg) {
+                        break;
+                    }
+                }
+                Ok(Err(e)) => return Err(e),
+                Err(_) => return Err(FileErr::TaskDead("FileConsumer seek")),
+            }
+        }
+        Ok(())
+    }
+}
+
 /// Hand-unrolled of the following:
 /// ```ignore
 /// loop {
 ///     if let Ok(m) = receiver.try_recv() {
 ///         return Ok(m);
 ///     }
-///     pulse.send_async().await?;
+///     ctrl.send_async(Read).await?;
 /// }
 /// ```
 impl<'a> Future for NextFuture<'a> {
@@ -114,7 +177,7 @@ impl<'a> Future for NextFuture<'a> {
                 Err(TryRecvError::Empty) => (),
             }
             if self.future.is_none() {
-                self.future = Some(self.inner.pulse.send_async(Pulse));
+                self.future = Some(self.inner.ctrl.send_async(CtrlMsg::Read));
             }
             match self.future.as_mut().unwrap().poll_unpin(cx) {
                 Ready(res) => match res {
@@ -125,6 +188,21 @@ impl<'a> Future for NextFuture<'a> {
                 },
                 Pending => return Pending,
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn only_send_sync<C: ConsumerTrait + Send + Sync>(_: C) {}
+
+    #[test]
+    fn consumer_is_send_sync() {
+        #[allow(dead_code)]
+        fn ensure_send_sync(c: FileConsumer) {
+            only_send_sync(c);
         }
     }
 }

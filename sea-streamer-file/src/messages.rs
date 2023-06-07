@@ -13,6 +13,7 @@ use crate::{
 };
 
 pub const END_OF_STREAM: &str = "EOS";
+pub const PULSE_MESSAGE: &str = "PULSE";
 
 /// A high level file reader that demux messages and beacon
 pub struct MessageSource {
@@ -37,6 +38,8 @@ pub struct MessageSink {
 pub enum SeekTarget {
     SeqNo(SeqNo),
     Timestamp(Timestamp),
+    Beginning,
+    End,
 }
 
 struct BeaconState {
@@ -169,6 +172,12 @@ impl MessageSource {
         shard_id: &ShardId,
         to: SeekTarget,
     ) -> Result<(), FileErr> {
+        // a short circuit
+        match to {
+            SeekTarget::Beginning => return self.rewind(SeqPos::Beginning).await.map(|_| ()),
+            SeekTarget::End => return self.rewind(SeqPos::End).await.map(|_| ()),
+            _ => (),
+        }
         let savepoint = self.offset;
         let source_type = self.source.source_type();
         let source = std::mem::replace(&mut self.source, DynFileSource::Dead);
@@ -246,6 +255,7 @@ impl MessageSource {
         /// Timestamp is a continuous time, thus, should be treated as a real number.
         fn compare(to: &SeekTarget, header: &MessageHeader) -> SurveyResult {
             match to {
+                SeekTarget::Beginning | SeekTarget::End => panic!("Should not appear here"),
                 SeekTarget::SeqNo(no) => match header.sequence().cmp(no) {
                     Ordering::Less => SurveyResult::Left,
                     Ordering::Greater | Ordering::Equal => SurveyResult::Right,
@@ -476,4 +486,19 @@ pub fn end_of_stream() -> OwnedMessage {
 pub fn is_end_of_stream(mess: &SharedMessage) -> bool {
     mess.header().stream_key().name() == SEA_STREAMER_INTERNAL
         && mess.message().as_bytes() == END_OF_STREAM.as_bytes()
+}
+
+pub fn pulse_message() -> OwnedMessage {
+    let header = MessageHeader::new(
+        StreamKey::new(SEA_STREAMER_INTERNAL).unwrap(),
+        ShardId::new(0),
+        0,
+        Timestamp::now_utc(),
+    );
+    OwnedMessage::new(header, PULSE_MESSAGE.into_bytes())
+}
+
+pub fn is_pulse(mess: &SharedMessage) -> bool {
+    mess.header().stream_key().name() == SEA_STREAMER_INTERNAL
+        && mess.message().as_bytes() == PULSE_MESSAGE.as_bytes()
 }

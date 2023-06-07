@@ -189,7 +189,6 @@ async fn demux() -> anyhow::Result<()> {
     Ok(())
 }
 
-// cargo test --features=test,runtime-tokio --test consumer -- group
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
@@ -292,6 +291,111 @@ async fn group() -> anyhow::Result<()> {
         }
 
         println!(" ... ok");
+        Ok(())
+    }
+    Ok(())
+}
+
+#[cfg(feature = "test")]
+#[cfg_attr(feature = "runtime-tokio", tokio::test)]
+#[cfg_attr(feature = "runtime-async-std", async_std::test)]
+async fn seek() -> anyhow::Result<()> {
+    use sea_streamer_file::{
+        AutoStreamReset, FileConsumerOptions, FileStreamer, MessageSink, DEFAULT_FILE_SIZE_LIMIT,
+    };
+    use sea_streamer_types::{
+        Buffer, Consumer, ConsumerGroup, ConsumerMode, ConsumerOptions, Message, MessageHeader,
+        OwnedMessage, SeqPos, ShardId, SharedMessage, StreamKey, Streamer, Timestamp,
+    };
+
+    const TEST: &str = "seek";
+    INIT.call_once(env_logger::init);
+
+    run(false).await?;
+    run(true).await?;
+
+    async fn run(grouped: bool) -> anyhow::Result<()> {
+        println!("With Group = {grouped}");
+        let now = Timestamp::now_utc();
+        let file_id = temp_file(format!("{}-{}", TEST, millis_of(&now)).as_str())?;
+        println!("{file_id}");
+        let stream_key = StreamKey::new("stream")?;
+        let shard = ShardId::new(1);
+        let group = ConsumerGroup::new("group");
+
+        let message = |i: u64| -> OwnedMessage {
+            let header = MessageHeader::new(stream_key.clone(), shard, i, Timestamp::now_utc());
+            OwnedMessage::new(header, format!("{}-{}", stream_key.name(), i).into_bytes())
+        };
+        let check = |i: u64, mess: SharedMessage| {
+            assert_eq!(mess.header().stream_key(), &stream_key);
+            assert_eq!(mess.header().shard_id(), &shard);
+            assert_eq!(mess.header().sequence(), &i);
+            assert_eq!(
+                mess.message().as_str().unwrap(),
+                format!("{}-{}", stream_key.name(), i)
+            );
+        };
+
+        let streamer =
+            FileStreamer::connect(file_id.to_streamer_uri()?, Default::default()).await?;
+
+        let mut sink = MessageSink::new(
+            file_id.clone(),
+            1024, // 1KB
+            DEFAULT_FILE_SIZE_LIMIT,
+        )
+        .await?;
+
+        let mut options = if grouped {
+            let mut options = FileConsumerOptions::new(ConsumerMode::LoadBalanced);
+            options.set_consumer_group(group)?;
+            options
+        } else {
+            FileConsumerOptions::new(ConsumerMode::RealTime)
+        };
+        options.set_auto_stream_reset(AutoStreamReset::Earliest);
+
+        let mut solo = streamer
+            .create_consumer(&[stream_key.clone()], options.clone())
+            .await?;
+
+        for i in 0..100 {
+            sink.write(message(i)).await?;
+        }
+        for i in 0..100 {
+            check(i, solo.next().await?);
+        }
+        println!("Read All ... ok");
+
+        solo.rewind(SeqPos::Beginning).await?;
+        for i in 0..100 {
+            check(i, solo.next().await?);
+        }
+        println!("Rewind ... ok");
+
+        solo.rewind(SeqPos::At(25)).await?;
+        for i in 25..100 {
+            check(i, solo.next().await?);
+        }
+        println!("Seek to 25 ... ok");
+
+        solo.rewind(SeqPos::At(50)).await?;
+        for i in 50..100 {
+            check(i, solo.next().await?);
+        }
+        println!("Seek to 50 ... ok");
+
+        solo.rewind(SeqPos::At(75)).await?;
+        for i in 75..100 {
+            check(i, solo.next().await?);
+        }
+        println!("Seek to 75 ... ok");
+
+        solo.rewind(SeqPos::At(99)).await?;
+        check(99, solo.next().await?);
+        println!("Seek to 99 ... ok");
+
         Ok(())
     }
     Ok(())

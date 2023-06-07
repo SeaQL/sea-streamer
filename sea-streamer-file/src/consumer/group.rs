@@ -2,16 +2,23 @@ use flume::{bounded, unbounded, Receiver, Sender};
 use sea_streamer_runtime::{spawn_task, AsyncMutex};
 use std::{
     collections::HashMap,
+    ops::Deref,
     sync::{Arc, Mutex},
 };
 
-use super::FileConsumer;
-use crate::{is_end_of_stream, ConfigErr, FileErr, FileId, MessageSource, StreamMode};
-use sea_streamer_types::{ConsumerGroup, Message, SharedMessage, StreamKey};
+use super::{CtrlMsg, FileConsumer};
+use crate::{
+    is_end_of_stream, is_pulse, pulse_message, ConfigErr, FileErr, FileId, MessageSource,
+    StreamMode,
+};
+use sea_streamer_types::{
+    export::futures::{select, FutureExt},
+    ConsumerGroup, Message, ShardId, SharedMessage, StreamKey,
+};
 
 lazy_static::lazy_static! {
     static ref STREAMERS: AsyncMutex<Streamers> = AsyncMutex::new(Streamers::new());
-    static ref CONTROL: (Sender<CtrlMsg>, Receiver<CtrlMsg>) = unbounded();
+    static ref CONTROL: (Sender<BgTask>, Receiver<BgTask>) = unbounded();
 }
 
 /// This is a process-wide singleton Streamer manager. It allows multiple stream consumers
@@ -20,23 +27,28 @@ lazy_static::lazy_static! {
 /// Most importantly, it manages consumer groups and dispatches messages fairly.
 /// This behaviour is very similar to stdio, but there is no broadcast channel.
 /// In stdio there is only one global Streamer, where in file, each file is a Streamer.
+///
+/// Right now we have the constraint that each Consumer can only stream from one file source.
+/// There is nothing other than implementation complexity prevents Consumer <> File being an
+/// M to N relationship. One needs to be very careful about deadlock, memory leak and race condition.
+/// Which sadly we currently don't have the theoretical tools to deal with.
 struct Streamers {
     max_sid: Sid,
     streamers: HashMap<FileId, Vec<(StreamMode, StreamerHandle)>>,
 }
 
 pub(crate) type Sid = u32;
-
-pub(crate) struct Pulse;
+const ZERO: ShardId = ShardId::new(0);
 
 #[derive(Debug, Clone, Copy)]
-enum CtrlMsg {
+enum BgTask {
     Drop(Sid),
 }
 
 struct StreamerHandle {
     subscribers: Subscribers,
-    pulse: Sender<Pulse>,
+    ctrl: Sender<CtrlMsg>,
+    tick: Sender<()>,
 }
 
 /// This is not the Streamer of the public API
@@ -69,7 +81,7 @@ impl Streamers {
         let _handle = spawn_task(async move {
             while let Ok(ctrl) = CONTROL.1.recv_async().await {
                 match ctrl {
-                    CtrlMsg::Drop(sid) => {
+                    BgTask::Drop(sid) => {
                         let mut streamers = STREAMERS.lock().await;
                         streamers.remove(sid);
                     }
@@ -136,7 +148,12 @@ impl Streamers {
         }
         let handle = handle.unwrap();
         handle.subscribers.add(sid, sender, group, keys);
-        Ok(FileConsumer::new(sid, receiver, handle.pulse.clone()))
+        Ok(FileConsumer::new(
+            file_id,
+            sid,
+            receiver,
+            handle.ctrl.clone(),
+        ))
     }
 
     fn remove(&mut self, sid: Sid) {
@@ -146,6 +163,40 @@ impl Streamers {
             }
             handles.retain(|(_, h)| !h.subscribers.is_empty());
         }
+    }
+
+    /// Check if the Streamer is 'solo', if not, detach it and make it solo.
+    /// Also might 'tick' the streamer.
+    async fn pre_seek(&mut self, file_id: &FileId, sid: Sid) -> Result<(), FileErr> {
+        if let Some(handles) = self.streamers.get_mut(file_id) {
+            for (mode, handle) in handles.iter_mut() {
+                let new_mode = match mode {
+                    StreamMode::Live | StreamMode::LiveReplay => StreamMode::LiveReplay,
+                    StreamMode::Replay => StreamMode::Replay,
+                };
+                if handle.subscribers.has_sid(sid) {
+                    if handle.subscribers.is_solo() {
+                        // we can go on and reuse the same Streamer
+                        *mode = new_mode;
+                        // we abort the current message read
+                        handle.tick.try_send(()).expect("send should never block");
+                    } else {
+                        let (sender, _group, keys) =
+                            handle.subscribers.remove(sid).expect("Checked by has_sid");
+                        // create a new source
+                        handles.push((
+                            new_mode,
+                            Streamer::create(MessageSource::new(file_id.clone(), new_mode).await?),
+                        ));
+                        let handle = &mut handles.last_mut().unwrap().1;
+                        // subscribe to the source
+                        handle.subscribers.add(sid, sender, None, keys);
+                        break;
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     fn query(&self, file_id: &FileId) -> Option<Vec<StreamerInfo>> {
@@ -172,10 +223,12 @@ pub(crate) async fn new_consumer(
 }
 
 pub(crate) fn remove_consumer(sid: Sid) {
-    CONTROL
-        .0
-        .send(CtrlMsg::Drop(sid))
-        .expect("Should never die");
+    CONTROL.0.send(BgTask::Drop(sid)).expect("Should never die");
+}
+
+pub(crate) async fn preseek_consumer(file_id: &FileId, sid: Sid) -> Result<(), FileErr> {
+    let mut streamers = STREAMERS.lock().await;
+    streamers.pre_seek(file_id, sid).await
 }
 
 /// Query info about global Streamer(s) topology
@@ -187,31 +240,58 @@ pub async fn query_streamer(file_id: &FileId) -> Option<Vec<StreamerInfo>> {
 impl Streamer {
     fn create(mut source: MessageSource) -> StreamerHandle {
         let subscribers = Subscribers::new();
-        let (sender, pulse) = bounded(0);
+        let (sender, ctrl) = bounded(0);
+        let (ticker, tick) = bounded(1);
         let ret = subscribers.clone();
 
         let _handle = spawn_task(async move {
             loop {
-                if pulse.recv_async().await.is_err() {
-                    break;
-                }
-                let res = source.next().await;
-                let res: Result<SharedMessage, FileErr> = res.map(|m| m.message.to_shared());
-                let end = match &res {
-                    Ok(m) => is_end_of_stream(m),
-                    Err(_) => true,
-                };
-                subscribers.dispatch(res);
-                if end {
-                    // when this ends, source will be dropped as well
-                    break;
+                match ctrl.recv_async().await {
+                    Ok(CtrlMsg::Read) => {
+                        tick.drain();
+                        let res = select! {
+                            m = source.next().fuse() => m,
+                            // the above future is not cancel safe, but a subsequent seek
+                            // will rectify the internal states
+                            _ = tick.recv_async().fuse() => continue,
+                        };
+                        let res: Result<SharedMessage, FileErr> =
+                            res.map(|m| m.message.to_shared());
+                        let end = match &res {
+                            Ok(m) => is_end_of_stream(m),
+                            Err(_) => true,
+                        };
+                        subscribers.dispatch(res);
+                        if end {
+                            // when this ends, source will be dropped as well
+                            break;
+                        }
+                    }
+                    Ok(CtrlMsg::Seek(target)) => {
+                        if let Some(keys) = subscribers.solo_keys() {
+                            match source.seek(&keys[0], &ZERO, target).await {
+                                Ok(()) => {
+                                    subscribers.dispatch(Ok(pulse_message().to_shared()));
+                                }
+                                Err(e) => {
+                                    subscribers.dispatch(Err(e));
+                                    break;
+                                }
+                            }
+                        } else {
+                            log::error!("Cannot seek a shared MessageSource");
+                            break;
+                        }
+                    }
+                    Err(_) => break,
                 }
             }
         });
 
         StreamerHandle {
             subscribers: ret,
-            pulse: sender,
+            ctrl: sender,
+            tick: ticker,
         }
     }
 }
@@ -232,8 +312,36 @@ impl Subscribers {
         map.senders.len()
     }
 
+    fn is_solo(&self) -> bool {
+        let map = self.subscribers.lock().unwrap();
+        Self::is_solo_inner(&map)
+    }
+
+    #[inline]
+    fn is_solo_inner<M: Deref<Target = SubscriberMap>>(map: &M) -> bool {
+        map.senders.len() == 1
+    }
+
+    fn solo_keys(&self) -> Option<Vec<StreamKey>> {
+        let map = self.subscribers.lock().unwrap();
+        if Self::is_solo_inner(&map) {
+            let mut keys: Vec<_> = map.ungrouped.iter().map(|(k, _)| k).cloned().collect();
+            for ((_, key), _) in map.groups.iter() {
+                keys.push(key.clone());
+            }
+            Some(keys)
+        } else {
+            None
+        }
+    }
+
     fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    fn has_sid(&self, sid: Sid) -> bool {
+        let map = self.subscribers.lock().unwrap();
+        map.senders.contains_key(&sid)
     }
 
     fn has_group(&self, group: &ConsumerGroup) -> bool {
@@ -291,16 +399,38 @@ impl Subscribers {
         }
     }
 
-    fn remove(&self, sid: Sid) {
+    fn remove(
+        &self,
+        sid: Sid,
+    ) -> Option<(
+        Sender<Result<SharedMessage, FileErr>>,
+        Option<ConsumerGroup>,
+        Vec<StreamKey>,
+    )> {
         let mut map = self.subscribers.lock().unwrap();
-        map.senders.remove(&sid);
-        map.ungrouped.retain(|(_, s)| s != &sid);
-        for (_, sids) in map.groups.iter_mut() {
-            if sids.contains(&sid) {
-                sids.retain(|s| s != &sid);
+        if let Some(sender) = map.senders.remove(&sid) {
+            let mut keys: Vec<_> = map
+                .ungrouped
+                .iter()
+                .filter(|(_, s)| s == &sid)
+                .map(|(k, _)| k)
+                .cloned()
+                .collect();
+            map.ungrouped.retain(|(_, s)| s != &sid);
+            let mut group = None;
+            for ((gp, key), sids) in map.groups.iter_mut() {
+                if sids.contains(&sid) {
+                    assert!(group.is_none());
+                    group = Some(gp.clone());
+                    keys.push(key.clone());
+                    sids.retain(|s| s != &sid);
+                }
             }
+            map.groups.retain(|(_, sids)| !sids.is_empty());
+            Some((sender, group, keys))
+        } else {
+            None
         }
-        map.groups.retain(|(_, sids)| !sids.is_empty());
     }
 
     fn dispatch(&self, message: Result<SharedMessage, FileErr>) {
@@ -309,7 +439,7 @@ impl Subscribers {
             Ok(message) => {
                 // send to relevant subscribers
                 for ((_, stream_key), sids) in map.groups.iter() {
-                    if stream_key == message.header().stream_key() {
+                    if is_pulse(&message) || stream_key == message.header().stream_key() {
                         // This round-robin is deterministic
                         let sid = sids[message.sequence() as usize % sids.len()];
                         let sender = map.senders.get(&sid).unwrap();
@@ -318,7 +448,7 @@ impl Subscribers {
                 }
 
                 for (stream_key, sid) in map.ungrouped.iter() {
-                    if stream_key == message.header().stream_key() {
+                    if is_pulse(&message) || stream_key == message.header().stream_key() {
                         let sender = map.senders.get(sid).unwrap();
                         sender.send(Ok(message.clone())).ok();
                     }
