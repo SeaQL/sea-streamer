@@ -12,7 +12,7 @@ static INIT: std::sync::Once = std::sync::Once::new();
 async fn loopback() -> anyhow::Result<()> {
     use sea_streamer_file::{
         format::{self, Beacon, Checksum, HeaderV1, Marker, ShortString},
-        Bytes, FileSink, FileSource, ReadFrom, WriteFrom, DEFAULT_FILE_SIZE_LIMIT,
+        AsyncFile, Bytes, FileSink, FileSource, ReadFrom, DEFAULT_FILE_SIZE_LIMIT,
     };
     use sea_streamer_types::{Buffer, MessageHeader, OwnedMessage, ShardId, StreamKey, Timestamp};
 
@@ -22,8 +22,11 @@ async fn loopback() -> anyhow::Result<()> {
     let path = temp_file(format!("{}-{}", TEST, now.unix_timestamp_nanos() / 1_000_000).as_str())?;
     println!("{path}");
 
-    let mut sink =
-        FileSink::new(path.clone(), WriteFrom::Beginning, DEFAULT_FILE_SIZE_LIMIT).await?;
+    let mut sink = FileSink::new(
+        AsyncFile::new_rw(path.clone()).await?,
+        DEFAULT_FILE_SIZE_LIMIT,
+    )
+    .await?;
     let mut source = FileSource::new(path.clone(), ReadFrom::Beginning).await?;
 
     let bytes = Bytes::from_bytes(vec![1, 2, 3, 4]);
@@ -116,7 +119,7 @@ async fn loopback() -> anyhow::Result<()> {
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
 async fn file() -> anyhow::Result<()> {
     use sea_streamer_file::{
-        Bytes, FileSink, FileSource, ReadFrom, WriteFrom, DEFAULT_FILE_SIZE_LIMIT,
+        AsyncFile, Bytes, FileSink, FileSource, ReadFrom, DEFAULT_FILE_SIZE_LIMIT,
     };
     use sea_streamer_types::{SeqPos, Timestamp};
 
@@ -127,8 +130,11 @@ async fn file() -> anyhow::Result<()> {
     let path = temp_file(format!("{}-{}", TEST, now.unix_timestamp_nanos() / 1_000_000).as_str())?;
     println!("{path}");
 
-    let mut sink =
-        FileSink::new(path.clone(), WriteFrom::Beginning, DEFAULT_FILE_SIZE_LIMIT).await?;
+    let mut sink = FileSink::new(
+        AsyncFile::new_rw(path.clone()).await?,
+        DEFAULT_FILE_SIZE_LIMIT,
+    )
+    .await?;
     let mut source = FileSource::new(path.clone(), ReadFrom::Beginning).await?;
 
     let bytes = Bytes::from_bytes(vec![1, 2, 3, 4]);
@@ -181,7 +187,7 @@ async fn file() -> anyhow::Result<()> {
 async fn beacon() -> anyhow::Result<()> {
     use sea_streamer_file::{
         format::{Beacon, Header},
-        Bytes, DynFileSource, FileErr, FileSink, FileSourceType, MessageSource, WriteFrom,
+        AsyncFile, Bytes, FileErr, FileSink, FileSourceType, MessageSource, StreamMode,
         DEFAULT_FILE_SIZE_LIMIT,
     };
     use sea_streamer_types::{SeqPos, Timestamp};
@@ -193,31 +199,65 @@ async fn beacon() -> anyhow::Result<()> {
     let path = temp_file(format!("{}-{}", TEST, now.unix_timestamp_nanos() / 1_000_000).as_str())?;
     println!("{path}");
 
-    let mut sink =
-        FileSink::new(path.clone(), WriteFrom::Beginning, DEFAULT_FILE_SIZE_LIMIT).await?;
-    let source = DynFileSource::new(path.clone(), FileSourceType::FileSource).await?;
+    let mut sink = FileSink::new(
+        AsyncFile::new_rw(path.clone()).await?,
+        DEFAULT_FILE_SIZE_LIMIT,
+    )
+    .await?;
     let header = Header {
         file_name: path.to_string(),
         created_at: now,
-        beacon_interval: 12,
+        beacon_interval: 128,
     };
-    let mut source = MessageSource::new_with(source, header, 0);
+    header.clone().write_to(&mut sink)?;
+    sink.flush(1).await?;
+    let mut source = MessageSource::new(path.clone(), StreamMode::LiveReplay).await?;
 
-    Bytes::Bytes(vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]).write_to(&mut sink)?;
+    // A beacon immediately after the header
     Beacon {
         items: Vec::new(),
         remaining_messages_bytes: 0,
     }
     .write_to(&mut sink)?;
-    // The empty beacon is 7 bytes, so we have only 5 bytes left for data
-    Bytes::Bytes(vec![13, 14, 15, 16, 17]).write_to(&mut sink)?;
+
+    // The empty beacon is 7 bytes, so we have 121 bytes for data
+    Bytes::Bytes(vec![
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+        26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48,
+        49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71,
+        72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94,
+        95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113,
+        114, 115, 116, 117, 118, 119, 120, 121,
+    ])
+    .write_to(&mut sink)?;
+
     Beacon {
         items: Vec::new(),
-        remaining_messages_bytes: 2, // !
+        remaining_messages_bytes: 0,
     }
     .write_to(&mut sink)?;
-    Bytes::Bytes(vec![18, 19, 20]).write_to(&mut sink)?;
-    sink.flush(1).await?;
+
+    // Another chunk of data
+    Bytes::Bytes(vec![
+        101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118,
+        119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136,
+        137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154,
+        155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172,
+        173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190,
+        191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208,
+        209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221,
+    ])
+    .write_to(&mut sink)?;
+
+    Beacon {
+        items: Vec::new(),
+        remaining_messages_bytes: 2, // ! tricky
+    }
+    .write_to(&mut sink)?;
+
+    // Finally, some residue
+    Bytes::Bytes(vec![222, 223, 224]).write_to(&mut sink)?;
+    sink.flush(2).await?;
 
     let read = Bytes::read_from(&mut source, 8).await?;
     assert_eq!(read.bytes(), vec![1, 2, 3, 4, 5, 6, 7, 8]);
@@ -225,29 +265,35 @@ async fn beacon() -> anyhow::Result<()> {
     assert_eq!(read.bytes(), vec![9, 10, 11, 12, 13, 14, 15, 16]);
     let read = Bytes::read_from(&mut source, 4).await?;
     assert_eq!(read.bytes(), vec![17, 18, 19, 20]);
+    _ = Bytes::read_from(&mut source, 128 - 20 - 7).await?;
+    let read = Bytes::read_from(&mut source, 8).await?;
+    assert_eq!(read.bytes(), vec![101, 102, 103, 104, 105, 106, 107, 108]);
 
     // Rewind the file and read again
-    assert_eq!(1, source.rewind(SeqPos::At(1)).await?);
+    assert_eq!(2, source.rewind(SeqPos::At(2)).await?);
     let read = Bytes::read_from(&mut source, 7).await?;
-    assert_eq!(read.bytes(), vec![13, 14, 15, 16, 17, 18, 19]);
+    assert_eq!(read.bytes(), vec![101, 102, 103, 104, 105, 106, 107]);
     let read = Bytes::read_from(&mut source, 1).await?;
-    assert_eq!(read.bytes(), vec![20]);
+    assert_eq!(read.bytes(), vec![108]);
 
     // Rewind the file and switch to dead mode
     assert_eq!(1, source.rewind(SeqPos::At(1)).await?);
     source.switch_to(FileSourceType::FileReader).await?;
     let read = Bytes::read_from(&mut source, 4).await?;
-    assert_eq!(read.bytes(), vec![13, 14, 15, 16]);
+    assert_eq!(read.bytes(), vec![1, 2, 3, 4]);
     let read = Bytes::read_from(&mut source, 4).await?;
-    assert_eq!(read.bytes(), vec![17, 18, 19, 20]);
+    assert_eq!(read.bytes(), vec![5, 6, 7, 8]);
+    _ = Bytes::read_from(&mut source, 128 - 8 - 7 + 128 - 7).await?;
+    let read = Bytes::read_from(&mut source, 3).await?;
+    assert_eq!(read.bytes(), vec![222, 223, 224]);
     // Now it should error
     let error = Bytes::read_from(&mut source, 1).await.err().unwrap();
     assert!(matches!(error, FileErr::NotEnoughBytes));
 
     // Rewind to the 2nd beacon, and skip two remaining bytes
-    assert_eq!(2, source.rewind(SeqPos::At(2)).await?);
+    assert_eq!(3, source.rewind(SeqPos::At(3)).await?);
     let read = Bytes::read_from(&mut source, 1).await?;
-    assert_eq!(read.bytes(), vec![20]);
+    assert_eq!(read.bytes(), vec![224]);
     let error = Bytes::read_from(&mut source, 1).await.err().unwrap();
     assert!(matches!(error, FileErr::NotEnoughBytes));
 

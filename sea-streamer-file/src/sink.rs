@@ -2,12 +2,9 @@ use flume::{bounded, unbounded, Receiver, Sender, TryRecvError};
 
 use crate::{
     watcher::{new_watcher, FileEvent, Watcher},
-    Bytes, FileErr, FileId,
+    AsyncFile, Bytes, FileErr,
 };
-use sea_streamer_runtime::{
-    file::{AsyncWriteExt, OpenOptions},
-    spawn_task,
-};
+use sea_streamer_runtime::spawn_task;
 
 pub trait ByteSink {
     /// This should never block.
@@ -35,33 +32,12 @@ enum Update {
     Receipt(u32),
 }
 
-pub enum WriteFrom {
-    /// Truncate the file
-    Beginning,
-    /// Append to the file
-    End,
-}
-
 impl FileSink {
-    pub async fn new(
-        file_id: FileId,
-        write_from: WriteFrom,
-        mut quota: u64,
-    ) -> Result<Self, FileErr> {
-        let mut options = OpenOptions::new();
-        options.write(true).create(true);
-        match write_from {
-            WriteFrom::Beginning => options.truncate(true),
-            WriteFrom::End => options.append(true),
-        };
-        let mut file = options
-            .open(file_id.path())
-            .await
-            .map_err(FileErr::IoError)?;
+    pub async fn new(mut file: AsyncFile, mut quota: u64) -> Result<Self, FileErr> {
         let (sender, pending) = unbounded();
         let (notify, update) = bounded(0);
         let (watch, event) = unbounded();
-        let watcher = new_watcher(file_id.clone(), watch)?;
+        let watcher = new_watcher(file.id().clone(), watch)?;
 
         let _handle = spawn_task(async move {
             'outer: while let Ok(request) = pending.recv_async().await {
@@ -73,9 +49,9 @@ impl FileSink {
                             len = quota;
                         }
 
-                        if let Err(e) = file.write_all(&bytes.bytes()).await {
+                        if let Err(err) = file.write_all(bytes).await {
                             std::mem::drop(pending); // trigger error
-                            send_error(&notify, FileErr::IoError(e)).await;
+                            send_error(&notify, err).await;
                             break;
                         }
 
@@ -87,9 +63,9 @@ impl FileSink {
                         }
                     }
                     Request::Flush(marker) => {
-                        if let Err(e) = file.flush().await {
+                        if let Err(err) = file.flush().await {
                             std::mem::drop(pending); // trigger error
-                            send_error(&notify, FileErr::IoError(e)).await;
+                            send_error(&notify, err).await;
                             break;
                         }
                         if notify.send_async(Update::Receipt(marker)).await.is_err() {
@@ -122,7 +98,7 @@ impl FileSink {
                     }
                 }
             }
-            log::debug!("FileSink task finish ({})", file_id.path());
+            log::debug!("FileSink task finish ({})", file.id().path());
         });
 
         async fn send_error(notify: &Sender<Update>, e: FileErr) {

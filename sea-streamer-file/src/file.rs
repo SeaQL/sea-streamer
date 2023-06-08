@@ -1,7 +1,9 @@
 use std::{fmt::Display, os::unix::prelude::MetadataExt, str::FromStr, sync::Arc};
 
 use crate::{ByteBuffer, ByteSource, Bytes, FileErr};
-use sea_streamer_runtime::file::{AsyncReadExt, AsyncSeekExt, File, SeekFrom};
+use sea_streamer_runtime::file::{
+    AsyncReadExt, AsyncSeekExt, AsyncWriteExt, File, OpenOptions, SeekFrom,
+};
 use sea_streamer_types::{
     export::futures::{future::BoxFuture, FutureExt},
     SeqPos, StreamUrlErr, StreamerUri,
@@ -118,9 +120,22 @@ impl ByteSource for FileReader {
 }
 
 impl AsyncFile {
+    /// Creates a new file for Read
     pub async fn new(id: FileId) -> Result<Self, FileErr> {
         let file = File::open(id.path()).await.map_err(FileErr::IoError)?;
         log::debug!("AsyncFile Open ({})", id.path());
+        Self::new_with(id, file).await
+    }
+
+    /// Creates a new file for Read/Write
+    pub async fn new_rw(id: FileId) -> Result<Self, FileErr> {
+        let mut options = OpenOptions::new();
+        options.read(true).write(true).create(true);
+        let file = options.open(id.path()).await.map_err(FileErr::IoError)?;
+        Self::new_with(id, file).await
+    }
+
+    async fn new_with(id: FileId, file: File) -> Result<Self, FileErr> {
         let size = file_size_of(&file).await?;
         let pos = 0;
         let buf = vec![0u8; BUFFER_SIZE];
@@ -161,6 +176,19 @@ impl AsyncFile {
         self.pos += bytes_read as u64;
         self.size = std::cmp::max(self.size, self.pos);
         Ok(bytes)
+    }
+
+    #[inline]
+    pub async fn write_all(&mut self, bytes: Bytes) -> Result<(), FileErr> {
+        self.file
+            .write_all(&bytes.bytes())
+            .await
+            .map_err(FileErr::IoError)
+    }
+
+    #[inline]
+    pub async fn flush(&mut self) -> Result<(), FileErr> {
+        self.file.flush().await.map_err(FileErr::IoError)
     }
 
     /// Seek the file stream to a different position.

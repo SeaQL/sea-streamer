@@ -86,6 +86,10 @@ impl OpenOptions {
         Self
     }
 
+    pub fn read(&mut self, _: bool) -> &mut OpenOptions {
+        self
+    }
+
     pub fn write(&mut self, _: bool) -> &mut OpenOptions {
         self
     }

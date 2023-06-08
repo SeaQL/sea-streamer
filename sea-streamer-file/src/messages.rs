@@ -8,8 +8,8 @@ use sea_streamer_types::{
 
 use crate::{
     format::{Beacon, Checksum, FormatErr, Header, Marker, Message, RunningChecksum},
-    BeaconReader, ByteBuffer, ByteSource, Bytes, DynFileSource, FileErr, FileId, FileSink,
-    FileSourceType, SeekErr, StreamMode, SurveyResult, Surveyor, WriteFrom,
+    AsyncFile, BeaconReader, ByteBuffer, ByteSource, Bytes, DynFileSource, FileErr, FileId,
+    FileSink, FileSourceType, SeekErr, StreamMode, SurveyResult, Surveyor,
 };
 
 pub const END_OF_STREAM: &str = "EOS";
@@ -55,7 +55,7 @@ impl MessageSource {
     /// If StreamMode is `Live`, it will fast forward to the file's end.
     /// Thanks to SeaStreamer's Beacon system, this is pretty efficient.
     pub async fn new(file_id: FileId, mode: StreamMode) -> Result<Self, FileErr> {
-        let mut source = DynFileSource::new(
+        let source = DynFileSource::new(
             file_id,
             match mode {
                 StreamMode::Live | StreamMode::LiveReplay => FileSourceType::FileSource,
@@ -63,25 +63,27 @@ impl MessageSource {
             },
         )
         .await?;
+        Self::new_with(source, mode).await
+    }
+
+    pub(crate) async fn new_with(
+        mut source: DynFileSource,
+        mode: StreamMode,
+    ) -> Result<Self, FileErr> {
         let header = Header::read_from(&mut source).await?;
-        assert!(Header::size() < header.beacon_interval as usize);
-        let mut stream = Self::new_with(source, header, Header::size() as u64);
+        assert!(Header::size() <= header.beacon_interval as usize);
+        let mut stream = Self {
+            header,
+            source,
+            buffer: ByteBuffer::new(),
+            offset: Header::size() as u64,
+            beacon: (0, Vec::new()),
+            pending: None,
+        };
         if mode == StreamMode::Live {
             stream.rewind(SeqPos::End).await?;
         }
         Ok(stream)
-    }
-
-    /// Creates a new message source with the header read and skipped.
-    pub fn new_with(source: DynFileSource, header: Header, offset: u64) -> Self {
-        Self {
-            header,
-            source,
-            buffer: ByteBuffer::new(),
-            offset,
-            beacon: (0, Vec::new()),
-            pending: None,
-        }
     }
 
     pub fn file_header(&self) -> &Header {
@@ -393,7 +395,7 @@ impl MessageSink {
     pub async fn new(file_id: FileId, beacon_interval: u32, limit: u64) -> Result<Self, FileErr> {
         let path: &Path = file_id.path().as_ref();
         let file_name = path.file_name().unwrap().to_str().unwrap().to_owned();
-        let mut sink = FileSink::new(file_id, WriteFrom::Beginning, limit).await?;
+        let mut sink = FileSink::new(AsyncFile::new_rw(file_id).await?, limit).await?;
         let header = Header {
             file_name,
             created_at: Timestamp::now_utc(),
@@ -473,6 +475,7 @@ impl MessageSink {
     }
 }
 
+/// This can be written to a file to properly end the stream
 pub fn end_of_stream() -> OwnedMessage {
     let header = MessageHeader::new(
         StreamKey::new(SEA_STREAMER_INTERNAL).unwrap(),
@@ -488,6 +491,7 @@ pub fn is_end_of_stream(mess: &SharedMessage) -> bool {
         && mess.message().as_bytes() == END_OF_STREAM.as_bytes()
 }
 
+/// This should not be written on file
 pub fn pulse_message() -> OwnedMessage {
     let header = MessageHeader::new(
         StreamKey::new(SEA_STREAMER_INTERNAL).unwrap(),
