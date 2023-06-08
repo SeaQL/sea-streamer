@@ -59,13 +59,13 @@ impl DynFileSource {
             (Self::Dead, _) => panic!("DynFileSource: Dead"),
             (Self::FileReader(file), FileSourceType::FileSource) => {
                 let (file, offset, buffer) = file.end();
-                Ok(Self::FileSource(FileSource::new_from(
+                Ok(Self::FileSource(FileSource::new_with(
                     file, offset, buffer,
                 )?))
             }
             (Self::FileSource(mut src), FileSourceType::FileReader) => {
                 let (file, _, _, buffer) = src.end().await;
-                Ok(Self::FileReader(FileReader::new_from(
+                Ok(Self::FileReader(FileReader::new_with(
                     file,
                     src.offset(),
                     buffer,

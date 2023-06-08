@@ -40,6 +40,10 @@ impl File {
     pub async fn flush(&self) -> Result<(), IoError> {
         unimplemented!("Please enable a runtime")
     }
+
+    pub async fn sync_all(&self) -> Result<(), IoError> {
+        unimplemented!("Please enable a runtime")
+    }
 }
 
 impl AsyncReadExt for File {

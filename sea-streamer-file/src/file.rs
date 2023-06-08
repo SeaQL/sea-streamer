@@ -49,10 +49,10 @@ pub enum ReadFrom {
 impl FileReader {
     pub async fn new(file_id: FileId) -> Result<Self, FileErr> {
         let file = AsyncFile::new(file_id).await?;
-        Self::new_from(file, 0, ByteBuffer::new())
+        Self::new_with(file, 0, ByteBuffer::new())
     }
 
-    pub(crate) fn new_from(
+    pub(crate) fn new_with(
         file: AsyncFile,
         offset: u64,
         buffer: ByteBuffer,
@@ -127,10 +127,18 @@ impl AsyncFile {
         Self::new_with(id, file).await
     }
 
-    /// Creates a new file for Read/Write
+    /// Creates a new file for Read/Write/Append
     pub async fn new_rw(id: FileId) -> Result<Self, FileErr> {
         let mut options = OpenOptions::new();
         options.read(true).write(true).create(true);
+        let file = options.open(id.path()).await.map_err(FileErr::IoError)?;
+        Self::new_with(id, file).await
+    }
+
+    /// Creates a new file for Overwrite
+    pub async fn new_ow(id: FileId) -> Result<Self, FileErr> {
+        let mut options = OpenOptions::new();
+        options.write(true).create(true).truncate(true);
         let file = options.open(id.path()).await.map_err(FileErr::IoError)?;
         Self::new_with(id, file).await
     }
@@ -189,6 +197,11 @@ impl AsyncFile {
     #[inline]
     pub async fn flush(&mut self) -> Result<(), FileErr> {
         self.file.flush().await.map_err(FileErr::IoError)
+    }
+
+    #[inline]
+    pub async fn sync_all(&mut self) -> Result<(), FileErr> {
+        self.file.sync_all().await.map_err(FileErr::IoError)
     }
 
     /// Seek the file stream to a different position.

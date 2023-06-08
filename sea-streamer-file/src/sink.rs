@@ -24,6 +24,7 @@ pub struct FileSink {
 enum Request {
     Bytes(Bytes),
     Flush(u32),
+    SyncAll,
 }
 
 #[derive(Debug)]
@@ -33,11 +34,12 @@ enum Update {
 }
 
 impl FileSink {
-    pub async fn new(mut file: AsyncFile, mut quota: u64) -> Result<Self, FileErr> {
+    pub fn new(mut file: AsyncFile, mut quota: u64) -> Result<Self, FileErr> {
         let (sender, pending) = unbounded();
         let (notify, update) = bounded(0);
         let (watch, event) = unbounded();
         let watcher = new_watcher(file.id().clone(), watch)?;
+        quota -= file.size();
 
         let _handle = spawn_task(async move {
             'outer: while let Ok(request) = pending.recv_async().await {
@@ -69,6 +71,16 @@ impl FileSink {
                             break;
                         }
                         if notify.send_async(Update::Receipt(marker)).await.is_err() {
+                            break;
+                        }
+                    }
+                    Request::SyncAll => {
+                        if let Err(err) = file.sync_all().await {
+                            std::mem::drop(pending); // trigger error
+                            send_error(&notify, err).await;
+                            break;
+                        }
+                        if notify.send_async(Update::Receipt(u32::MAX)).await.is_err() {
                             break;
                         }
                     }
@@ -142,6 +154,21 @@ impl FileSink {
                 }
                 Ok(Update::FileErr(err)) => Err(err),
                 Err(_) => Err(FileErr::TaskDead("sink")),
+            }
+        }
+    }
+
+    pub async fn sync_all(&mut self) -> Result<(), FileErr> {
+        if self.sender.send(Request::SyncAll).is_err() {
+            self.return_err()
+        } else {
+            loop {
+                match self.update.recv_async().await {
+                    Ok(Update::Receipt(u32::MAX)) => return Ok(()),
+                    Ok(Update::Receipt(_)) => (),
+                    Ok(Update::FileErr(err)) => return Err(err),
+                    Err(_) => return Err(FileErr::TaskDead("sink")),
+                }
             }
         }
     }

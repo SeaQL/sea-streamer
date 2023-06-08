@@ -48,10 +48,10 @@ impl FileSource {
             0
         };
         let buffer = ByteBuffer::new();
-        Self::new_from(file, offset, buffer)
+        Self::new_with(file, offset, buffer)
     }
 
-    pub(crate) fn new_from(
+    pub(crate) fn new_with(
         file: AsyncFile,
         offset: u64,
         buffer: ByteBuffer,

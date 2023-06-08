@@ -9,7 +9,7 @@ use sea_streamer_types::{
 use crate::{
     format::{Beacon, Checksum, FormatErr, Header, Marker, Message, RunningChecksum},
     AsyncFile, BeaconReader, ByteBuffer, ByteSource, Bytes, DynFileSource, FileErr, FileId,
-    FileSink, FileSourceType, SeekErr, StreamMode, SurveyResult, Surveyor,
+    FileReader, FileSink, FileSourceType, SeekErr, StreamMode, SurveyResult, Surveyor,
 };
 
 pub const END_OF_STREAM: &str = "EOS";
@@ -126,7 +126,9 @@ impl MessageSource {
                     }
                 }
             };
-            self.offset = self.source.seek(SeqPos::At(pos)).await?;
+            if self.offset != pos {
+                self.offset = self.source.seek(SeqPos::At(pos)).await?;
+            }
         }
 
         self.buffer.clear();
@@ -301,7 +303,7 @@ impl MessageSource {
             self.offset += chunk as u64;
             self.buffer.append(bytes); // these are message bytes
 
-            debug_assert!(!self.buffer.size() > size, "we should never over-read");
+            debug_assert!(self.buffer.size() <= size, "we should never over-read");
             if self.buffer.size() == size {
                 return Ok(self.buffer.consume(size));
             }
@@ -392,27 +394,137 @@ impl BeaconReader for MessageSource {
 }
 
 impl MessageSink {
+    /// Create a fresh sink. Overwrite if file already exists.
     pub async fn new(file_id: FileId, beacon_interval: u32, limit: u64) -> Result<Self, FileErr> {
-        let path: &Path = file_id.path().as_ref();
-        let file_name = path.file_name().unwrap().to_str().unwrap().to_owned();
-        let mut sink = FileSink::new(AsyncFile::new_rw(file_id).await?, limit).await?;
-        let header = Header {
-            file_name,
-            created_at: Timestamp::now_utc(),
-            beacon_interval,
-        };
-        let size = header.write_to(&mut sink)?;
-        let message_count = 0;
-        sink.flush(message_count).await?;
+        let file = AsyncFile::new_ow(file_id).await?;
+        Self::new_with(file, beacon_interval, limit).await
+    }
+
+    /// Create a sink. Append if file already exists, and follow its beacon interval.
+    pub async fn append(
+        file_id: FileId,
+        beacon_interval: u32,
+        limit: u64,
+    ) -> Result<Self, FileErr> {
+        let file = AsyncFile::new_rw(file_id.clone()).await?;
+        if file.size() == 0 {
+            Self::new_with(file, beacon_interval, limit).await
+        } else {
+            let source =
+                DynFileSource::FileReader(FileReader::new_with(file, 0, Default::default())?);
+            let mut source = MessageSource::new_with(source, StreamMode::Replay).await?;
+            let mut offset = 0;
+            match source.rewind(SeqPos::End).await {
+                Ok(mut nth) => {
+                    offset = source.offset;
+                    // we must read the last message, and truncate the EOS
+                    let mut read = false;
+                    loop {
+                        match source.next().await {
+                            Ok(m) => {
+                                if is_end_of_stream(&m.message) {
+                                    if read {
+                                        // the file ends with a EOS
+                                        break;
+                                    } else {
+                                        // the next iteration will be NotEnoughBytes
+                                    }
+                                } else {
+                                    // got a normal message
+                                    offset = source.offset;
+                                    read = true;
+                                }
+                            }
+                            Err(FileErr::NotEnoughBytes) => {
+                                if !read {
+                                    // we need to rewind further backwards
+                                    nth -= 1;
+                                    source.rewind(SeqPos::At(nth as u64)).await?;
+                                } else {
+                                    // the file ended without an EOS
+                                    break;
+                                }
+                            }
+                            Err(e) => return Err(e),
+                        }
+                    }
+                }
+                Err(FileErr::NotEnoughBytes) => (),
+                Err(e) => return Err(e),
+            }
+            if beacon_interval != source.header.beacon_interval {
+                log::warn!(
+                    "Beacon interval mismatch: expected {}, got {}",
+                    beacon_interval,
+                    source.header.beacon_interval
+                );
+            }
+            let beacon_interval = source.header.beacon_interval;
+            let has_beacon = source.has_beacon(offset).is_some();
+            if let DynFileSource::FileReader(reader) = source.source {
+                let (mut file, _, _) = reader.end();
+                assert_eq!(offset, file.seek(SeqPos::At(offset)).await?);
+                let mut sink = FileSink::new(file, limit)?;
+
+                if has_beacon {
+                    // if coincidentally we are at a beacon location
+                    Beacon {
+                        remaining_messages_bytes: 0,
+                        items: Default::default(),
+                    }
+                    .write_to(&mut sink)?;
+                    sink.flush(0).await?;
+                }
+
+                Ok(Self {
+                    sink,
+                    offset,
+                    beacon_interval,
+                    beacon: Default::default(),
+                    beacon_count: 0,
+                    message_count: 0,
+                })
+            } else {
+                unreachable!()
+            }
+        }
+    }
+
+    async fn new_with(file: AsyncFile, beacon_interval: u32, limit: u64) -> Result<Self, FileErr> {
+        assert!(Header::size() <= beacon_interval as usize);
+        let header = Self::new_header(&file, beacon_interval);
+        let mut sink = FileSink::new(file, limit)?;
+        let mut offset = header.write_to(&mut sink)?;
+        if offset == beacon_interval as usize {
+            // a very special case
+            offset += Beacon {
+                remaining_messages_bytes: 0,
+                items: Default::default(),
+            }
+            .write_to(&mut sink)?;
+        }
+        sink.flush(0).await?;
 
         Ok(Self {
             sink,
-            offset: size as u64,
+            offset: offset as u64,
             beacon_interval,
             beacon: Default::default(),
             beacon_count: 0,
-            message_count,
+            message_count: 0,
         })
+    }
+
+    fn new_header(file: &AsyncFile, beacon_interval: u32) -> Header {
+        let path = file.id();
+        let path = path.path();
+        let path: &Path = path.as_ref();
+        let file_name: String = path.file_name().unwrap().to_str().unwrap().to_owned();
+        Header {
+            file_name,
+            created_at: Timestamp::now_utc(),
+            beacon_interval,
+        }
     }
 
     /// This future is cancel safe. If it's canceled after polled once, the message
@@ -473,6 +585,14 @@ impl MessageSink {
 
         Ok(checksum)
     }
+
+    /// End this stream gracefully, with an optional EOS message
+    pub async fn end(&mut self, eos: bool) -> Result<(), FileErr> {
+        if eos {
+            self.write(end_of_stream()).await?;
+        }
+        self.sink.sync_all().await
+    }
 }
 
 /// This can be written to a file to properly end the stream
@@ -486,7 +606,21 @@ pub fn end_of_stream() -> OwnedMessage {
     OwnedMessage::new(header, END_OF_STREAM.into_bytes())
 }
 
-pub fn is_end_of_stream(mess: &SharedMessage) -> bool {
+pub(crate) trait MessageWithHeader: MessageTrait {
+    fn header(&self) -> &MessageHeader;
+}
+impl MessageWithHeader for SharedMessage {
+    fn header(&self) -> &MessageHeader {
+        self.header()
+    }
+}
+impl MessageWithHeader for OwnedMessage {
+    fn header(&self) -> &MessageHeader {
+        self.header()
+    }
+}
+
+pub(crate) fn is_end_of_stream<M: MessageWithHeader>(mess: &M) -> bool {
     mess.header().stream_key().name() == SEA_STREAMER_INTERNAL
         && mess.message().as_bytes() == END_OF_STREAM.as_bytes()
 }

@@ -23,10 +23,9 @@ async fn loopback() -> anyhow::Result<()> {
     println!("{path}");
 
     let mut sink = FileSink::new(
-        AsyncFile::new_rw(path.clone()).await?,
+        AsyncFile::new_ow(path.clone()).await?,
         DEFAULT_FILE_SIZE_LIMIT,
-    )
-    .await?;
+    )?;
     let mut source = FileSource::new(path.clone(), ReadFrom::Beginning).await?;
 
     let bytes = Bytes::from_bytes(vec![1, 2, 3, 4]);
@@ -131,10 +130,9 @@ async fn file() -> anyhow::Result<()> {
     println!("{path}");
 
     let mut sink = FileSink::new(
-        AsyncFile::new_rw(path.clone()).await?,
+        AsyncFile::new_ow(path.clone()).await?,
         DEFAULT_FILE_SIZE_LIMIT,
-    )
-    .await?;
+    )?;
     let mut source = FileSource::new(path.clone(), ReadFrom::Beginning).await?;
 
     let bytes = Bytes::from_bytes(vec![1, 2, 3, 4]);
@@ -200,10 +198,9 @@ async fn beacon() -> anyhow::Result<()> {
     println!("{path}");
 
     let mut sink = FileSink::new(
-        AsyncFile::new_rw(path.clone()).await?,
+        AsyncFile::new_ow(path.clone()).await?,
         DEFAULT_FILE_SIZE_LIMIT,
-    )
-    .await?;
+    )?;
     let header = Header {
         file_name: path.to_string(),
         created_at: now,
@@ -296,6 +293,67 @@ async fn beacon() -> anyhow::Result<()> {
     assert_eq!(read.bytes(), vec![224]);
     let error = Bytes::read_from(&mut source, 1).await.err().unwrap();
     assert!(matches!(error, FileErr::NotEnoughBytes));
+
+    Ok(())
+}
+
+#[cfg(feature = "test")]
+#[cfg_attr(feature = "runtime-tokio", tokio::test)]
+#[cfg_attr(feature = "runtime-async-std", async_std::test)]
+async fn sink() -> anyhow::Result<()> {
+    use sea_streamer_file::{MessageSink, MessageSource, StreamMode};
+    use sea_streamer_types::{
+        Buffer, Message, MessageHeader, OwnedMessage, ShardId, StreamKey, Timestamp,
+    };
+
+    const TEST: &str = "sink";
+    INIT.call_once(env_logger::init);
+
+    let now = Timestamp::now_utc();
+    let path = temp_file(format!("{}-{}", TEST, millis_of(&now)).as_str())?;
+    println!("{path}");
+
+    let stream_key = StreamKey::new("hello")?;
+    let content = "How are you? I am fine thank you. The weather is nice today, isn't it?";
+    let message = |i| {
+        let header = MessageHeader::new(stream_key.clone(), ShardId::new(0), i, now);
+        OwnedMessage::new(header, content.into_bytes())
+    };
+
+    let mut bea_int = 128;
+    while bea_int <= 1024 {
+        println!("Beacon Interval = {bea_int}");
+
+        let mut sink = MessageSink::new(path.clone(), bea_int, 1024 * 1024).await?;
+        for i in 0..10 {
+            sink.write(message(i)).await?;
+        }
+        sink.end(false).await?;
+        std::mem::drop(sink);
+
+        let mut sink = MessageSink::append(path.clone(), bea_int, 1024 * 1024).await?;
+        for i in 10..20 {
+            sink.write(message(i)).await?;
+        }
+        sink.end(true).await?;
+        std::mem::drop(sink);
+
+        let mut sink = MessageSink::append(path.clone(), bea_int, 1024 * 1024).await?;
+        for i in 20..30 {
+            sink.write(message(i)).await?;
+        }
+        sink.end(true).await?;
+        std::mem::drop(sink);
+
+        let mut source = MessageSource::new(path.clone(), StreamMode::Replay).await?;
+        for i in 0..30 {
+            let m = source.next().await?;
+            assert_eq!(m.message.stream_key(), stream_key);
+            assert_eq!(m.message.sequence(), i);
+        }
+        bea_int *= 2;
+        println!("Sink ... ok");
+    }
 
     Ok(())
 }
@@ -413,7 +471,7 @@ async fn rewind() -> anyhow::Result<()> {
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
-async fn seek() -> anyhow::Result<()> {
+async fn source() -> anyhow::Result<()> {
     use sea_streamer_file::{
         BeaconReader, FileErr, MessageSink, MessageSource, SeekErr, SeekTarget, StreamMode,
     };
@@ -421,7 +479,7 @@ async fn seek() -> anyhow::Result<()> {
         Buffer, Message, MessageHeader, OwnedMessage, ShardId, StreamKey, Timestamp,
     };
 
-    const TEST: &str = "seek";
+    const TEST: &str = "source";
     INIT.call_once(env_logger::init);
 
     for t in 0..2 {

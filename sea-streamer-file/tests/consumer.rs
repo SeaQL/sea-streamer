@@ -11,7 +11,7 @@ static INIT: std::sync::Once = std::sync::Once::new();
 async fn consumer() -> anyhow::Result<()> {
     use anyhow::Context;
     use sea_streamer_file::{
-        end_of_stream, AutoStreamReset, FileConsumerOptions, FileErr, FileStreamer, MessageSink,
+        AutoStreamReset, FileConsumerOptions, FileErr, FileStreamer, MessageSink,
         DEFAULT_FILE_SIZE_LIMIT,
     };
     use sea_streamer_types::{
@@ -86,7 +86,7 @@ async fn consumer() -> anyhow::Result<()> {
     }
     println!("Stream from latest ... ok");
 
-    sink.write(end_of_stream()).await?;
+    sink.end(true).await?;
     let ended = |e| matches!(e, Err(StreamErr::Backend(FileErr::StreamEnded)));
     assert!(ended(earliest.next().await));
     assert!(ended(latest.next().await));
