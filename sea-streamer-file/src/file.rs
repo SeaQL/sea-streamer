@@ -48,7 +48,7 @@ pub enum ReadFrom {
 
 impl FileReader {
     pub async fn new(file_id: FileId) -> Result<Self, FileErr> {
-        let file = AsyncFile::new(file_id).await?;
+        let file = AsyncFile::new_r(file_id).await?;
         Self::new_with(file, 0, ByteBuffer::new())
     }
 
@@ -120,14 +120,16 @@ impl ByteSource for FileReader {
 }
 
 impl AsyncFile {
-    /// Creates a new file for Read
-    pub async fn new(id: FileId) -> Result<Self, FileErr> {
+    /// Open a file for Read
+    pub async fn new_r(id: FileId) -> Result<Self, FileErr> {
         let file = File::open(id.path()).await.map_err(FileErr::IoError)?;
         log::debug!("AsyncFile Open ({})", id.path());
         Self::new_with(id, file).await
     }
 
-    /// Creates a new file for Read/Write/Append
+    /// Creates a new file for Read/Write.
+    /// If the file already exsits, read from the beginning.
+    /// Seek to an appropriate position to append to this file.
     pub async fn new_rw(id: FileId) -> Result<Self, FileErr> {
         let mut options = OpenOptions::new();
         options.read(true).write(true).create(true);
@@ -135,7 +137,7 @@ impl AsyncFile {
         Self::new_with(id, file).await
     }
 
-    /// Creates a new file for Overwrite
+    /// Creates a new file for Overwrite. If the file already exists, truncate it.
     pub async fn new_ow(id: FileId) -> Result<Self, FileErr> {
         let mut options = OpenOptions::new();
         options.write(true).create(true).truncate(true);

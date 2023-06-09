@@ -33,6 +33,7 @@ pub struct MessageSink {
     beacon: BTreeMap<(StreamKey, ShardId), BeaconState>,
     beacon_count: u32,
     message_count: u32,
+    started_from: u64,
 }
 
 pub enum SeekTarget {
@@ -437,9 +438,14 @@ impl MessageSink {
                             }
                             Err(FileErr::NotEnoughBytes) => {
                                 if !read {
-                                    // we need to rewind further backwards
-                                    nth -= 1;
-                                    source.rewind(SeqPos::At(nth as u64)).await?;
+                                    if nth > 0 {
+                                        // we need to rewind further backwards
+                                        nth -= 1;
+                                        source.rewind(SeqPos::At(nth as u64)).await?;
+                                    } else {
+                                        // we reached the start now
+                                        break;
+                                    }
                                 } else {
                                     // the file ended without an EOS
                                     break;
@@ -449,7 +455,9 @@ impl MessageSink {
                         }
                     }
                 }
-                Err(FileErr::NotEnoughBytes) => (),
+                Err(FileErr::NotEnoughBytes) => {
+                    // the file has no messages
+                }
                 Err(e) => return Err(e),
             }
             if beacon_interval != source.header.beacon_interval {
@@ -483,6 +491,7 @@ impl MessageSink {
                     beacon: Default::default(),
                     beacon_count: 0,
                     message_count: 0,
+                    started_from: offset,
                 })
             } else {
                 unreachable!()
@@ -512,6 +521,7 @@ impl MessageSink {
             beacon: Default::default(),
             beacon_count: 0,
             message_count: 0,
+            started_from: offset as u64,
         })
     }
 
@@ -584,6 +594,11 @@ impl MessageSink {
         self.sink.flush(self.message_count).await?;
 
         Ok(checksum)
+    }
+
+    /// Whether this sink was started from
+    pub fn started_from(&self) -> u64 {
+        self.started_from
     }
 
     /// End this stream gracefully, with an optional EOS message

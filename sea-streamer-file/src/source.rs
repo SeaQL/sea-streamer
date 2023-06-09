@@ -41,7 +41,7 @@ pub struct FileSource {
 
 impl FileSource {
     pub async fn new(file_id: FileId, read_from: ReadFrom) -> Result<Self, FileErr> {
-        let mut file = AsyncFile::new(file_id).await?;
+        let mut file = AsyncFile::new_r(file_id).await?;
         let offset = if matches!(read_from, ReadFrom::End) {
             file.seek(SeqPos::End).await?
         } else {

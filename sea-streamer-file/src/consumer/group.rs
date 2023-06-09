@@ -34,7 +34,7 @@ lazy_static::lazy_static! {
 /// Which sadly we currently don't have the theoretical tools to deal with.
 struct Streamers {
     max_sid: Sid,
-    streamers: HashMap<FileId, Vec<(StreamMode, StreamerHandle)>>,
+    streamers: HashMap<FileId, Vec<(StreamMode, Streamer)>>,
 }
 
 pub(crate) type Sid = u32;
@@ -45,14 +45,12 @@ enum BgTask {
     Drop(Sid),
 }
 
-struct StreamerHandle {
+/// This is not the Streamer of the public API
+struct Streamer {
     subscribers: Subscribers,
     ctrl: Sender<CtrlMsg>,
     tick: Sender<()>,
 }
-
-/// This is not the Streamer of the public API
-struct Streamer {}
 
 pub struct StreamerInfo {
     pub mode: StreamMode,
@@ -238,7 +236,7 @@ pub async fn query_streamer(file_id: &FileId) -> Option<Vec<StreamerInfo>> {
 }
 
 impl Streamer {
-    fn create(mut source: MessageSource) -> StreamerHandle {
+    fn create(mut source: MessageSource) -> Self {
         let subscribers = Subscribers::new();
         let (sender, ctrl) = bounded(0);
         let (ticker, tick) = bounded(1);
@@ -288,7 +286,7 @@ impl Streamer {
             }
         });
 
-        StreamerHandle {
+        Self {
             subscribers: ret,
             ctrl: sender,
             tick: ticker,

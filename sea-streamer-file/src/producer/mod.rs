@@ -1,19 +1,43 @@
-use flume::r#async::RecvFut;
+mod backend;
+
+use flume::{r#async::RecvFut, Sender};
 use std::{fmt::Debug, future::Future};
 
-use crate::{FileErr, FileResult};
+use crate::{Bytes, FileErr, FileId, FileResult};
 use sea_streamer_types::{
     export::{async_trait, futures::FutureExt},
-    Buffer, MessageHeader, Producer as ProducerTrait, Receipt, StreamErr, StreamKey, StreamResult,
+    Buffer, MessageHeader, Producer as ProducerTrait, Receipt, ShardId, StreamErr, StreamKey,
+    StreamResult, Timestamp,
 };
 
 #[derive(Debug, Clone)]
 pub struct FileProducer {
+    file_id: FileId,
     stream: Option<StreamKey>,
+    sender: &'static Sender<RequestTo>,
 }
 
 pub struct SendFuture {
     fut: RecvFut<'static, Receipt>,
+}
+
+struct RequestTo {
+    file_id: FileId,
+    data: Request,
+}
+
+enum Request {
+    Send(SendRequest),
+    End,
+}
+
+struct SendRequest {
+    stream_key: StreamKey,
+    shard_id: ShardId,
+    timestamp: Timestamp,
+    bytes: Bytes,
+    /// one shot
+    receipt: Sender<Result<Receipt, FileErr>>,
 }
 
 impl Future for SendFuture {

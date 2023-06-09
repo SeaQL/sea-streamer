@@ -3,7 +3,7 @@ use thiserror::Error;
 
 use crate::{
     consumer::new_consumer, format::Header, AsyncFile, FileConsumer, FileErr, FileId, FileProducer,
-    FileResult,
+    FileResult, DEFAULT_BEACON_INTERVAL, DEFAULT_FILE_SIZE_LIMIT,
 };
 use sea_streamer_types::{
     export::async_trait, ConnectOptions as ConnectOptionsTrait, ConsumerGroup, ConsumerMode,
@@ -16,8 +16,12 @@ pub struct FileStreamer {
     file_id: FileId,
 }
 
-#[derive(Debug, Default, Clone)]
-pub struct FileConnectOptions {}
+#[derive(Debug, Clone)]
+pub struct FileConnectOptions {
+    create_if_not_exists: bool,
+    beacon_interval: u32,
+    file_size_limit: u64,
+}
 
 #[derive(Debug, Clone)]
 pub struct FileConsumerOptions {
@@ -65,7 +69,8 @@ impl StreamerTrait for FileStreamer {
     type ProducerOptions = FileProducerOptions;
 
     /// First check whether the file exists.
-    async fn connect(uri: StreamerUri, _: Self::ConnectOptions) -> FileResult<Self> {
+    /// If not, depending on the options, either create it, or error.
+    async fn connect(uri: StreamerUri, opt: Self::ConnectOptions) -> FileResult<Self> {
         if uri.nodes().is_empty() {
             return Err(StreamErr::StreamUrlErr(StreamUrlErr::ZeroNode));
         }
@@ -77,7 +82,11 @@ impl StreamerTrait for FileStreamer {
             .trim_start_matches("file://")
             .trim_end_matches('/');
         let file_id = FileId::new(path);
-        AsyncFile::new(file_id.clone()).await?;
+        if opt.create_if_not_exists {
+            AsyncFile::new_rw(file_id.clone()).await?;
+        } else {
+            AsyncFile::new_r(file_id.clone()).await?;
+        }
         Ok(Self { file_id })
     }
 
@@ -118,7 +127,7 @@ impl StreamerTrait for FileStreamer {
             (AutoStreamReset::Latest, true) => StreamMode::Live,
             (AutoStreamReset::Earliest, true) => {
                 if options.group.is_none() {
-                    let file = AsyncFile::new(self.file_id.clone()).await?;
+                    let file = AsyncFile::new_r(self.file_id.clone()).await?;
                     if file.size() <= Header::size() as u64 {
                         // special case when the file has no data
                         StreamMode::Live
@@ -157,6 +166,45 @@ impl ConnectOptionsTrait for FileConnectOptions {
     /// This parameter is ignored.
     fn set_timeout(&mut self, _: Duration) -> FileResult<&mut Self> {
         Ok(self)
+    }
+}
+
+impl Default for FileConnectOptions {
+    fn default() -> Self {
+        Self {
+            create_if_not_exists: false,
+            beacon_interval: DEFAULT_BEACON_INTERVAL,
+            file_size_limit: DEFAULT_FILE_SIZE_LIMIT,
+        }
+    }
+}
+
+impl FileConnectOptions {
+    /// Default is `false`
+    pub fn create_if_not_exists(&self) -> bool {
+        self.create_if_not_exists
+    }
+    pub fn set_create_if_not_exists(&mut self, v: bool) -> &mut Self {
+        self.create_if_not_exists = v;
+        self
+    }
+
+    /// Default is [`crate::DEFAULT_BEACON_INTERVAL`]
+    pub fn beacon_interval(&self) -> u32 {
+        self.beacon_interval
+    }
+    pub fn set_beacon_interval(&mut self, v: u32) -> &mut Self {
+        self.beacon_interval = v;
+        self
+    }
+
+    /// Default is [`crate::DEFAULT_FILE_SIZE_LIMIT`]
+    pub fn file_size_limit(&self) -> u64 {
+        self.file_size_limit
+    }
+    pub fn set_file_size_limit(&mut self, v: u64) -> &mut Self {
+        self.file_size_limit = v;
+        self
     }
 }
 
