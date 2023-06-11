@@ -25,6 +25,7 @@ async fn producer() -> anyhow::Result<()> {
 
     let mut options = FileConnectOptions::default();
     options.set_beacon_interval(1024)?;
+    options.set_end_with_eos(true);
     let streamer = FileStreamer::connect(file_id.to_streamer_uri()?, options).await?;
 
     let producer = streamer
@@ -60,6 +61,9 @@ async fn producer() -> anyhow::Result<()> {
         check(consumer.next().await?, i + 1);
     }
 
+    // this should not cause any issue
+    std::mem::drop(secondary);
+
     for i in 75..125 {
         let mess = format!("{}", i);
         producer.send(mess)?;
@@ -74,6 +78,11 @@ async fn producer() -> anyhow::Result<()> {
     assert!(matches!(
         producer.send("hello")?.await,
         Err(StreamErr::Backend(FileErr::ProducerEnded))
+    ));
+
+    assert!(matches!(
+        consumer.next().await,
+        Err(StreamErr::Backend(FileErr::StreamEnded))
     ));
 
     Ok(())

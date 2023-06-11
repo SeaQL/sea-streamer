@@ -20,6 +20,7 @@ pub struct FileStreamer {
 #[derive(Debug, Clone)]
 pub struct FileConnectOptions {
     create_if_not_exists: bool,
+    end_with_eos: bool,
     beacon_interval: u32,
     file_size_limit: u64,
 }
@@ -93,6 +94,7 @@ impl StreamerTrait for FileStreamer {
         Ok(Self { file_id, options })
     }
 
+    /// End the producers before disconnecting.
     async fn disconnect(self) -> FileResult<()> {
         match end_producer(self.file_id).recv_async().await {
             Ok(Ok(())) => Ok(()),
@@ -182,6 +184,7 @@ impl Default for FileConnectOptions {
     fn default() -> Self {
         Self {
             create_if_not_exists: false,
+            end_with_eos: false,
             beacon_interval: DEFAULT_BEACON_INTERVAL,
             file_size_limit: DEFAULT_FILE_SIZE_LIMIT,
         }
@@ -189,22 +192,34 @@ impl Default for FileConnectOptions {
 }
 
 impl FileConnectOptions {
-    /// Default is `false`
     pub fn create_if_not_exists(&self) -> bool {
         self.create_if_not_exists
     }
+    /// Default is `false`.
     pub fn set_create_if_not_exists(&mut self, v: bool) -> &mut Self {
         self.create_if_not_exists = v;
         self
     }
 
-    /// Default is [`crate::DEFAULT_BEACON_INTERVAL`]
+    pub fn end_with_eos(&self) -> bool {
+        self.end_with_eos
+    }
+    /// If true, when the producer ends, a End-of-Stream message will be written.
+    /// This signals Consumers to end their streams.
+    ///
+    /// Default is `false`.
+    pub fn set_end_with_eos(&mut self, v: bool) -> &mut Self {
+        self.end_with_eos = v;
+        self
+    }
+
     pub fn beacon_interval(&self) -> u32 {
         self.beacon_interval
     }
-
     /// Beacon interval. Should be multiples of 1KB.
     /// For value < 1KB, valid options are [256, 512, 768, 1024].
+    ///
+    /// Default is [`crate::DEFAULT_BEACON_INTERVAL`].
     pub fn set_beacon_interval(&mut self, v: u32) -> Result<&mut Self, FileErr> {
         let valid = if v > 1024 {
             v % 1024 == 0
@@ -218,10 +233,10 @@ impl FileConnectOptions {
         Ok(self)
     }
 
-    /// Default is [`crate::DEFAULT_FILE_SIZE_LIMIT`]
     pub fn file_size_limit(&self) -> u64 {
         self.file_size_limit
     }
+    /// Default is [`crate::DEFAULT_FILE_SIZE_LIMIT`].
     pub fn set_file_size_limit(&mut self, v: u64) -> &mut Self {
         self.file_size_limit = v;
         self

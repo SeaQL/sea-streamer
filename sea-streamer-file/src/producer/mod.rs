@@ -103,7 +103,6 @@ impl ProducerTrait for FileProducer {
         })
     }
 
-    #[inline]
     async fn end(mut self) -> FileResult<()> {
         let err = || Err(StreamErr::Backend(FileErr::ProducerEnded));
         let (s, r) = unbounded();
@@ -124,7 +123,6 @@ impl ProducerTrait for FileProducer {
         }
     }
 
-    #[inline]
     async fn flush(&mut self) -> FileResult<()> {
         let err = || Err(StreamErr::Backend(FileErr::ProducerEnded));
         let (s, r) = unbounded();

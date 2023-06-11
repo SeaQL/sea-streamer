@@ -23,6 +23,7 @@ lazy_static::lazy_static! {
 /// Producers (N) -> SENDER (1) -> Writers (N)
 struct Writers {
     writers: HashMap<FileId, Writer>,
+    ending: Vec<Writer>,
 }
 
 struct Writer {
@@ -68,6 +69,7 @@ impl Writers {
 
         Self {
             writers: Default::default(),
+            ending: Default::default(),
         }
     }
 
@@ -106,30 +108,33 @@ impl Writers {
 
     fn dispatch(&mut self, request: RequestTo) {
         if matches!(request.data, Request::Drop) {
-            // if this Writer becomes orphaned, end it
+            // if this Writer becomes orphaned, remove it
             if let Some(writer) = self.drop(&request.file_id) {
-                let (s, _) = unbounded();
-                if writer.sender.send(Request::End(s)).is_err() {
+                if writer.sender.send(Request::Drop).is_err() {
                     log::error!("Dead File {}", request.file_id);
                 }
+                self.ending.push(writer);
             }
         } else if matches!(request.data, Request::End(_)) {
-            // outright end this Writer and drop the handle
             if let Some(writer) = self.writers.remove(&request.file_id) {
                 if writer.sender.send(request.data).is_err() {
                     log::error!("Dead File {}", request.file_id);
                 }
+                // we should wait until the Writer task actually received the request
+                self.ending.push(writer);
             }
         } else if let Some(writer) = self.writers.get(&request.file_id) {
             if writer.sender.send(request.data).is_err() {
                 log::error!("Dead File {}", request.file_id);
             }
         }
+        self.ending.retain(|s| !s.sender.is_disconnected());
     }
 }
 
 impl Writer {
     async fn new(file_id: FileId, options: &FileConnectOptions) -> Result<Self, FileErr> {
+        let end_with_eos = options.end_with_eos();
         let mut sink = MessageSink::append(
             file_id.clone(),
             options.beacon_interval(),
@@ -191,7 +196,7 @@ impl Writer {
                     }
                     Request::End(receipt) => {
                         debug_assert!(receipt.is_empty());
-                        match sink.end(false).await {
+                        match sink.end(end_with_eos).await {
                             Ok(()) => receipt.send(Ok(())),
                             Err(e) => receipt.send(Err(e)),
                         }
@@ -199,7 +204,8 @@ impl Writer {
                         break;
                     }
                     Request::Drop => {
-                        panic!("Drop should never be sent to Writer");
+                        sink.end(false).await.ok();
+                        break;
                     }
                 }
             }
