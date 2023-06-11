@@ -329,21 +329,18 @@ async fn sink() -> anyhow::Result<()> {
             sink.write(message(i)).await?;
         }
         sink.end(false).await?;
-        std::mem::drop(sink);
 
         let mut sink = MessageSink::append(path.clone(), bea_int, 1024 * 1024).await?;
         for i in 10..20 {
             sink.write(message(i)).await?;
         }
         sink.end(true).await?;
-        std::mem::drop(sink);
 
         let mut sink = MessageSink::append(path.clone(), bea_int, 1024 * 1024).await?;
         for i in 20..30 {
             sink.write(message(i)).await?;
         }
         sink.end(true).await?;
-        std::mem::drop(sink);
 
         let mut source = MessageSource::new(path.clone(), StreamMode::Replay).await?;
         for i in 0..30 {

@@ -2,8 +2,8 @@ use std::time::Duration;
 use thiserror::Error;
 
 use crate::{
-    consumer::new_consumer, format::Header, AsyncFile, FileConsumer, FileErr, FileId, FileProducer,
-    FileResult, DEFAULT_BEACON_INTERVAL, DEFAULT_FILE_SIZE_LIMIT,
+    consumer::new_consumer, end_producer, format::Header, new_producer, AsyncFile, FileConsumer,
+    FileErr, FileId, FileProducer, FileResult, DEFAULT_BEACON_INTERVAL, DEFAULT_FILE_SIZE_LIMIT,
 };
 use sea_streamer_types::{
     export::async_trait, ConnectOptions as ConnectOptionsTrait, ConsumerGroup, ConsumerMode,
@@ -14,6 +14,7 @@ use sea_streamer_types::{
 #[derive(Debug, Clone)]
 pub struct FileStreamer {
     file_id: FileId,
+    options: FileConnectOptions,
 }
 
 #[derive(Debug, Clone)]
@@ -57,6 +58,8 @@ pub enum ConfigErr {
     LatestButNotLive,
     #[error("Consumers in the same ConsumerGroup must use the same ConsumerMode")]
     SameGroupSameMode,
+    #[error("Please choose a 'better aligned' beacon interval")]
+    InvalidBeaconInterval,
 }
 
 #[async_trait]
@@ -70,7 +73,7 @@ impl StreamerTrait for FileStreamer {
 
     /// First check whether the file exists.
     /// If not, depending on the options, either create it, or error.
-    async fn connect(uri: StreamerUri, opt: Self::ConnectOptions) -> FileResult<Self> {
+    async fn connect(uri: StreamerUri, options: Self::ConnectOptions) -> FileResult<Self> {
         if uri.nodes().is_empty() {
             return Err(StreamErr::StreamUrlErr(StreamUrlErr::ZeroNode));
         }
@@ -82,23 +85,29 @@ impl StreamerTrait for FileStreamer {
             .trim_start_matches("file://")
             .trim_end_matches('/');
         let file_id = FileId::new(path);
-        if opt.create_if_not_exists {
+        if options.create_if_not_exists {
             AsyncFile::new_rw(file_id.clone()).await?;
         } else {
             AsyncFile::new_r(file_id.clone()).await?;
         }
-        Ok(Self { file_id })
+        Ok(Self { file_id, options })
     }
 
     async fn disconnect(self) -> FileResult<()> {
-        todo!()
+        match end_producer(self.file_id).recv_async().await {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(e)) => Err(StreamErr::Backend(e)),
+            Err(_) => Err(StreamErr::Backend(FileErr::ProducerEnded)),
+        }
     }
 
     async fn create_generic_producer(
         &self,
-        _: Self::ProducerOptions,
+        options: Self::ProducerOptions,
     ) -> FileResult<Self::Producer> {
-        todo!()
+        new_producer(self.file_id.clone(), &self.options, &options)
+            .await
+            .map_err(StreamErr::Backend)
     }
 
     async fn create_consumer(
@@ -193,9 +202,20 @@ impl FileConnectOptions {
     pub fn beacon_interval(&self) -> u32 {
         self.beacon_interval
     }
-    pub fn set_beacon_interval(&mut self, v: u32) -> &mut Self {
+
+    /// Beacon interval. Should be multiples of 1KB.
+    /// For value < 1KB, valid options are [256, 512, 768, 1024].
+    pub fn set_beacon_interval(&mut self, v: u32) -> Result<&mut Self, FileErr> {
+        let valid = if v > 1024 {
+            v % 1024 == 0
+        } else {
+            matches!(v, 256 | 512 | 768 | 1024)
+        };
+        if !valid {
+            return Err(FileErr::ConfigErr(ConfigErr::InvalidBeaconInterval));
+        }
         self.beacon_interval = v;
-        self
+        Ok(self)
     }
 
     /// Default is [`crate::DEFAULT_FILE_SIZE_LIMIT`]

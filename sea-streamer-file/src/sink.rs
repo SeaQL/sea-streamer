@@ -38,7 +38,7 @@ impl FileSink {
         let (sender, pending) = unbounded();
         let (notify, update) = bounded(0);
         let (watch, event) = unbounded();
-        let watcher = new_watcher(file.id().clone(), watch)?;
+        let watcher = new_watcher(file.id(), watch)?;
         quota -= file.size();
 
         let _handle = spawn_task(async move {

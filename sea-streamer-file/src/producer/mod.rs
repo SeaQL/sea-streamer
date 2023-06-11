@@ -1,14 +1,16 @@
 mod backend;
 
-use flume::{r#async::RecvFut, Sender};
+use flume::{r#async::RecvFut, unbounded, Sender};
 use std::{fmt::Debug, future::Future};
 
 use crate::{Bytes, FileErr, FileId, FileResult};
 use sea_streamer_types::{
     export::{async_trait, futures::FutureExt},
-    Buffer, MessageHeader, Producer as ProducerTrait, Receipt, ShardId, StreamErr, StreamKey,
-    StreamResult, Timestamp,
+    Buffer, MessageHeader, Producer as ProducerTrait, ShardId, StreamErr, StreamKey, StreamResult,
+    Timestamp,
 };
+
+pub(crate) use backend::{end_producer, new_producer};
 
 #[derive(Debug, Clone)]
 pub struct FileProducer {
@@ -18,7 +20,7 @@ pub struct FileProducer {
 }
 
 pub struct SendFuture {
-    fut: RecvFut<'static, Receipt>,
+    fut: RecvFut<'static, Result<MessageHeader, FileErr>>,
 }
 
 struct RequestTo {
@@ -26,9 +28,13 @@ struct RequestTo {
     data: Request,
 }
 
+type Reply = Sender<Result<(), FileErr>>;
+
 enum Request {
     Send(SendRequest),
-    End,
+    Flush(Reply),
+    End(Reply),
+    Drop,
 }
 
 struct SendRequest {
@@ -37,7 +43,7 @@ struct SendRequest {
     timestamp: Timestamp,
     bytes: Bytes,
     /// one shot
-    receipt: Sender<Result<Receipt, FileErr>>,
+    receipt: Sender<Result<MessageHeader, FileErr>>,
 }
 
 impl Future for SendFuture {
@@ -49,8 +55,9 @@ impl Future for SendFuture {
     ) -> std::task::Poll<Self::Output> {
         match self.fut.poll_unpin(cx) {
             std::task::Poll::Ready(res) => std::task::Poll::Ready(match res {
-                Ok(res) => Ok(res),
-                Err(err) => Err(StreamErr::Backend(FileErr::RecvError(err))),
+                Ok(Ok(res)) => Ok(res),
+                Ok(Err(e)) => Err(StreamErr::Backend(e)),
+                Err(_) => Err(StreamErr::Backend(FileErr::ProducerEnded)),
             }),
             std::task::Poll::Pending => std::task::Poll::Pending,
         }
@@ -68,18 +75,74 @@ impl ProducerTrait for FileProducer {
     type Error = FileErr;
     type SendFuture = SendFuture;
 
-    fn send_to<S: Buffer>(&self, _: &StreamKey, _: S) -> FileResult<Self::SendFuture> {
-        todo!();
+    fn send_to<S: Buffer>(
+        &self,
+        stream_key: &StreamKey,
+        buffer: S,
+    ) -> FileResult<Self::SendFuture> {
+        let err = || Err(StreamErr::Backend(FileErr::ProducerEnded));
+        let (s, r) = unbounded();
+        if self
+            .sender
+            .send(RequestTo {
+                file_id: self.file_id.clone(),
+                data: Request::Send(SendRequest {
+                    stream_key: stream_key.clone(),
+                    shard_id: ShardId::new(0),
+                    timestamp: Timestamp::now_utc(),
+                    bytes: Bytes::Bytes(buffer.into_bytes()),
+                    receipt: s,
+                }),
+            })
+            .is_err()
+        {
+            return err();
+        }
+        Ok(SendFuture {
+            fut: r.into_recv_async(),
+        })
     }
 
     #[inline]
     async fn end(mut self) -> FileResult<()> {
-        self.flush().await
+        let err = || Err(StreamErr::Backend(FileErr::ProducerEnded));
+        let (s, r) = unbounded();
+        if self
+            .sender
+            .send(RequestTo {
+                file_id: self.file_id.clone(),
+                data: Request::End(s),
+            })
+            .is_err()
+        {
+            return err();
+        }
+        match r.recv_async().await {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(e)) => Err(StreamErr::Backend(e)),
+            Err(_) => err(),
+        }
     }
 
     #[inline]
     async fn flush(&mut self) -> FileResult<()> {
-        todo!();
+        let err = || Err(StreamErr::Backend(FileErr::ProducerEnded));
+        let (s, r) = unbounded();
+        if self
+            .sender
+            .send(RequestTo {
+                file_id: self.file_id.clone(),
+                data: Request::Flush(s),
+            })
+            .is_err()
+        {
+            return err();
+        }
+        match r.recv_async().await {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(e)) => Err(StreamErr::Backend(e)),
+            Err(_) => err(),
+        }
     }
 
     fn anchor(&mut self, stream: StreamKey) -> FileResult<()> {
@@ -96,6 +159,32 @@ impl ProducerTrait for FileProducer {
             Ok(stream)
         } else {
             Err(StreamErr::NotAnchored)
+        }
+    }
+}
+
+impl Drop for FileProducer {
+    fn drop(&mut self) {
+        self.sender
+            .send(RequestTo {
+                file_id: self.file_id.clone(),
+                data: Request::Drop,
+            })
+            .ok();
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn only_send_sync<C: ProducerTrait + Send + Sync>(_: C) {}
+
+    #[test]
+    fn producer_is_send_sync() {
+        #[allow(dead_code)]
+        fn ensure_send_sync(p: FileProducer) {
+            only_send_sync(p);
         }
     }
 }

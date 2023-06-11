@@ -9,8 +9,6 @@ pub enum FileErr {
     ConfigErr(#[source] ConfigErr),
     #[error("Utf8Error: {0}")]
     Utf8Error(#[source] Utf8Error),
-    #[error("Flume RecvError: {0}")]
-    RecvError(flume::RecvError),
     #[error("IO Error: {0}")]
     IoError(#[source] std::io::Error),
     #[error("Duplicate IoError")]
@@ -31,6 +29,10 @@ pub enum FileErr {
     NotEnoughBytes,
     #[error("Stream Ended: the stream might have encountered an error or an EOS message.")]
     StreamEnded,
+    #[error(
+        "Producer Ended: the producer might have encountered an error or was ended intentionally."
+    )]
+    ProducerEnded,
 }
 
 #[derive(Error, Debug, Clone, Copy)]
@@ -49,7 +51,6 @@ impl FileErr {
         let mut copy = match self {
             FileErr::ConfigErr(e) => FileErr::ConfigErr(*e),
             FileErr::Utf8Error(e) => FileErr::Utf8Error(*e),
-            FileErr::RecvError(e) => FileErr::RecvError(*e),
             FileErr::IoError(_) => FileErr::DuplicateIoError,
             FileErr::DuplicateIoError => FileErr::DuplicateIoError,
             FileErr::WatchError(e) => FileErr::WatchError(e.clone()),
@@ -60,6 +61,7 @@ impl FileErr {
             FileErr::TaskDead(e) => FileErr::TaskDead(e),
             FileErr::NotEnoughBytes => FileErr::NotEnoughBytes,
             FileErr::StreamEnded => FileErr::StreamEnded,
+            FileErr::ProducerEnded => FileErr::ProducerEnded,
         };
         std::mem::swap(self, &mut copy);
         copy

@@ -1,17 +1,13 @@
-use flume::{bounded, unbounded, Receiver, Sender};
+use flume::{unbounded, Receiver, Sender};
 use sea_streamer_runtime::{spawn_task, AsyncMutex, TaskHandle};
 use std::collections::HashMap;
 
 use super::{Request, RequestTo};
 use crate::{
     format::{Checksum, Header},
-    FileConnectOptions, FileErr, FileId, FileProducer, MessageSink, MessageSource, StreamMode,
+    FileConnectOptions, FileErr, FileId, FileProducer, FileProducerOptions, MessageSink,
 };
-use sea_streamer_types::{
-    export::futures::{select, FutureExt},
-    ConsumerGroup, Message, MessageHeader, OwnedMessage, Receipt, SeqNo, ShardId, SharedMessage,
-    StreamKey, Timestamp,
-};
+use sea_streamer_types::{MessageHeader, OwnedMessage, SeqNo, ShardId, StreamKey};
 
 lazy_static::lazy_static! {
     static ref WRITERS: AsyncMutex<Writers> = AsyncMutex::new(Writers::new());
@@ -40,6 +36,27 @@ struct StreamState {
     checksum: Checksum,
 }
 
+pub(crate) async fn new_producer(
+    file_id: FileId,
+    options: &FileConnectOptions,
+    pro_options: &FileProducerOptions,
+) -> Result<FileProducer, FileErr> {
+    let mut writers = WRITERS.lock().await;
+    writers.add(file_id, options, pro_options).await
+}
+
+pub(crate) fn end_producer(file_id: FileId) -> Receiver<Result<(), FileErr>> {
+    let (s, r) = unbounded();
+    SENDER
+        .0
+        .send(RequestTo {
+            file_id,
+            data: Request::End(s),
+        })
+        .expect("It's a static; after all");
+    r
+}
+
 impl Writers {
     fn new() -> Self {
         let _handle = spawn_task(async move {
@@ -57,7 +74,8 @@ impl Writers {
     async fn add(
         &mut self,
         file_id: FileId,
-        options: FileConnectOptions,
+        options: &FileConnectOptions,
+        _pro_options: &FileProducerOptions,
     ) -> Result<FileProducer, FileErr> {
         if self.writers.get(&file_id).is_none() {
             self.writers.insert(
@@ -75,21 +93,29 @@ impl Writers {
         })
     }
 
-    fn remove(&mut self, file_id: &FileId) -> Option<Writer> {
+    /// Returns the owned Writer, if count reaches 0.
+    fn drop(&mut self, file_id: &FileId) -> Option<Writer> {
         if let Some(writer) = self.writers.get_mut(file_id) {
             writer.count -= 1;
             if writer.count == 0 {
                 return self.writers.remove(file_id);
             }
-        } else {
-            log::error!("Unknown File {}", file_id);
         }
         None
     }
 
     fn dispatch(&mut self, request: RequestTo) {
-        if matches!(request.data, Request::End) {
-            if let Some(writer) = self.remove(&request.file_id) {
+        if matches!(request.data, Request::Drop) {
+            // if this Writer becomes orphaned, end it
+            if let Some(writer) = self.drop(&request.file_id) {
+                let (s, _) = unbounded();
+                if writer.sender.send(Request::End(s)).is_err() {
+                    log::error!("Dead File {}", request.file_id);
+                }
+            }
+        } else if matches!(request.data, Request::End(_)) {
+            // outright end this Writer and drop the handle
+            if let Some(writer) = self.writers.remove(&request.file_id) {
                 if writer.sender.send(request.data).is_err() {
                     log::error!("Dead File {}", request.file_id);
                 }
@@ -98,14 +124,12 @@ impl Writers {
             if writer.sender.send(request.data).is_err() {
                 log::error!("Dead File {}", request.file_id);
             }
-        } else {
-            log::error!("Unknown File {}", request.file_id);
         }
     }
 }
 
 impl Writer {
-    async fn new(file_id: FileId, options: FileConnectOptions) -> Result<Self, FileErr> {
+    async fn new(file_id: FileId, options: &FileConnectOptions) -> Result<Self, FileErr> {
         let mut sink = MessageSink::append(
             file_id.clone(),
             options.beacon_interval(),
@@ -119,19 +143,21 @@ impl Writer {
             while let Ok(request) = receiver.recv_async().await {
                 match request {
                     Request::Send(req) => {
+                        debug_assert!(req.receipt.is_empty());
                         let key = (req.stream_key.clone(), req.shard_id);
                         let stream = if let Some(stream) = streams.get_mut(&key) {
                             stream
+                        } else if sink.started_from() == Header::size() as u64 {
+                            streams.entry(key).or_insert(StreamState {
+                                seq_no: 1,
+                                checksum: Checksum(0),
+                            })
                         } else {
-                            if sink.started_from() == Header::size() as u64 {
-                                streams.entry(key).or_insert(StreamState {
-                                    seq_no: 1,
-                                    checksum: Checksum(0),
-                                })
-                            } else {
-                                // we'll need to seek backwards until we find the last message of the same stream
-                                todo!()
-                            }
+                            // we'll need to seek backwards until we find the last message of the same stream.
+                            // the algorithm would be:
+                            // 1. go backwards from started_from and look for the latest Beacon with our stream of interest
+                            // 2. go forward from there and read all messages up to started_from, recording the latest message
+                            todo!()
                         };
                         let header = MessageHeader::new(
                             req.stream_key,
@@ -155,8 +181,25 @@ impl Writer {
                         stream.seq_no += 1;
                         stream.checksum = checksum;
                     }
-                    Request::End => {
-                        sink.end(false).await?;
+                    Request::Flush(receipt) => {
+                        debug_assert!(receipt.is_empty());
+                        match sink.flush().await {
+                            Ok(()) => receipt.send(Ok(())),
+                            Err(e) => receipt.send(Err(e)),
+                        }
+                        .ok();
+                    }
+                    Request::End(receipt) => {
+                        debug_assert!(receipt.is_empty());
+                        match sink.end(false).await {
+                            Ok(()) => receipt.send(Ok(())),
+                            Err(e) => receipt.send(Err(e)),
+                        }
+                        .ok();
+                        break;
+                    }
+                    Request::Drop => {
+                        panic!("Drop should never be sent to Writer");
                     }
                 }
             }

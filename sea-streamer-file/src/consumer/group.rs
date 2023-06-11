@@ -397,6 +397,7 @@ impl Subscribers {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     fn remove(
         &self,
         sid: Sid,

@@ -601,8 +601,12 @@ impl MessageSink {
         self.started_from
     }
 
+    pub async fn flush(&mut self) -> Result<(), FileErr> {
+        self.sink.flush(self.message_count).await
+    }
+
     /// End this stream gracefully, with an optional EOS message
-    pub async fn end(&mut self, eos: bool) -> Result<(), FileErr> {
+    pub async fn end(mut self, eos: bool) -> Result<(), FileErr> {
         if eos {
             self.write(end_of_stream()).await?;
         }

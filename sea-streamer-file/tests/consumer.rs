@@ -9,7 +9,6 @@ static INIT: std::sync::Once = std::sync::Once::new();
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
 async fn consumer() -> anyhow::Result<()> {
-    use anyhow::Context;
     use sea_streamer_file::{
         AutoStreamReset, FileConsumerOptions, FileErr, FileStreamer, MessageSink,
         DEFAULT_FILE_SIZE_LIMIT,
@@ -67,7 +66,7 @@ async fn consumer() -> anyhow::Result<()> {
     {
         let mut stream = earliest.stream();
         for i in 25..50 {
-            check(i, stream.try_next().await?.context("Never ends")?);
+            check(i, stream.try_next().await?.unwrap());
         }
     }
     println!("Stream from earliest ... ok");
