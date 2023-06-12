@@ -110,6 +110,10 @@ async fn loopback() -> anyhow::Result<()> {
     let read = Beacon::read_from(&mut source).await?;
     assert_eq!(beacon, read);
 
+    let mut file = sink.end().await?;
+    file.resize().await?;
+    assert!(file.size() > 256);
+
     Ok(())
 }
 

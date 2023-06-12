@@ -464,7 +464,16 @@ impl UnixTimestamp {
 /// CRC16/CDMA2000
 impl RunningChecksum {
     pub fn new() -> Self {
-        Self { crc: 0xFFFF }
+        Self { crc: Self::init() }
+    }
+
+    #[inline]
+    pub fn init() -> u16 {
+        0xFFFF
+    }
+
+    pub fn resume(crc: Checksum) -> Self {
+        Self { crc: crc.0 }
     }
 
     pub fn update(&mut self, checksum: Checksum) {

@@ -27,13 +27,24 @@ pub struct MessageSource {
 
 /// A high level file writer that mux messages and beacon
 pub struct MessageSink {
-    sink: FileSink,
+    sink: FileSinkState,
     offset: u64,
     beacon_interval: u32,
     beacon: BTreeMap<(StreamKey, ShardId), BeaconState>,
     beacon_count: u32,
     message_count: u32,
     started_from: u64,
+}
+
+enum FileSinkState {
+    Alive(FileSink),
+    Dead,
+}
+
+impl Default for FileSinkState {
+    fn default() -> Self {
+        Self::Dead
+    }
 }
 
 pub enum SeekTarget {
@@ -43,10 +54,10 @@ pub enum SeekTarget {
     End,
 }
 
-struct BeaconState {
-    seq_no: SeqNo,
-    ts: Timestamp,
-    running_checksum: RunningChecksum,
+pub(crate) struct BeaconState {
+    pub(crate) seq_no: SeqNo,
+    pub(crate) ts: Timestamp,
+    pub(crate) running_checksum: RunningChecksum,
 }
 
 impl MessageSource {
@@ -177,7 +188,7 @@ impl MessageSource {
         shard_id: &ShardId,
         to: SeekTarget,
     ) -> Result<(), FileErr> {
-        // a short circuit
+        // a short cut
         match to {
             SeekTarget::Beginning => return self.rewind(SeqPos::Beginning).await.map(|_| ()),
             SeekTarget::End => return self.rewind(SeqPos::End).await.map(|_| ()),
@@ -356,8 +367,17 @@ impl MessageSource {
     }
 
     #[inline]
+    pub fn offset(&self) -> u64 {
+        self.offset
+    }
+
+    #[inline]
     fn known_size(&self) -> u64 {
         self.source.file_size()
+    }
+
+    pub(crate) fn take_source(self) -> DynFileSource {
+        self.source
     }
 }
 
@@ -476,16 +496,16 @@ impl MessageSink {
 
                 if has_beacon {
                     // if coincidentally we are at a beacon location
-                    Beacon {
+                    offset += Beacon {
                         remaining_messages_bytes: 0,
                         items: Default::default(),
                     }
-                    .write_to(&mut sink)?;
+                    .write_to(&mut sink)? as u64;
                     sink.flush(0).await?;
                 }
 
                 Ok(Self {
-                    sink,
+                    sink: FileSinkState::Alive(sink),
                     offset,
                     beacon_interval,
                     beacon: Default::default(),
@@ -515,7 +535,7 @@ impl MessageSink {
         sink.flush(0).await?;
 
         Ok(Self {
-            sink,
+            sink: FileSinkState::Alive(sink),
             offset: offset as u64,
             beacon_interval,
             beacon: Default::default(),
@@ -538,7 +558,7 @@ impl MessageSink {
     }
 
     /// This future is cancel safe. If it's canceled after polled once, the message
-    /// will have been written. Otherwise it will be dropped.
+    /// will have been written. Otherwise it will be dropped. In other words, it's atomic.
     pub async fn write(&mut self, message: OwnedMessage) -> Result<Checksum, FileErr> {
         let key = (message.stream_key(), message.shard_id());
         let (seq_no, ts) = (message.sequence(), message.timestamp());
@@ -561,7 +581,7 @@ impl MessageSink {
             let chunk = self.beacon_interval as usize
                 - (self.offset % self.beacon_interval as u64) as usize;
             let chunk: ByteBuffer = buffer.consume(std::cmp::min(chunk, buffer.size()));
-            self.offset += chunk.write_to(&mut self.sink)? as u64;
+            self.offset += chunk.write_to(self.sink())? as u64;
 
             if self.offset > 0 && self.offset % self.beacon_interval as u64 == 0 {
                 let num_markers = Beacon::num_markers(self.beacon_interval as usize);
@@ -585,24 +605,31 @@ impl MessageSink {
                     remaining_messages_bytes: buffer.size() as u32,
                     items,
                 };
-                self.offset += beacon.write_to(&mut self.sink)? as u64;
+                self.offset += beacon.write_to(self.sink())? as u64;
                 self.beacon_count += beacon_count as u32;
             }
         }
 
         self.message_count += 1;
-        self.sink.flush(self.message_count).await?;
+        self.flush().await?;
 
         Ok(checksum)
     }
 
-    /// Whether this sink was started from
+    #[inline]
+    pub fn offset(&self) -> u64 {
+        self.offset
+    }
+
+    /// Where this sink was started
+    #[inline]
     pub fn started_from(&self) -> u64 {
         self.started_from
     }
 
     pub async fn flush(&mut self) -> Result<(), FileErr> {
-        self.sink.flush(self.message_count).await
+        let c = self.message_count;
+        self.sink().flush(c).await
     }
 
     /// End this stream gracefully, with an optional EOS message
@@ -610,7 +637,32 @@ impl MessageSink {
         if eos {
             self.write(end_of_stream()).await?;
         }
-        self.sink.sync_all().await
+        self.sink().sync_all().await
+    }
+
+    fn sink(&mut self) -> &mut FileSink {
+        match &mut self.sink {
+            FileSinkState::Alive(sink) => sink,
+            FileSinkState::Dead => panic!("FileSinkState::Dead"),
+        }
+    }
+
+    /// Take ownership of the file sink
+    pub(crate) async fn take_file(&mut self) -> Result<AsyncFile, FileErr> {
+        let sink = std::mem::take(&mut self.sink);
+        match sink {
+            FileSinkState::Alive(sink) => sink.end().await,
+            FileSinkState::Dead => panic!("FileSinkState::Dead"),
+        }
+    }
+
+    /// Return the file sink
+    pub(crate) fn use_file(&mut self, sink: FileSink) {
+        self.sink = FileSinkState::Alive(sink);
+    }
+
+    pub(crate) fn update_stream_state(&mut self, key: (StreamKey, ShardId), state: BeaconState) {
+        self.beacon.insert(key, state);
     }
 }
 
@@ -625,7 +677,7 @@ pub fn end_of_stream() -> OwnedMessage {
     OwnedMessage::new(header, END_OF_STREAM.into_bytes())
 }
 
-pub(crate) trait MessageWithHeader: MessageTrait {
+pub trait MessageWithHeader: MessageTrait {
     fn header(&self) -> &MessageHeader;
 }
 impl MessageWithHeader for SharedMessage {
@@ -639,7 +691,7 @@ impl MessageWithHeader for OwnedMessage {
     }
 }
 
-pub(crate) fn is_end_of_stream<M: MessageWithHeader>(mess: &M) -> bool {
+pub fn is_end_of_stream<M: MessageWithHeader>(mess: &M) -> bool {
     mess.header().stream_key().name() == SEA_STREAMER_INTERNAL
         && mess.message().as_bytes() == END_OF_STREAM.as_bytes()
 }

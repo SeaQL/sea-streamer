@@ -16,7 +16,9 @@
 //! /* beacon */
 //! ```
 use anyhow::Result;
-use sea_streamer_file::{format::MessageJson, FileErr, FileId, MessageSource, StreamMode};
+use sea_streamer_file::{
+    format::MessageJson, is_end_of_stream, FileErr, FileId, MessageSource, StreamMode,
+};
 use sea_streamer_types::{Buffer, Message, TIMESTAMP_FORMAT};
 use std::str::FromStr;
 use structopt::StructOpt;
@@ -124,6 +126,11 @@ async fn main() -> Result<()> {
                 Format::Ndjson => print!(" */"),
             }
             println!();
+        }
+
+        if is_end_of_stream(&message.message) {
+            log::info!("Stream ended.");
+            break;
         }
     }
 

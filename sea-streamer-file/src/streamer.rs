@@ -216,16 +216,11 @@ impl FileConnectOptions {
     pub fn beacon_interval(&self) -> u32 {
         self.beacon_interval
     }
-    /// Beacon interval. Should be multiples of 1KB.
-    /// For value < 1KB, valid options are [256, 512, 768, 1024].
+    /// Beacon interval. Should be multiples of 1024 (1KB).
     ///
     /// Default is [`crate::DEFAULT_BEACON_INTERVAL`].
     pub fn set_beacon_interval(&mut self, v: u32) -> Result<&mut Self, FileErr> {
-        let valid = if v > 1024 {
-            v % 1024 == 0
-        } else {
-            matches!(v, 256 | 512 | 768 | 1024)
-        };
+        let valid = v > 0 && v % 1024 == 0;
         if !valid {
             return Err(FileErr::ConfigErr(ConfigErr::InvalidBeaconInterval));
         }

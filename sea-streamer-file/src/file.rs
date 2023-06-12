@@ -122,8 +122,8 @@ impl ByteSource for FileReader {
 impl AsyncFile {
     /// Open a file for Read
     pub async fn new_r(id: FileId) -> Result<Self, FileErr> {
+        log::debug!("AsyncFile Open ({}) Read", id.path());
         let file = File::open(id.path()).await.map_err(FileErr::IoError)?;
-        log::debug!("AsyncFile Open ({})", id.path());
         Self::new_with(id, file).await
     }
 
@@ -131,6 +131,7 @@ impl AsyncFile {
     /// If the file already exsits, read from the beginning.
     /// Seek to an appropriate position to append to this file.
     pub async fn new_rw(id: FileId) -> Result<Self, FileErr> {
+        log::debug!("AsyncFile Open ({}) Read/Write", id.path());
         let mut options = OpenOptions::new();
         options.read(true).write(true).create(true);
         let file = options.open(id.path()).await.map_err(FileErr::IoError)?;
@@ -139,6 +140,7 @@ impl AsyncFile {
 
     /// Creates a new file for Overwrite. If the file already exists, truncate it.
     pub async fn new_ow(id: FileId) -> Result<Self, FileErr> {
+        log::debug!("AsyncFile Open ({}) Overwrite", id.path());
         let mut options = OpenOptions::new();
         options.write(true).create(true).truncate(true);
         let file = options.open(id.path()).await.map_err(FileErr::IoError)?;

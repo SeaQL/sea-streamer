@@ -4,7 +4,7 @@ use crate::{
     watcher::{new_watcher, FileEvent, Watcher},
     AsyncFile, Bytes, FileErr,
 };
-use sea_streamer_runtime::spawn_task;
+use sea_streamer_runtime::{spawn_task, TaskHandle};
 
 pub trait ByteSink {
     /// This should never block.
@@ -18,6 +18,7 @@ pub struct FileSink {
     watcher: Option<Watcher>,
     sender: Sender<Request>,
     update: Receiver<Update>,
+    handle: TaskHandle<AsyncFile>,
 }
 
 #[derive(Debug)]
@@ -25,6 +26,7 @@ enum Request {
     Bytes(Bytes),
     Flush(u32),
     SyncAll,
+    End,
 }
 
 #[derive(Debug)]
@@ -41,7 +43,7 @@ impl FileSink {
         let watcher = new_watcher(file.id(), watch)?;
         quota -= file.size();
 
-        let _handle = spawn_task(async move {
+        let handle = spawn_task(async move {
             'outer: while let Ok(request) = pending.recv_async().await {
                 match request {
                     Request::Bytes(mut bytes) => {
@@ -74,14 +76,22 @@ impl FileSink {
                             break;
                         }
                     }
-                    Request::SyncAll => {
+                    Request::SyncAll | Request::End => {
                         if let Err(err) = file.sync_all().await {
                             std::mem::drop(pending); // trigger error
                             send_error(&notify, err).await;
                             break;
                         }
-                        if notify.send_async(Update::Receipt(u32::MAX)).await.is_err() {
-                            break;
+                        match request {
+                            Request::SyncAll => {
+                                if notify.send_async(Update::Receipt(u32::MAX)).await.is_err() {
+                                    break;
+                                }
+                            }
+                            Request::End => {
+                                break;
+                            }
+                            _ => unreachable!(),
                         }
                     }
                 }
@@ -110,7 +120,9 @@ impl FileSink {
                     }
                 }
             }
+
             log::debug!("FileSink task finish ({})", file.id().path());
+            file
         });
 
         async fn send_error(notify: &Sender<Update>, e: FileErr) {
@@ -123,6 +135,7 @@ impl FileSink {
             watcher: Some(watcher),
             sender,
             update,
+            handle,
         })
     }
 
@@ -153,7 +166,7 @@ impl FileSink {
                     Ok(())
                 }
                 Ok(Update::FileErr(err)) => Err(err),
-                Err(_) => Err(FileErr::TaskDead("sink")),
+                Err(_) => Err(FileErr::TaskDead("FileSink::flush")),
             }
         }
     }
@@ -167,9 +180,19 @@ impl FileSink {
                     Ok(Update::Receipt(u32::MAX)) => return Ok(()),
                     Ok(Update::Receipt(_)) => (),
                     Ok(Update::FileErr(err)) => return Err(err),
-                    Err(_) => return Err(FileErr::TaskDead("sink")),
+                    Err(_) => return Err(FileErr::TaskDead("FileSink::sync_all")),
                 }
             }
+        }
+    }
+
+    pub async fn end(mut self) -> Result<AsyncFile, FileErr> {
+        if self.sender.send(Request::End).is_err() {
+            Err(self.return_err().err().unwrap())
+        } else {
+            self.handle
+                .await
+                .map_err(|_| FileErr::TaskDead("FileSink::end"))
         }
     }
 }

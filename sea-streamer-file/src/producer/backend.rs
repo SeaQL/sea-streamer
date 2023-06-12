@@ -1,13 +1,17 @@
 use flume::{unbounded, Receiver, Sender};
 use sea_streamer_runtime::{spawn_task, AsyncMutex, TaskHandle};
-use std::collections::HashMap;
+use std::{collections::HashMap, num::NonZeroU32};
 
 use super::{Request, RequestTo};
 use crate::{
-    format::{Checksum, Header},
-    FileConnectOptions, FileErr, FileId, FileProducer, FileProducerOptions, MessageSink,
+    format::{Checksum, Header, RunningChecksum},
+    BeaconReader, BeaconState, ByteBuffer, DynFileSource, FileConnectOptions, FileErr, FileId,
+    FileProducer, FileProducerOptions, FileReader, FileSink, MessageSink, MessageSource,
+    StreamMode,
 };
-use sea_streamer_types::{MessageHeader, OwnedMessage, SeqNo, ShardId, StreamKey};
+use sea_streamer_types::{
+    Message, MessageHeader, OwnedMessage, SeqNo, SeqPos, ShardId, StreamKey, Timestamp,
+};
 
 lazy_static::lazy_static! {
     static ref WRITERS: AsyncMutex<Writers> = AsyncMutex::new(Writers::new());
@@ -34,7 +38,18 @@ struct Writer {
 
 struct StreamState {
     seq_no: SeqNo,
+    ts: Timestamp,
     checksum: Checksum,
+}
+
+impl Default for StreamState {
+    fn default() -> Self {
+        Self {
+            seq_no: 0,
+            ts: Timestamp::now_utc(),
+            checksum: Checksum(RunningChecksum::init()),
+        }
+    }
 }
 
 pub(crate) async fn new_producer(
@@ -135,41 +150,103 @@ impl Writers {
 impl Writer {
     async fn new(file_id: FileId, options: &FileConnectOptions) -> Result<Self, FileErr> {
         let end_with_eos = options.end_with_eos();
-        let mut sink = MessageSink::append(
-            file_id.clone(),
-            options.beacon_interval(),
-            options.file_size_limit(),
-        )
-        .await?;
+        let file_size_limit = options.file_size_limit();
+        let mut sink =
+            MessageSink::append(file_id.clone(), options.beacon_interval(), file_size_limit)
+                .await?;
         let (sender, receiver) = unbounded::<Request>();
         let mut streams: HashMap<(StreamKey, ShardId), StreamState> = Default::default();
 
         let _handle: TaskHandle<Result<(), FileErr>> = spawn_task(async move {
-            while let Ok(request) = receiver.recv_async().await {
+            'outer: while let Ok(request) = receiver.recv_async().await {
                 match request {
                     Request::Send(req) => {
                         debug_assert!(req.receipt.is_empty());
                         let key = (req.stream_key.clone(), req.shard_id);
                         let stream = if let Some(stream) = streams.get_mut(&key) {
+                            // we tracked the stream state
                             stream
                         } else if sink.started_from() == Header::size() as u64 {
-                            streams.entry(key).or_insert(StreamState {
-                                seq_no: 1,
-                                checksum: Checksum(0),
-                            })
+                            // this is a fresh new file stream
+                            streams.entry(key).or_insert(StreamState::default())
                         } else {
-                            // we'll need to seek backwards until we find the last message of the same stream.
-                            // the algorithm would be:
+                            // we'll need to seek backwards until we find the last message of the same stream
+
+                            // 0. temporarily take ownership of the file
+                            let file = sink.take_file().await?;
+                            let mut reader = FileReader::new_with(file, 0, ByteBuffer::new())?;
+                            assert_eq!(0, reader.seek(SeqPos::Beginning).await?);
+                            let source = DynFileSource::FileReader(reader);
+                            let mut source =
+                                MessageSource::new_with(source, StreamMode::Replay).await?;
                             // 1. go backwards from started_from and look for the latest Beacon with our stream of interest
-                            // 2. go forward from there and read all messages up to started_from, recording the latest message
-                            todo!()
+                            let max_n = source.rewind(SeqPos::End).await?;
+                            let mut n = max_n;
+                            while n > 0 {
+                                let beacon = source.survey(NonZeroU32::new(n).unwrap()).await?;
+                                for item in beacon.items {
+                                    let h = &item.header;
+                                    if h.stream_key() == &key.0 && h.shard_id() == &key.1 {
+                                        break;
+                                    }
+                                }
+                                n -= 1;
+                            }
+                            // 2. go forward from there and read all messages up to started_from, recording the latest messages
+                            source.rewind(SeqPos::At(n as u64)).await?;
+                            while source.offset() < sink.started_from() {
+                                match source.next().await {
+                                    Ok(msg) => {
+                                        let m = &msg.message;
+                                        let mut entry = streams
+                                            .entry((m.stream_key(), m.shard_id()))
+                                            .or_insert(StreamState::default());
+                                        if entry.seq_no < m.sequence() {
+                                            entry.seq_no = m.sequence();
+                                            entry.ts = m.timestamp();
+                                            entry.checksum = Checksum(msg.checksum);
+                                        }
+                                    }
+                                    Err(FileErr::NotEnoughBytes) => {
+                                        break;
+                                    }
+                                    Err(e) => {
+                                        req.receipt.send(Err(e)).ok();
+                                        break 'outer;
+                                    }
+                                }
+                            }
+                            // 4. return ownership of the file
+                            let source = source.take_source();
+                            let reader = match source {
+                                DynFileSource::FileReader(r) => r,
+                                _ => panic!("Must be FileReader"),
+                            };
+                            let (mut file, _, _) = reader.end();
+                            file.seek(SeqPos::At(sink.offset())).await?; // restore offset
+                            sink.use_file(FileSink::new(file, file_size_limit)?);
+                            // now we've gone through the stream, we can safely assume the stream state
+                            let entry =
+                                streams.entry(key.clone()).or_insert(StreamState::default());
+                            sink.update_stream_state(
+                                key,
+                                BeaconState {
+                                    seq_no: entry.seq_no,
+                                    ts: entry.ts,
+                                    running_checksum: RunningChecksum::resume(entry.checksum),
+                                },
+                            );
+                            entry
                         };
+                        // construct message
+                        stream.seq_no += 1;
                         let header = MessageHeader::new(
                             req.stream_key,
                             req.shard_id,
                             stream.seq_no,
                             req.timestamp,
                         );
+                        // and write!
                         let result = sink
                             .write(OwnedMessage::new(header.clone(), req.bytes.bytes()))
                             .await;
@@ -183,7 +260,7 @@ impl Writer {
                                 break;
                             }
                         };
-                        stream.seq_no += 1;
+                        stream.ts = req.timestamp;
                         stream.checksum = checksum;
                     }
                     Request::Flush(receipt) => {
