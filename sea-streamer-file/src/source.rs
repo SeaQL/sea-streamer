@@ -156,6 +156,7 @@ impl FileSource {
                         },
                         Err(_) => {
                             // timed out
+                            // an exponential backoff from 1..1024
                             wait = std::cmp::min(1.max(wait * 2), 1024);
                         }
                     }

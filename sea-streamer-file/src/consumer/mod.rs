@@ -127,22 +127,21 @@ impl ConsumerTrait for FileConsumer {
 
 impl FileConsumer {
     /// Seeking revokes the group membership of the Consumer
+    ///
+    /// Warning: This future must not be canceled.
     pub async fn seek(&mut self, target: SeekTarget) -> Result<(), FileErr> {
         // prepare the streamer
         preseek_consumer(&self.file_id, self.sid).await?;
-        println!("preseek done");
         // send a request
         self.ctrl
             .send_async(CtrlMsg::Seek(target))
             .await
             .map_err(|_| FileErr::TaskDead("FileConsumer seek"))?;
-        println!("sent CtrlMsg");
         // drain until we get a pulse
         loop {
             match self.receiver.recv_async().await {
                 Ok(Ok(msg)) => {
                     if is_pulse(&msg) {
-                        println!("Got pulse");
                         break;
                     }
                 }

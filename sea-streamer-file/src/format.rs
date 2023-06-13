@@ -1,4 +1,5 @@
-//! The SeaStreamer file format is designed to be seekable.
+//! The SeaStreamer file format is a container format designed to be seekable.
+//! It does not concerns what format the payload is encoded in.
 //! It has internal checksum to ensure integrity.
 //! It is a binary file format, but is readable with a plain text editor (if the payload is UTF-8).
 //!

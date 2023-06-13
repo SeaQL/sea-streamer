@@ -247,6 +247,7 @@ impl Streamer {
                 match ctrl.recv_async().await {
                     Ok(CtrlMsg::Read) => {
                         if tick.try_recv().is_ok() {
+                            // if there is a tick already, don't enter the future
                             continue;
                         }
                         let res = select! {
@@ -268,7 +269,6 @@ impl Streamer {
                         }
                     }
                     Ok(CtrlMsg::Seek(target)) => {
-                        println!("CtrlMsg::Seek");
                         if let Some(keys) = subscribers.solo_keys() {
                             match source.seek(&keys[0], &ZERO, target).await {
                                 Ok(()) => {
