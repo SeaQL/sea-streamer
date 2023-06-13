@@ -1,3 +1,5 @@
+#[cfg(feature = "backend-file")]
+use sea_streamer_file::FileErr;
 #[cfg(feature = "backend-kafka")]
 use sea_streamer_kafka::KafkaErr;
 #[cfg(feature = "backend-redis")]
@@ -24,6 +26,9 @@ pub enum BackendErr {
     #[cfg(feature = "backend-stdio")]
     #[error("StdioBackendErr: {0}")]
     Stdio(StdioErr),
+    #[cfg(feature = "backend-file")]
+    #[error("FileBackendErr: {0}")]
+    File(FileErr),
 }
 
 #[cfg(feature = "backend-kafka")]
@@ -47,6 +52,13 @@ impl From<StdioErr> for BackendErr {
     }
 }
 
+#[cfg(feature = "backend-file")]
+impl From<FileErr> for BackendErr {
+    fn from(err: FileErr) -> Self {
+        Self::File(err)
+    }
+}
+
 impl SeaStreamerBackend for BackendErr {
     #[cfg(feature = "backend-kafka")]
     type Kafka = KafkaErr;
@@ -54,6 +66,8 @@ impl SeaStreamerBackend for BackendErr {
     type Redis = RedisErr;
     #[cfg(feature = "backend-stdio")]
     type Stdio = StdioErr;
+    #[cfg(feature = "backend-file")]
+    type File = FileErr;
 
     fn backend(&self) -> Backend {
         match self {
@@ -63,6 +77,8 @@ impl SeaStreamerBackend for BackendErr {
             Self::Redis(_) => Backend::Redis,
             #[cfg(feature = "backend-stdio")]
             Self::Stdio(_) => Backend::Stdio,
+            #[cfg(feature = "backend-file")]
+            Self::File(_) => Backend::File,
         }
     }
 
@@ -74,6 +90,8 @@ impl SeaStreamerBackend for BackendErr {
             Self::Redis(_) => None,
             #[cfg(feature = "backend-stdio")]
             Self::Stdio(_) => None,
+            #[cfg(feature = "backend-file")]
+            Self::File(_) => None,
         }
     }
 
@@ -85,6 +103,8 @@ impl SeaStreamerBackend for BackendErr {
             Self::Redis(s) => Some(s),
             #[cfg(feature = "backend-stdio")]
             Self::Stdio(_) => None,
+            #[cfg(feature = "backend-file")]
+            Self::File(_) => None,
         }
     }
 
@@ -96,6 +116,21 @@ impl SeaStreamerBackend for BackendErr {
             #[cfg(feature = "backend-redis")]
             Self::Redis(_) => None,
             Self::Stdio(s) => Some(s),
+            #[cfg(feature = "backend-file")]
+            Self::File(_) => None,
+        }
+    }
+
+    #[cfg(feature = "backend-file")]
+    fn get_file(&mut self) -> Option<&mut FileErr> {
+        match self {
+            #[cfg(feature = "backend-kafka")]
+            Self::Kafka(_) => None,
+            #[cfg(feature = "backend-redis")]
+            Self::Redis(_) => None,
+            #[cfg(feature = "backend-stdio")]
+            Self::Stdio(_) => None,
+            Self::File(s) => Some(s),
         }
     }
 }

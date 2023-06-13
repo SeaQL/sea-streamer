@@ -1,7 +1,9 @@
+#[cfg(feature = "backend-file")]
+use sea_streamer_file::{AutoStreamReset as FileAutoStreamReset, FileConsumerOptions};
 #[cfg(feature = "backend-kafka")]
 use sea_streamer_kafka::{AutoOffsetReset, KafkaConsumerOptions};
 #[cfg(feature = "backend-redis")]
-use sea_streamer_redis::{AutoStreamReset, RedisConsumerOptions};
+use sea_streamer_redis::{AutoStreamReset as RedisAutoStreamReset, RedisConsumerOptions};
 #[cfg(feature = "backend-stdio")]
 use sea_streamer_stdio::StdioConsumerOptions;
 
@@ -11,12 +13,14 @@ use sea_streamer_types::{ConsumerGroup, ConsumerMode, ConsumerOptions};
 #[derive(Debug, Default, Clone)]
 /// `sea-streamer-socket` concrete type of ConsumerOptions.
 pub struct SeaConsumerOptions {
-    #[cfg(feature = "backend-stdio")]
-    stdio: StdioConsumerOptions,
     #[cfg(feature = "backend-kafka")]
     kafka: KafkaConsumerOptions,
     #[cfg(feature = "backend-redis")]
     redis: RedisConsumerOptions,
+    #[cfg(feature = "backend-stdio")]
+    stdio: StdioConsumerOptions,
+    #[cfg(feature = "backend-file")]
+    file: FileConsumerOptions,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -26,11 +30,6 @@ pub enum SeaStreamReset {
 }
 
 impl SeaConsumerOptions {
-    #[cfg(feature = "backend-stdio")]
-    pub fn into_stdio_consumer_options(self) -> StdioConsumerOptions {
-        self.stdio
-    }
-
     #[cfg(feature = "backend-kafka")]
     pub fn into_kafka_consumer_options(self) -> KafkaConsumerOptions {
         self.kafka
@@ -42,9 +41,13 @@ impl SeaConsumerOptions {
     }
 
     #[cfg(feature = "backend-stdio")]
-    /// Set options that only applies to Stdio
-    pub fn set_stdio_consumer_options<F: FnOnce(&mut StdioConsumerOptions)>(&mut self, func: F) {
-        func(&mut self.stdio)
+    pub fn into_stdio_consumer_options(self) -> StdioConsumerOptions {
+        self.stdio
+    }
+
+    #[cfg(feature = "backend-file")]
+    pub fn into_file_consumer_options(self) -> FileConsumerOptions {
+        self.file
     }
 
     #[cfg(feature = "backend-kafka")]
@@ -59,6 +62,18 @@ impl SeaConsumerOptions {
         func(&mut self.redis)
     }
 
+    #[cfg(feature = "backend-stdio")]
+    /// Set options that only applies to Stdio
+    pub fn set_stdio_consumer_options<F: FnOnce(&mut StdioConsumerOptions)>(&mut self, func: F) {
+        func(&mut self.stdio)
+    }
+
+    #[cfg(feature = "backend-file")]
+    /// Set options that only applies to File
+    pub fn set_file_consumer_options<F: FnOnce(&mut FileConsumerOptions)>(&mut self, func: F) {
+        func(&mut self.file)
+    }
+
     pub fn set_auto_stream_reset(&mut self, _val: SeaStreamReset) {
         #[cfg(feature = "backend-kafka")]
         self.set_kafka_consumer_options(|options| {
@@ -70,8 +85,15 @@ impl SeaConsumerOptions {
         #[cfg(feature = "backend-redis")]
         self.set_redis_consumer_options(|options| {
             options.set_auto_stream_reset(match _val {
-                SeaStreamReset::Earliest => AutoStreamReset::Earliest,
-                SeaStreamReset::Latest => AutoStreamReset::Latest,
+                SeaStreamReset::Earliest => RedisAutoStreamReset::Earliest,
+                SeaStreamReset::Latest => RedisAutoStreamReset::Latest,
+            });
+        });
+        #[cfg(feature = "backend-file")]
+        self.set_file_consumer_options(|options| {
+            options.set_auto_stream_reset(match _val {
+                SeaStreamReset::Earliest => FileAutoStreamReset::Earliest,
+                SeaStreamReset::Latest => FileAutoStreamReset::Latest,
             });
         });
     }
@@ -82,12 +104,14 @@ impl ConsumerOptions for SeaConsumerOptions {
 
     fn new(mode: ConsumerMode) -> Self {
         Self {
-            #[cfg(feature = "backend-stdio")]
-            stdio: StdioConsumerOptions::new(mode),
             #[cfg(feature = "backend-kafka")]
             kafka: KafkaConsumerOptions::new(mode),
             #[cfg(feature = "backend-redis")]
             redis: RedisConsumerOptions::new(mode),
+            #[cfg(feature = "backend-stdio")]
+            stdio: StdioConsumerOptions::new(mode),
+            #[cfg(feature = "backend-file")]
+            file: FileConsumerOptions::new(mode),
         }
     }
 
@@ -104,16 +128,20 @@ impl ConsumerOptions for SeaConsumerOptions {
     /// Set consumer group for this consumer. Note the semantic is implementation-specific.
     fn set_consumer_group(&mut self, group_id: ConsumerGroup) -> SeaResult<&mut Self> {
         #![allow(clippy::redundant_clone)]
-        #[cfg(feature = "backend-stdio")]
-        self.stdio
-            .set_consumer_group(group_id.clone())
-            .map_err(map_err)?;
         #[cfg(feature = "backend-kafka")]
         self.kafka
             .set_consumer_group(group_id.clone())
             .map_err(map_err)?;
         #[cfg(feature = "backend-redis")]
         self.redis
+            .set_consumer_group(group_id.clone())
+            .map_err(map_err)?;
+        #[cfg(feature = "backend-stdio")]
+        self.stdio
+            .set_consumer_group(group_id.clone())
+            .map_err(map_err)?;
+        #[cfg(feature = "backend-file")]
+        self.file
             .set_consumer_group(group_id.clone())
             .map_err(map_err)?;
         Ok(self)

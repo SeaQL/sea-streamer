@@ -1,3 +1,5 @@
+#[cfg(feature = "backend-file")]
+use sea_streamer_file::FileConsumer;
 #[cfg(feature = "backend-kafka")]
 use sea_streamer_kafka::KafkaConsumer;
 #[cfg(feature = "backend-redis")]
@@ -29,6 +31,8 @@ pub(crate) enum SeaConsumerBackend {
     Redis(RedisConsumer),
     #[cfg(feature = "backend-stdio")]
     Stdio(StdioConsumer),
+    #[cfg(feature = "backend-file")]
+    File(FileConsumer),
 }
 
 /// `sea-streamer-socket` concrete type of Future that will yield the next message.
@@ -39,6 +43,8 @@ pub enum NextFuture<'a> {
     Redis(sea_streamer_redis::NextFuture<'a>),
     #[cfg(feature = "backend-stdio")]
     Stdio(sea_streamer_stdio::NextFuture<'a>),
+    #[cfg(feature = "backend-file")]
+    File(sea_streamer_file::NextFuture<'a>),
 }
 
 /// `sea-streamer-socket` concrete type of Stream that will yield the next messages.
@@ -49,6 +55,8 @@ pub enum SeaMessageStream<'a> {
     Redis(sea_streamer_redis::RedisMessageStream<'a>),
     #[cfg(feature = "backend-stdio")]
     Stdio(sea_streamer_stdio::StdioMessageStream<'a>),
+    #[cfg(feature = "backend-file")]
+    File(sea_streamer_file::FileMessageStream<'a>),
 }
 
 impl<'a> Debug for NextFuture<'a> {
@@ -60,6 +68,8 @@ impl<'a> Debug for NextFuture<'a> {
             Self::Redis(_) => write!(f, "NextFuture::Redis"),
             #[cfg(feature = "backend-stdio")]
             Self::Stdio(_) => write!(f, "NextFuture::Stdio"),
+            #[cfg(feature = "backend-file")]
+            Self::File(_) => write!(f, "NextFuture::File"),
         }
     }
 }
@@ -73,6 +83,8 @@ impl<'a> Debug for SeaMessageStream<'a> {
             Self::Redis(_) => write!(f, "RedisMessageStream"),
             #[cfg(feature = "backend-stdio")]
             Self::Stdio(_) => write!(f, "StdioMessageStream"),
+            #[cfg(feature = "backend-file")]
+            Self::File(_) => write!(f, "FileMessageStream"),
         }
     }
 }
@@ -104,6 +116,15 @@ impl From<StdioConsumer> for SeaConsumer {
     }
 }
 
+#[cfg(feature = "backend-file")]
+impl From<FileConsumer> for SeaConsumer {
+    fn from(i: FileConsumer) -> Self {
+        Self {
+            backend: SeaConsumerBackend::File(i),
+        }
+    }
+}
+
 impl SeaStreamerBackend for SeaConsumer {
     #[cfg(feature = "backend-kafka")]
     type Kafka = KafkaConsumer;
@@ -111,6 +132,8 @@ impl SeaStreamerBackend for SeaConsumer {
     type Redis = RedisConsumer;
     #[cfg(feature = "backend-stdio")]
     type Stdio = StdioConsumer;
+    #[cfg(feature = "backend-file")]
+    type File = FileConsumer;
 
     fn backend(&self) -> Backend {
         match self.backend {
@@ -120,6 +143,8 @@ impl SeaStreamerBackend for SeaConsumer {
             SeaConsumerBackend::Redis(_) => Backend::Redis,
             #[cfg(feature = "backend-stdio")]
             SeaConsumerBackend::Stdio(_) => Backend::Stdio,
+            #[cfg(feature = "backend-file")]
+            SeaConsumerBackend::File(_) => Backend::File,
         }
     }
 
@@ -131,6 +156,8 @@ impl SeaStreamerBackend for SeaConsumer {
             SeaConsumerBackend::Redis(_) => None,
             #[cfg(feature = "backend-stdio")]
             SeaConsumerBackend::Stdio(_) => None,
+            #[cfg(feature = "backend-file")]
+            SeaConsumerBackend::File(_) => None,
         }
     }
 
@@ -142,6 +169,8 @@ impl SeaStreamerBackend for SeaConsumer {
             SeaConsumerBackend::Redis(s) => Some(s),
             #[cfg(feature = "backend-stdio")]
             SeaConsumerBackend::Stdio(_) => None,
+            #[cfg(feature = "backend-file")]
+            SeaConsumerBackend::File(_) => None,
         }
     }
 
@@ -153,6 +182,21 @@ impl SeaStreamerBackend for SeaConsumer {
             #[cfg(feature = "backend-redis")]
             SeaConsumerBackend::Redis(_) => None,
             SeaConsumerBackend::Stdio(s) => Some(s),
+            #[cfg(feature = "backend-file")]
+            SeaConsumerBackend::File(_) => None,
+        }
+    }
+
+    #[cfg(feature = "backend-file")]
+    fn get_file(&mut self) -> Option<&mut Self::File> {
+        match &mut self.backend {
+            #[cfg(feature = "backend-kafka")]
+            SeaConsumerBackend::Kafka(_) => None,
+            #[cfg(feature = "backend-redis")]
+            SeaConsumerBackend::Redis(_) => None,
+            #[cfg(feature = "backend-stdio")]
+            SeaConsumerBackend::Stdio(_) => None,
+            SeaConsumerBackend::File(s) => Some(s),
         }
     }
 }
@@ -172,6 +216,8 @@ impl Consumer for SeaConsumer {
             SeaConsumerBackend::Redis(i) => i.seek(to).await.map_err(map_err),
             #[cfg(feature = "backend-stdio")]
             SeaConsumerBackend::Stdio(i) => i.seek(to).await.map_err(map_err),
+            #[cfg(feature = "backend-file")]
+            SeaConsumerBackend::File(i) => i.seek(to).await.map_err(map_err),
         }
     }
 
@@ -183,6 +229,8 @@ impl Consumer for SeaConsumer {
             SeaConsumerBackend::Redis(i) => i.rewind(pos).await.map_err(map_err),
             #[cfg(feature = "backend-stdio")]
             SeaConsumerBackend::Stdio(i) => i.rewind(pos).await.map_err(map_err),
+            #[cfg(feature = "backend-file")]
+            SeaConsumerBackend::File(i) => i.rewind(pos).await.map_err(map_err),
         }
     }
 
@@ -194,6 +242,8 @@ impl Consumer for SeaConsumer {
             SeaConsumerBackend::Redis(i) => i.assign(ss).map_err(map_err),
             #[cfg(feature = "backend-stdio")]
             SeaConsumerBackend::Stdio(i) => i.assign(ss).map_err(map_err),
+            #[cfg(feature = "backend-file")]
+            SeaConsumerBackend::File(i) => i.assign(ss).map_err(map_err),
         }
     }
 
@@ -205,6 +255,8 @@ impl Consumer for SeaConsumer {
             SeaConsumerBackend::Redis(i) => i.unassign(ss).map_err(map_err),
             #[cfg(feature = "backend-stdio")]
             SeaConsumerBackend::Stdio(i) => i.unassign(ss).map_err(map_err),
+            #[cfg(feature = "backend-file")]
+            SeaConsumerBackend::File(i) => i.unassign(ss).map_err(map_err),
         }
     }
 
@@ -216,6 +268,8 @@ impl Consumer for SeaConsumer {
             SeaConsumerBackend::Redis(i) => NextFuture::Redis(i.next()),
             #[cfg(feature = "backend-stdio")]
             SeaConsumerBackend::Stdio(i) => NextFuture::Stdio(i.next()),
+            #[cfg(feature = "backend-file")]
+            SeaConsumerBackend::File(i) => NextFuture::File(i.next()),
         }
     }
 
@@ -227,6 +281,8 @@ impl Consumer for SeaConsumer {
             SeaConsumerBackend::Redis(i) => SeaMessageStream::Redis(i.stream()),
             #[cfg(feature = "backend-stdio")]
             SeaConsumerBackend::Stdio(i) => SeaMessageStream::Stdio(i.stream()),
+            #[cfg(feature = "backend-file")]
+            SeaConsumerBackend::File(i) => SeaMessageStream::File(i.stream()),
         }
     }
 }
@@ -252,6 +308,11 @@ impl<'a> Future for NextFuture<'a> {
             #[cfg(feature = "backend-stdio")]
             Self::Stdio(fut) => match Pin::new(fut).poll_unpin(cx) {
                 Poll::Ready(res) => Poll::Ready(res.map(SeaMessage::Stdio).map_err(map_err)),
+                Poll::Pending => Poll::Pending,
+            },
+            #[cfg(feature = "backend-file")]
+            Self::File(fut) => match Pin::new(fut).poll_unpin(cx) {
+                Poll::Ready(res) => Poll::Ready(res.map(SeaMessage::File).map_err(map_err)),
                 Poll::Pending => Poll::Pending,
             },
         }
@@ -286,6 +347,14 @@ impl<'a> Stream for SeaMessageStream<'a> {
             Self::Stdio(ss) => match Pin::new(ss).poll_next(cx) {
                 Poll::Ready(Some(res)) => {
                     Poll::Ready(Some(res.map(SeaMessage::Stdio).map_err(map_err)))
+                }
+                Poll::Ready(None) => Poll::Ready(None),
+                Poll::Pending => Poll::Pending,
+            },
+            #[cfg(feature = "backend-file")]
+            Self::File(ss) => match Pin::new(ss).poll_next(cx) {
+                Poll::Ready(Some(res)) => {
+                    Poll::Ready(Some(res.map(SeaMessage::File).map_err(map_err)))
                 }
                 Poll::Ready(None) => Poll::Ready(None),
                 Poll::Pending => Poll::Pending,

@@ -1,3 +1,5 @@
+#[cfg(feature = "backend-file")]
+use sea_streamer_file::FileMessage;
 #[cfg(feature = "backend-kafka")]
 use sea_streamer_kafka::KafkaMessage;
 #[cfg(feature = "backend-redis")]
@@ -17,6 +19,8 @@ pub enum SeaMessage<'a> {
     Redis(RedisMessage),
     #[cfg(feature = "backend-stdio")]
     Stdio(StdioMessage),
+    #[cfg(feature = "backend-file")]
+    File(FileMessage),
     #[cfg(not(feature = "backend-kafka"))]
     None(std::marker::PhantomData<&'a ()>),
 }
@@ -28,6 +32,8 @@ impl<'a> SeaStreamerBackend for SeaMessage<'a> {
     type Redis = RedisMessage;
     #[cfg(feature = "backend-stdio")]
     type Stdio = StdioMessage;
+    #[cfg(feature = "backend-file")]
+    type File = FileMessage;
 
     fn backend(&self) -> Backend {
         match self {
@@ -37,6 +43,8 @@ impl<'a> SeaStreamerBackend for SeaMessage<'a> {
             Self::Redis(_) => Backend::Redis,
             #[cfg(feature = "backend-stdio")]
             Self::Stdio(_) => Backend::Stdio,
+            #[cfg(feature = "backend-file")]
+            Self::File(_) => Backend::File,
             #[cfg(not(feature = "backend-kafka"))]
             Self::None(_) => unreachable!(),
         }
@@ -50,6 +58,8 @@ impl<'a> SeaStreamerBackend for SeaMessage<'a> {
             Self::Redis(_) => None,
             #[cfg(feature = "backend-stdio")]
             Self::Stdio(_) => None,
+            #[cfg(feature = "backend-file")]
+            Self::File(_) => None,
         }
     }
 
@@ -61,6 +71,8 @@ impl<'a> SeaStreamerBackend for SeaMessage<'a> {
             Self::Redis(s) => Some(s),
             #[cfg(feature = "backend-stdio")]
             Self::Stdio(_) => None,
+            #[cfg(feature = "backend-file")]
+            Self::File(_) => None,
             #[cfg(not(feature = "backend-kafka"))]
             Self::None(_) => None,
         }
@@ -74,6 +86,23 @@ impl<'a> SeaStreamerBackend for SeaMessage<'a> {
             #[cfg(feature = "backend-redis")]
             Self::Redis(_) => None,
             Self::Stdio(s) => Some(s),
+            #[cfg(feature = "backend-file")]
+            Self::File(_) => None,
+            #[cfg(not(feature = "backend-kafka"))]
+            Self::None(_) => None,
+        }
+    }
+
+    #[cfg(feature = "backend-file")]
+    fn get_file(&mut self) -> Option<&mut FileMessage> {
+        match self {
+            #[cfg(feature = "backend-kafka")]
+            Self::Kafka(_) => None,
+            #[cfg(feature = "backend-redis")]
+            Self::Redis(_) => None,
+            #[cfg(feature = "backend-stdio")]
+            Self::Stdio(_) => None,
+            Self::File(s) => Some(s),
             #[cfg(not(feature = "backend-kafka"))]
             Self::None(_) => None,
         }
@@ -89,6 +118,8 @@ impl<'a> Message for SeaMessage<'a> {
             Self::Redis(i) => i.stream_key(),
             #[cfg(feature = "backend-stdio")]
             Self::Stdio(i) => i.stream_key(),
+            #[cfg(feature = "backend-file")]
+            Self::File(i) => i.stream_key(),
             #[cfg(not(feature = "backend-kafka"))]
             Self::None(_) => unreachable!(),
         }
@@ -102,6 +133,8 @@ impl<'a> Message for SeaMessage<'a> {
             Self::Redis(i) => i.shard_id(),
             #[cfg(feature = "backend-stdio")]
             Self::Stdio(i) => i.shard_id(),
+            #[cfg(feature = "backend-file")]
+            Self::File(i) => i.shard_id(),
             #[cfg(not(feature = "backend-kafka"))]
             Self::None(_) => unreachable!(),
         }
@@ -115,6 +148,8 @@ impl<'a> Message for SeaMessage<'a> {
             Self::Redis(i) => i.sequence(),
             #[cfg(feature = "backend-stdio")]
             Self::Stdio(i) => i.sequence(),
+            #[cfg(feature = "backend-file")]
+            Self::File(i) => i.sequence(),
             #[cfg(not(feature = "backend-kafka"))]
             Self::None(_) => unreachable!(),
         }
@@ -128,6 +163,8 @@ impl<'a> Message for SeaMessage<'a> {
             Self::Redis(i) => i.timestamp(),
             #[cfg(feature = "backend-stdio")]
             Self::Stdio(i) => i.timestamp(),
+            #[cfg(feature = "backend-file")]
+            Self::File(i) => i.timestamp(),
             #[cfg(not(feature = "backend-kafka"))]
             Self::None(_) => unreachable!(),
         }
@@ -141,6 +178,8 @@ impl<'a> Message for SeaMessage<'a> {
             Self::Redis(i) => i.message(),
             #[cfg(feature = "backend-stdio")]
             Self::Stdio(i) => i.message(),
+            #[cfg(feature = "backend-file")]
+            Self::File(i) => i.message(),
             #[cfg(not(feature = "backend-kafka"))]
             Self::None(_) => unreachable!(),
         }

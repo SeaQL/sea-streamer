@@ -7,6 +7,8 @@ pub enum Backend {
     Redis,
     #[cfg(feature = "backend-stdio")]
     Stdio,
+    #[cfg(feature = "backend-file")]
+    File,
 }
 
 /// `sea-streamer-socket` methods shared by `Sea*` types.
@@ -17,6 +19,8 @@ pub trait SeaStreamerBackend {
     type Redis;
     #[cfg(feature = "backend-stdio")]
     type Stdio;
+    #[cfg(feature = "backend-file")]
+    type File;
 
     /// Identifies the underlying backend
     fn backend(&self) -> Backend;
@@ -32,4 +36,8 @@ pub trait SeaStreamerBackend {
     #[cfg(feature = "backend-stdio")]
     /// Get the concrete type for the Stdio backend. None if it's another Backend
     fn get_stdio(&mut self) -> Option<&mut Self::Stdio>;
+
+    #[cfg(feature = "backend-file")]
+    /// Get the concrete type for the File backend. None if it's another Backend
+    fn get_file(&mut self) -> Option<&mut Self::File>;
 }

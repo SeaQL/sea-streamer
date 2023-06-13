@@ -1,3 +1,5 @@
+#[cfg(feature = "backend-file")]
+use sea_streamer_file::FileStreamer;
 #[cfg(feature = "backend-kafka")]
 use sea_streamer_kafka::KafkaStreamer;
 #[cfg(feature = "backend-redis")]
@@ -27,6 +29,8 @@ pub(crate) enum SeaStreamerInner {
     Redis(RedisStreamer),
     #[cfg(feature = "backend-stdio")]
     Stdio(StdioStreamer),
+    #[cfg(feature = "backend-file")]
+    File(FileStreamer),
 }
 
 #[cfg(feature = "backend-kafka")]
@@ -56,6 +60,15 @@ impl From<StdioStreamer> for SeaStreamer {
     }
 }
 
+#[cfg(feature = "backend-file")]
+impl From<FileStreamer> for SeaStreamer {
+    fn from(i: FileStreamer) -> Self {
+        Self {
+            backend: SeaStreamerInner::File(i),
+        }
+    }
+}
+
 impl SeaStreamerBackend for SeaStreamer {
     #[cfg(feature = "backend-kafka")]
     type Kafka = KafkaStreamer;
@@ -63,6 +76,8 @@ impl SeaStreamerBackend for SeaStreamer {
     type Redis = RedisStreamer;
     #[cfg(feature = "backend-stdio")]
     type Stdio = StdioStreamer;
+    #[cfg(feature = "backend-file")]
+    type File = FileStreamer;
 
     fn backend(&self) -> Backend {
         match self.backend {
@@ -72,39 +87,60 @@ impl SeaStreamerBackend for SeaStreamer {
             SeaStreamerInner::Redis(_) => Backend::Redis,
             #[cfg(feature = "backend-stdio")]
             SeaStreamerInner::Stdio(_) => Backend::Stdio,
+            #[cfg(feature = "backend-file")]
+            SeaStreamerInner::File(_) => Backend::File,
         }
     }
 
     #[cfg(feature = "backend-kafka")]
-    fn get_kafka(&mut self) -> Option<&mut KafkaStreamer> {
+    fn get_kafka(&mut self) -> Option<&mut Self::Kafka> {
         match &mut self.backend {
             SeaStreamerInner::Kafka(s) => Some(s),
             #[cfg(feature = "backend-redis")]
             SeaStreamerInner::Redis(_) => None,
             #[cfg(feature = "backend-stdio")]
             SeaStreamerInner::Stdio(_) => None,
+            #[cfg(feature = "backend-file")]
+            SeaStreamerInner::File(_) => None,
         }
     }
 
     #[cfg(feature = "backend-redis")]
-    fn get_redis(&mut self) -> Option<&mut RedisStreamer> {
+    fn get_redis(&mut self) -> Option<&mut Self::Redis> {
         match &mut self.backend {
             #[cfg(feature = "backend-kafka")]
             SeaStreamerInner::Kafka(_) => None,
             SeaStreamerInner::Redis(s) => Some(s),
             #[cfg(feature = "backend-stdio")]
             SeaStreamerInner::Stdio(_) => None,
+            #[cfg(feature = "backend-file")]
+            SeaStreamerInner::File(_) => None,
         }
     }
 
     #[cfg(feature = "backend-stdio")]
-    fn get_stdio(&mut self) -> Option<&mut StdioStreamer> {
+    fn get_stdio(&mut self) -> Option<&mut Self::Stdio> {
         match &mut self.backend {
             #[cfg(feature = "backend-kafka")]
             SeaStreamerInner::Kafka(_) => None,
             #[cfg(feature = "backend-redis")]
             SeaStreamerInner::Redis(_) => None,
             SeaStreamerInner::Stdio(s) => Some(s),
+            #[cfg(feature = "backend-file")]
+            SeaStreamerInner::File(_) => None,
+        }
+    }
+
+    #[cfg(feature = "backend-file")]
+    fn get_file(&mut self) -> Option<&mut Self::File> {
+        match &mut self.backend {
+            #[cfg(feature = "backend-kafka")]
+            SeaStreamerInner::Kafka(_) => None,
+            #[cfg(feature = "backend-redis")]
+            SeaStreamerInner::Redis(_) => None,
+            #[cfg(feature = "backend-stdio")]
+            SeaStreamerInner::Stdio(_) => None,
+            SeaStreamerInner::File(s) => Some(s),
         }
     }
 }
@@ -158,6 +194,8 @@ impl Streamer for SeaStreamer {
             SeaStreamerInner::Redis(i) => i.disconnect().await.map_err(map_err),
             #[cfg(feature = "backend-stdio")]
             SeaStreamerInner::Stdio(i) => i.disconnect().await.map_err(map_err),
+            #[cfg(feature = "backend-file")]
+            SeaStreamerInner::File(i) => i.disconnect().await.map_err(map_err),
         }
     }
 
@@ -181,6 +219,12 @@ impl Streamer for SeaStreamer {
             #[cfg(feature = "backend-stdio")]
             SeaStreamerInner::Stdio(i) => SeaProducerBackend::Stdio(
                 i.create_generic_producer(options.into_stdio_producer_options())
+                    .await
+                    .map_err(map_err)?,
+            ),
+            #[cfg(feature = "backend-file")]
+            SeaStreamerInner::File(i) => SeaProducerBackend::File(
+                i.create_generic_producer(options.into_file_producer_options())
                     .await
                     .map_err(map_err)?,
             ),
@@ -209,6 +253,12 @@ impl Streamer for SeaStreamer {
             #[cfg(feature = "backend-stdio")]
             SeaStreamerInner::Stdio(i) => SeaConsumerBackend::Stdio(
                 i.create_consumer(streams, options.into_stdio_consumer_options())
+                    .await
+                    .map_err(map_err)?,
+            ),
+            #[cfg(feature = "backend-file")]
+            SeaStreamerInner::File(i) => SeaConsumerBackend::File(
+                i.create_consumer(streams, options.into_file_consumer_options())
                     .await
                     .map_err(map_err)?,
             ),

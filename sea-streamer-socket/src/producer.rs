@@ -1,3 +1,5 @@
+#[cfg(feature = "backend-file")]
+use sea_streamer_file::FileProducer;
 #[cfg(feature = "backend-kafka")]
 use sea_streamer_kafka::KafkaProducer;
 #[cfg(feature = "backend-redis")]
@@ -26,6 +28,8 @@ pub(crate) enum SeaProducerBackend {
     Redis(RedisProducer),
     #[cfg(feature = "backend-stdio")]
     Stdio(StdioProducer),
+    #[cfg(feature = "backend-file")]
+    File(FileProducer),
 }
 
 #[cfg(feature = "backend-kafka")]
@@ -55,6 +59,15 @@ impl From<StdioProducer> for SeaProducer {
     }
 }
 
+#[cfg(feature = "backend-file")]
+impl From<FileProducer> for SeaProducer {
+    fn from(i: FileProducer) -> Self {
+        Self {
+            backend: SeaProducerBackend::File(i),
+        }
+    }
+}
+
 impl SeaStreamerBackend for SeaProducer {
     #[cfg(feature = "backend-kafka")]
     type Kafka = KafkaProducer;
@@ -62,6 +75,8 @@ impl SeaStreamerBackend for SeaProducer {
     type Redis = RedisProducer;
     #[cfg(feature = "backend-stdio")]
     type Stdio = StdioProducer;
+    #[cfg(feature = "backend-file")]
+    type File = FileProducer;
 
     fn backend(&self) -> Backend {
         match self.backend {
@@ -71,39 +86,60 @@ impl SeaStreamerBackend for SeaProducer {
             SeaProducerBackend::Redis(_) => Backend::Redis,
             #[cfg(feature = "backend-stdio")]
             SeaProducerBackend::Stdio(_) => Backend::Stdio,
+            #[cfg(feature = "backend-file")]
+            SeaProducerBackend::File(_) => Backend::File,
         }
     }
 
     #[cfg(feature = "backend-kafka")]
-    fn get_kafka(&mut self) -> Option<&mut KafkaProducer> {
+    fn get_kafka(&mut self) -> Option<&mut Self::Kafka> {
         match &mut self.backend {
             SeaProducerBackend::Kafka(s) => Some(s),
             #[cfg(feature = "backend-redis")]
             SeaProducerBackend::Redis(_) => None,
             #[cfg(feature = "backend-stdio")]
             SeaProducerBackend::Stdio(_) => None,
+            #[cfg(feature = "backend-file")]
+            SeaProducerBackend::File(_) => None,
         }
     }
 
     #[cfg(feature = "backend-redis")]
-    fn get_redis(&mut self) -> Option<&mut RedisProducer> {
+    fn get_redis(&mut self) -> Option<&mut Self::Redis> {
         match &mut self.backend {
             #[cfg(feature = "backend-kafka")]
             SeaProducerBackend::Kafka(_) => None,
             SeaProducerBackend::Redis(s) => Some(s),
             #[cfg(feature = "backend-stdio")]
             SeaProducerBackend::Stdio(_) => None,
+            #[cfg(feature = "backend-file")]
+            SeaProducerBackend::File(_) => None,
         }
     }
 
     #[cfg(feature = "backend-stdio")]
-    fn get_stdio(&mut self) -> Option<&mut StdioProducer> {
+    fn get_stdio(&mut self) -> Option<&mut Self::Stdio> {
         match &mut self.backend {
             #[cfg(feature = "backend-kafka")]
             SeaProducerBackend::Kafka(_) => None,
             #[cfg(feature = "backend-redis")]
             SeaProducerBackend::Redis(_) => None,
             SeaProducerBackend::Stdio(s) => Some(s),
+            #[cfg(feature = "backend-file")]
+            SeaProducerBackend::File(_) => None,
+        }
+    }
+
+    #[cfg(feature = "backend-file")]
+    fn get_file(&mut self) -> Option<&mut Self::File> {
+        match &mut self.backend {
+            #[cfg(feature = "backend-kafka")]
+            SeaProducerBackend::Kafka(_) => None,
+            #[cfg(feature = "backend-redis")]
+            SeaProducerBackend::Redis(_) => None,
+            #[cfg(feature = "backend-stdio")]
+            SeaProducerBackend::Stdio(_) => None,
+            SeaProducerBackend::File(s) => Some(s),
         }
     }
 }
@@ -117,6 +153,8 @@ pub enum SendFuture {
     Redis(sea_streamer_redis::SendFuture),
     #[cfg(feature = "backend-stdio")]
     Stdio(sea_streamer_stdio::SendFuture),
+    #[cfg(feature = "backend-file")]
+    File(sea_streamer_file::SendFuture),
 }
 
 #[async_trait]
@@ -139,6 +177,10 @@ impl Producer for SeaProducer {
             SeaProducerBackend::Stdio(i) => {
                 SendFuture::Stdio(i.send_to(stream, payload).map_err(map_err)?)
             }
+            #[cfg(feature = "backend-file")]
+            SeaProducerBackend::File(i) => {
+                SendFuture::File(i.send_to(stream, payload).map_err(map_err)?)
+            }
         })
     }
 
@@ -150,6 +192,8 @@ impl Producer for SeaProducer {
             SeaProducerBackend::Redis(i) => i.end().await.map_err(map_err),
             #[cfg(feature = "backend-stdio")]
             SeaProducerBackend::Stdio(i) => i.end().await.map_err(map_err),
+            #[cfg(feature = "backend-file")]
+            SeaProducerBackend::File(i) => i.end().await.map_err(map_err),
         }
     }
 
@@ -161,6 +205,8 @@ impl Producer for SeaProducer {
             SeaProducerBackend::Redis(i) => i.flush().await.map_err(map_err),
             #[cfg(feature = "backend-stdio")]
             SeaProducerBackend::Stdio(i) => i.flush().await.map_err(map_err),
+            #[cfg(feature = "backend-file")]
+            SeaProducerBackend::File(i) => i.flush().await.map_err(map_err),
         }
     }
 
@@ -172,6 +218,8 @@ impl Producer for SeaProducer {
             SeaProducerBackend::Redis(i) => i.anchor(stream).map_err(map_err),
             #[cfg(feature = "backend-stdio")]
             SeaProducerBackend::Stdio(i) => i.anchor(stream).map_err(map_err),
+            #[cfg(feature = "backend-file")]
+            SeaProducerBackend::File(i) => i.anchor(stream).map_err(map_err),
         }
     }
 
@@ -183,6 +231,8 @@ impl Producer for SeaProducer {
             SeaProducerBackend::Redis(i) => i.anchored().map_err(map_err),
             #[cfg(feature = "backend-stdio")]
             SeaProducerBackend::Stdio(i) => i.anchored().map_err(map_err),
+            #[cfg(feature = "backend-file")]
+            SeaProducerBackend::File(i) => i.anchored().map_err(map_err),
         }
     }
 }
@@ -207,6 +257,11 @@ impl Future for SendFuture {
             },
             #[cfg(feature = "backend-stdio")]
             Self::Stdio(fut) => match Pin::new(fut).poll_unpin(cx) {
+                Poll::Ready(res) => Poll::Ready(res.map_err(map_err)),
+                Poll::Pending => Poll::Pending,
+            },
+            #[cfg(feature = "backend-file")]
+            Self::File(fut) => match Pin::new(fut).poll_unpin(cx) {
                 Poll::Ready(res) => Poll::Ready(res.map_err(map_err)),
                 Poll::Pending => Poll::Pending,
             },
