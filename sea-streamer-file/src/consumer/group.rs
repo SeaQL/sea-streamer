@@ -246,7 +246,9 @@ impl Streamer {
             loop {
                 match ctrl.recv_async().await {
                     Ok(CtrlMsg::Read) => {
-                        tick.drain();
+                        if tick.try_recv().is_ok() {
+                            continue;
+                        }
                         let res = select! {
                             m = source.next().fuse() => m,
                             // the above future is not cancel safe, but a subsequent seek
@@ -266,6 +268,7 @@ impl Streamer {
                         }
                     }
                     Ok(CtrlMsg::Seek(target)) => {
+                        println!("CtrlMsg::Seek");
                         if let Some(keys) = subscribers.solo_keys() {
                             match source.seek(&keys[0], &ZERO, target).await {
                                 Ok(()) => {

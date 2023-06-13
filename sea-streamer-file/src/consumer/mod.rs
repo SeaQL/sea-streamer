@@ -130,17 +130,19 @@ impl FileConsumer {
     pub async fn seek(&mut self, target: SeekTarget) -> Result<(), FileErr> {
         // prepare the streamer
         preseek_consumer(&self.file_id, self.sid).await?;
-        self.receiver.drain();
+        println!("preseek done");
         // send a request
         self.ctrl
             .send_async(CtrlMsg::Seek(target))
             .await
             .map_err(|_| FileErr::TaskDead("FileConsumer seek"))?;
+        println!("sent CtrlMsg");
         // drain until we get a pulse
         loop {
             match self.receiver.recv_async().await {
                 Ok(Ok(msg)) => {
                     if is_pulse(&msg) {
+                        println!("Got pulse");
                         break;
                     }
                 }

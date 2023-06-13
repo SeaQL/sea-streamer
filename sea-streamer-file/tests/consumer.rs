@@ -310,13 +310,13 @@ async fn seek() -> anyhow::Result<()> {
     const TEST: &str = "seek";
     INIT.call_once(env_logger::init);
 
-    run(false).await?;
-    run(true).await?;
+    run("a", false).await?;
+    run("b", true).await?;
 
-    async fn run(grouped: bool) -> anyhow::Result<()> {
+    async fn run(suffix: &'static str, grouped: bool) -> anyhow::Result<()> {
         println!("With Group = {grouped}");
         let now = Timestamp::now_utc();
-        let file_id = temp_file(format!("{}-{}", TEST, millis_of(&now)).as_str())?;
+        let file_id = temp_file(format!("{}-{}-{}", TEST, millis_of(&now), suffix).as_str())?;
         println!("{file_id}");
         let stream_key = StreamKey::new("stream")?;
         let shard = ShardId::new(1);

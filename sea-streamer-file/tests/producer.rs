@@ -9,9 +9,12 @@ static INIT: std::sync::Once = std::sync::Once::new();
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
 async fn producer() -> anyhow::Result<()> {
+    use std::time::Duration;
+
     use sea_streamer_file::{
         AutoStreamReset, FileConnectOptions, FileConsumerOptions, FileErr, FileStreamer,
     };
+    use sea_streamer_runtime::sleep;
     use sea_streamer_types::{
         Buffer, Consumer, Message, Producer, SeqNo, SharedMessage, StreamErr, StreamKey, Streamer,
         Timestamp,
@@ -91,6 +94,7 @@ async fn producer() -> anyhow::Result<()> {
     std::mem::drop(producer);
     std::mem::drop(consumer);
     println!("Disconnect ... ok");
+    sleep(Duration::from_millis(1)).await;
 
     let streamer = FileStreamer::connect(file_id.to_streamer_uri()?, options).await?;
     let mut producer = streamer
