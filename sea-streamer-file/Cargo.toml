@@ -25,8 +25,8 @@ flume = { version = "0.10", default-features = false, features = ["async"] }
 lazy_static = { version = "1.4" }
 log = { version = "0.4", default-features = false }
 notify = { version = "6" }
-sea-streamer-types = { version = "0.2", path = "../sea-streamer-types" }
-sea-streamer-runtime = { version = "0.2", path = "../sea-streamer-runtime", features = ["file"]}
+sea-streamer-types = { version = "0.3", path = "../sea-streamer-types" }
+sea-streamer-runtime = { version = "0.3", path = "../sea-streamer-runtime", features = ["file"]}
 serde = { version = "1", optional = true, features = ["derive"] }
 serde_json = { version = "1", optional = true }
 structopt = { version = "0.3", optional = true }
