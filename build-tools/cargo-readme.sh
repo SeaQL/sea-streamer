@@ -22,6 +22,10 @@ cd ../sea-streamer-stdio
 readme > README.md
 echo '' >> ../README.md
 readme >> ../README.md
+cd ../sea-streamer-file
+readme > README.md
+echo '' >> ../README.md
+readme >> ../README.md
 cd ../sea-streamer-runtime
 readme > README.md
 echo '' >> ../README.md

@@ -1,3 +1,4 @@
+//! A for demo `tail -f` program.
 use anyhow::Result;
 use sea_streamer_file::{FileId, FileSource, ReadFrom};
 use structopt::StructOpt;

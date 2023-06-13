@@ -75,6 +75,7 @@ impl ConsumerTrait for FileConsumer {
 
     /// Affects all streams.
     /// If the consumer is subscribing to multiple streams, it will be sought by the first stream key.
+    /// It revokes the group membership of the Consumer.
     async fn seek(&mut self, ts: Timestamp) -> FileResult<()> {
         self.seek(SeekTarget::Timestamp(ts))
             .await
@@ -83,6 +84,7 @@ impl ConsumerTrait for FileConsumer {
 
     /// Affects all streams.
     /// If the consumer is subscribing to multiple streams, it will be sought by the first stream key.
+    /// It revokes the group membership of the Consumer.
     async fn rewind(&mut self, to: SeqPos) -> FileResult<()> {
         self.seek(match to {
             SeqPos::Beginning => SeekTarget::Beginning,
@@ -124,7 +126,7 @@ impl ConsumerTrait for FileConsumer {
 }
 
 impl FileConsumer {
-    /// Seeking removes the group membership of the Consumer
+    /// Seeking revokes the group membership of the Consumer
     pub async fn seek(&mut self, target: SeekTarget) -> Result<(), FileErr> {
         // prepare the streamer
         preseek_consumer(&self.file_id, self.sid).await?;

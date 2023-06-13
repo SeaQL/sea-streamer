@@ -51,7 +51,7 @@
 //! +---------+--------+
 //! ```
 //!
-//! All numbers are encoded in big endian. Note that there are 0x0D so that it will not mess up
+//! All numbers are encoded in big endian. There are 0x0D in places so that it will not blow up
 //! plain text editors. And it's semi-human-readable.
 //!
 //! A SeaStream can be terminated by a End-of-Stream Message,

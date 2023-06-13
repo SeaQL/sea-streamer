@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
     )
     .await?;
     let stream_key = StreamKey::new("hello")?;
-    let shard = ShardId::new(1);
+    let shard = ShardId::new(0);
 
     for i in 0..u64::MAX {
         let header = MessageHeader::new(stream_key.clone(), shard, i, Timestamp::now_utc());
