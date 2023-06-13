@@ -33,6 +33,7 @@ sea-streamer-types = { version = "0.3", path = "sea-streamer-types" }
 sea-streamer-kafka = { version = "0.3", path = "sea-streamer-kafka", optional = true }
 sea-streamer-redis = { version = "0.3", path = "sea-streamer-redis", optional = true }
 sea-streamer-stdio = { version = "0.3", path = "sea-streamer-stdio", optional = true }
+sea-streamer-file = { version = "0.3", path = "sea-streamer-file", optional = true }
 sea-streamer-socket = { version = "0.3", path = "sea-streamer-socket", optional = true }
 sea-streamer-runtime = { version = "0.3", path = "sea-streamer-runtime", optional = true }
 
@@ -41,6 +42,7 @@ json = ["sea-streamer-types/json"]
 kafka = ["sea-streamer-kafka", "sea-streamer-socket?/backend-kafka"]
 redis = ["sea-streamer-redis", "sea-streamer-socket?/backend-redis"]
 stdio = ["sea-streamer-stdio", "sea-streamer-socket?/backend-stdio"]
+file = ["sea-streamer-file", "sea-streamer-socket?/backend-file"]
 socket = ["sea-streamer-socket"]
 runtime = ["sea-streamer-runtime"]
 runtime-async-std = ["sea-streamer-socket?/runtime-async-std", "sea-streamer-kafka?/runtime-async-std", "sea-streamer-redis?/runtime-async-std", "sea-streamer-runtime/runtime-async-std"]
