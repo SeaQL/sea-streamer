@@ -1,0 +1,1 @@
+cp sea-streamer-kafka/src/host.rs sea-streamer-redis/src/host.rs

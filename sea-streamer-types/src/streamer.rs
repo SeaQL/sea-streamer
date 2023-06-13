@@ -9,6 +9,15 @@ use url::Url;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// URI of Streaming Server. If this is a cluster, there can be multiple nodes.
+///
+/// Examples:
+///
+/// ```ignore
+/// stdio://
+/// redis://localhost
+/// kafka://node-a:1234,node-b:1234
+/// file://./path/to/stream
+/// ```
 pub struct StreamerUri {
     nodes: Vec<Url>,
 }
@@ -19,10 +28,10 @@ pub struct StreamerUri {
 /// Examples:
 ///
 /// ```ignore
-/// stdio://
 /// stdio:///stream_a,stream_b
-/// redis://localhost/
+/// redis://localhost/stream_a,stream_b
 /// kafka://node-a:1234,node-b:1234/stream_a,stream_b
+/// file://./path/to/stream/stream_a,stream_b
 /// ```
 pub struct StreamUrl {
     streamer: StreamerUri,
@@ -148,59 +157,79 @@ impl FromStr for StreamUrl {
     type Err = StreamUrlErr;
 
     fn from_str(mut urls: &str) -> Result<Self, Self::Err> {
-        let mut protocol = None;
-        let mut streams = None;
-        if let Some((front, remaining)) = urls.split_once("://") {
-            protocol = Some(front);
+        let protocol = if let Some((front, remaining)) = urls.split_once("://") {
             urls = remaining;
-        }
-        if let Some((front, remaining)) = urls.split_once('/') {
+            Some(front)
+        } else {
+            None
+        };
+        let streams = if let Some((front, remaining)) = urls.rsplit_once('/') {
             urls = front;
-            streams = Some(remaining);
-        }
-        let urls: Vec<_> = if urls.is_empty() {
-            if let Some(protocol) = protocol {
-                vec![format!("{protocol}://.")
-                    .as_str()
-                    .parse::<Url>()
-                    .map_err(Into::<Self::Err>::into)?]
+            if remaining.is_empty() {
+                None
             } else {
-                return Err(StreamUrlErr::ProtocolRequired);
+                Some(remaining)
             }
         } else {
-            urls.split(',')
-                .filter(|x| !x.is_empty())
-                .map(|s| {
-                    if let Some(protocol) = protocol {
-                        FromStr::from_str(format!("{protocol}://{s}").as_str())
-                    } else {
-                        FromStr::from_str(s)
-                    }
-                    .map_err(Into::into)
-                })
-                .collect::<Result<Vec<_>, Self::Err>>()?
+            return Err(StreamUrlErr::NoEndingSlash);
         };
-
-        Ok(StreamUrl {
-            streamer: StreamerUri { nodes: urls },
-            streams: match streams {
-                None => Default::default(),
-                Some(streams) => streams
-                    .split(',')
-                    .filter(|x| !x.is_empty())
-                    .map(|n| StreamKey::new(n).map_err(Into::into))
-                    .collect::<Result<Vec<StreamKey>, StreamUrlErr>>()?,
-            },
-        })
+        parse_url(protocol, urls, streams)
     }
 }
 
 impl FromStr for StreamerUri {
     type Err = StreamUrlErr;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(StreamUrl::from_str(s)?.streamer)
+    fn from_str(mut urls: &str) -> Result<Self, Self::Err> {
+        let protocol = if let Some((front, remaining)) = urls.split_once("://") {
+            urls = remaining;
+            Some(front)
+        } else {
+            None
+        };
+        Ok(parse_url(protocol, urls, None)?.streamer)
     }
+}
+
+fn parse_url(
+    protocol: Option<&str>,
+    urls: &str,
+    streams: Option<&str>,
+) -> Result<StreamUrl, StreamUrlErr> {
+    let urls: Vec<_> = if urls.is_empty() {
+        if let Some(protocol) = protocol {
+            vec![format!("{protocol}://.")
+                .as_str()
+                .parse::<Url>()
+                .map_err(Into::<StreamUrlErr>::into)?]
+        } else {
+            return Err(StreamUrlErr::ProtocolRequired);
+        }
+    } else {
+        urls.split(',')
+            .filter(|x| !x.is_empty())
+            .map(|s| {
+                if let Some(protocol) = protocol {
+                    FromStr::from_str(format!("{protocol}://{s}").as_str())
+                } else {
+                    FromStr::from_str(s)
+                }
+                .map_err(Into::into)
+            })
+            .collect::<Result<Vec<_>, StreamUrlErr>>()?
+    };
+
+    Ok(StreamUrl {
+        streamer: StreamerUri { nodes: urls },
+        streams: match streams {
+            None => Default::default(),
+            Some(streams) => streams
+                .split(',')
+                .filter(|x| !x.is_empty())
+                .map(|n| StreamKey::new(n).map_err(Into::into))
+                .collect::<Result<Vec<StreamKey>, StreamUrlErr>>()?,
+        },
+    })
 }
 
 #[cfg(test)]
@@ -215,13 +244,7 @@ mod test {
         assert_eq!(streamer.protocol(), None);
         assert_eq!(streamer.nodes(), &["sea-ql.org:1234".parse().unwrap()]);
 
-        let stream: StreamUrl = "proto://sea-ql.org:1234".parse().unwrap();
-        assert_eq!(stream.streamer.protocol(), Some("proto"));
-        assert_eq!(
-            stream.streamer.nodes(),
-            &["proto://sea-ql.org:1234".parse().unwrap()]
-        );
-        assert_eq!(stream.stream_keys(), &[]);
+        assert!("proto://sea-ql.org:1234".parse::<StreamUrl>().is_err());
 
         let stream: StreamUrl = "proto://sea-ql.org:1234/".parse().unwrap();
         assert_eq!(stream.streamer.protocol(), Some("proto"));
@@ -256,7 +279,7 @@ mod test {
         assert_eq!(stream.streamer.nodes(), &nodes);
         assert_eq!(stream.stream_keys(), &stream_keys);
 
-        let stream: StreamUrl = "stdio://".parse().unwrap();
+        let stream: StreamUrl = "stdio:///".parse().unwrap();
         assert_eq!(stream.streamer.protocol(), Some("stdio"));
         assert_eq!(stream.streamer.nodes(), &["stdio://.".parse().unwrap()]);
         assert_eq!(stream.stream_keys(), &[]);
@@ -269,10 +292,33 @@ mod test {
         );
         assert_eq!(stream.stream_keys(), &[]);
 
+        let stream: StreamUrl = "redis://localhost/a,b".parse().unwrap();
+        assert_eq!(stream.streamer.protocol(), Some("redis"));
+        assert_eq!(
+            stream.streamer.nodes(),
+            &["redis://localhost".parse().unwrap()]
+        );
+        assert_eq!(stream.stream_keys(), &stream_keys);
+
         let stream: StreamUrl = "stdio:///a,b".parse().unwrap();
         assert_eq!(stream.streamer.protocol(), Some("stdio"));
         assert_eq!(stream.streamer.nodes(), &["stdio://.".parse().unwrap()]);
         assert_eq!(stream.stream_keys(), &stream_keys);
+
+        let stream: StreamUrl = "file://./path/to/hi/a,b".parse().unwrap();
+        assert_eq!(stream.streamer.protocol(), Some("file"));
+        assert_eq!(
+            stream.streamer.nodes(),
+            &["file://./path/to/hi".parse().unwrap()]
+        );
+
+        let stream: StreamUrl = "file://./path/to/hi/".parse().unwrap();
+        assert_eq!(stream.streamer.protocol(), Some("file"));
+        assert_eq!(
+            stream.streamer.nodes(),
+            &["file://./path/to/hi".parse().unwrap()]
+        );
+        assert_eq!(stream.stream_keys(), &[]);
     }
 
     #[test]
@@ -288,6 +334,10 @@ mod test {
         let uri: StreamerUri = "stdio://".parse().unwrap();
         assert_eq!(uri.protocol(), Some("stdio"));
         assert_eq!(uri.nodes(), &["stdio://.".parse().unwrap()]);
+
+        let uri: StreamerUri = "file://./path/to/hi".parse().unwrap();
+        assert_eq!(uri.protocol(), Some("file"));
+        assert_eq!(uri.nodes(), &["file://./path/to/hi".parse().unwrap()]);
     }
 
     #[test]

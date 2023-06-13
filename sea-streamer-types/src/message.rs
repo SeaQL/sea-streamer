@@ -3,6 +3,12 @@ use std::{str::Utf8Error, sync::Arc};
 use crate::{SeqNo, ShardId, StreamKey, Timestamp};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct OwnedMessage {
+    header: MessageHeader,
+    payload: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// It uses an `Arc` to hold the bytes, so is cheap to clone.
 pub struct SharedMessage {
     header: MessageHeader,
@@ -33,12 +39,21 @@ where
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-/// headerdata associated with a message.
+/// Metadata associated with a message.
 pub struct MessageHeader {
     stream_key: StreamKey,
     shard_id: ShardId,
     sequence: SeqNo,
     timestamp: Timestamp,
+}
+
+#[cfg(feature = "serde")]
+#[derive(serde::Serialize)]
+struct HeaderJson<'a> {
+    stream_key: &'a str,
+    shard_id: u64,
+    sequence: u64,
+    timestamp: String,
 }
 
 /// Common interface of byte containers.
@@ -83,6 +98,27 @@ pub trait Message: Send {
     }
 }
 
+impl OwnedMessage {
+    pub fn new(header: MessageHeader, payload: Vec<u8>) -> Self {
+        Self { header, payload }
+    }
+
+    pub fn header(&self) -> &MessageHeader {
+        &self.header
+    }
+
+    pub fn take(self) -> (MessageHeader, Vec<u8>) {
+        let Self { header, payload } = self;
+        (header, payload)
+    }
+
+    pub fn to_shared(self) -> SharedMessage {
+        let (header, payload) = self.take();
+        let size = payload.len();
+        SharedMessage::new(header, payload, 0, size)
+    }
+}
+
 impl SharedMessage {
     pub fn new(header: MessageHeader, bytes: Vec<u8>, offset: usize, length: usize) -> Self {
         assert!(offset <= bytes.len());
@@ -105,6 +141,30 @@ impl SharedMessage {
 
     pub fn take_header(self) -> MessageHeader {
         self.header
+    }
+}
+
+impl Message for OwnedMessage {
+    fn stream_key(&self) -> StreamKey {
+        self.header.stream_key().clone()
+    }
+
+    fn shard_id(&self) -> ShardId {
+        *self.header.shard_id()
+    }
+
+    fn sequence(&self) -> SeqNo {
+        *self.header.sequence()
+    }
+
+    fn timestamp(&self) -> Timestamp {
+        *self.header.timestamp()
+    }
+
+    fn message(&self) -> Payload {
+        Payload {
+            data: BytesOrStr::Bytes(&self.payload),
+        }
     }
 }
 
@@ -283,5 +343,24 @@ impl<'a> IntoBytesOrStr<'a> for &'a str {
 impl<'a> IntoBytesOrStr<'a> for &'a [u8] {
     fn into_bytes_or_str(self) -> BytesOrStr<'a> {
         BytesOrStr::Bytes(self)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl serde::Serialize for MessageHeader {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        HeaderJson {
+            timestamp: self
+                .timestamp
+                .format(crate::TIMESTAMP_FORMAT)
+                .expect("Timestamp format error"),
+            stream_key: self.stream_key.name(),
+            sequence: self.sequence,
+            shard_id: self.shard_id.id(),
+        }
+        .serialize(serializer)
     }
 }

@@ -1,4 +1,4 @@
-//! This file is shared between `sea-streamer-kafka` and `sea-streamer-redis`
+//! This module is shared between `sea-streamer-kafka` and `sea-streamer-redis`
 use mac_address::get_mac_address;
 use std::{
     fs::File,

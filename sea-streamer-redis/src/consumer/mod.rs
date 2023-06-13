@@ -16,13 +16,14 @@ use std::{fmt::Debug, future::Future, sync::Arc, time::Duration};
 
 use crate::{
     from_seq_no, get_message_id, host_id, MessageId, RedisCluster, RedisErr, RedisResult,
-    DEFAULT_TIMEOUT, MAX_MSG_ID, SEA_STREAMER_INTERNAL,
+    DEFAULT_TIMEOUT, MAX_MSG_ID,
 };
 use sea_streamer_runtime::{spawn_task, timeout};
 use sea_streamer_types::{
     export::{async_trait, futures::FutureExt},
     Buffer, ConnectOptions, Consumer, ConsumerGroup, ConsumerId, ConsumerMode, ConsumerOptions,
     Message, MessageHeader, SeqNo, SeqPos, ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
+    SEA_STREAMER_INTERNAL,
 };
 
 #[derive(Debug)]

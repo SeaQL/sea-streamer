@@ -13,11 +13,12 @@ use super::{
 };
 use crate::{
     map_err, AutoClaimReply, MessageId, NodeId, RedisCluster, RedisConsumerOptions, RedisErr,
-    RedisResult, StreamReadReply, MAX_MSG_ID, SEA_STREAMER_INTERNAL, ZERO,
+    RedisResult, StreamReadReply, MAX_MSG_ID, ZERO,
 };
 use sea_streamer_runtime::sleep;
 use sea_streamer_types::{
     ConsumerMode, ConsumerOptions, MessageHeader, SharedMessage, StreamErr, StreamKey, Timestamp,
+    SEA_STREAMER_INTERNAL,
 };
 
 const DOLLAR: &str = "$";

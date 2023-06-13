@@ -50,7 +50,7 @@ pub enum JsonErr {
     SerdeJson(#[from] serde_json::Error),
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 /// Errors that may happen when parsing stream URL
 pub enum StreamUrlErr {
     #[error("UrlParseError {0}")]
@@ -63,9 +63,11 @@ pub enum StreamUrlErr {
     ZeroNode,
     #[error("Protocol is required")]
     ProtocolRequired,
+    #[error("URL must have an ending slash, even when streams is empty")]
+    NoEndingSlash,
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone, Copy)]
 /// Errors that may happen when handling StreamKey
 pub enum StreamKeyErr {
     #[error("Invalid stream key: valid pattern is [a-zA-Z0-9._-]{{1, 249}}")]

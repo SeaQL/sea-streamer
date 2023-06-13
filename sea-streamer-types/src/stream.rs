@@ -6,6 +6,13 @@ use crate::StreamKeyErr;
 /// Maximum string length of a stream key.
 pub const MAX_STREAM_KEY_LEN: usize = 249;
 
+/// Reserved by SeaStreamer. Avoid using this as StreamKey.
+pub const SEA_STREAMER_INTERNAL: &str = "SEA_STREAMER_INTERNAL";
+
+/// Canonical display format for Timestamp.
+pub const TIMESTAMP_FORMAT: &[time::format_description::FormatItem<'static>] =
+    time::macros::format_description!("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond]");
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// Identifies a stream. Aka. topic.
 pub struct StreamKey {
@@ -21,7 +28,7 @@ pub struct ShardId {
 /// The tuple (StreamKey, ShardId, SeqNo) uniquely identifies a message. Aka. offset.
 pub type SeqNo = u64;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Identifies a position in a stream.
 pub enum SeqPos {
     Beginning,

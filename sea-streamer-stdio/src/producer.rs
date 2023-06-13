@@ -7,7 +7,7 @@ use sea_streamer_types::{
     SharedMessage, StreamErr, StreamKey, StreamResult, Timestamp,
 };
 
-use crate::{parser::PartialMeta, StdioErr, StdioResult, BROADCAST, TIMESTAMP_FORMAT};
+use crate::{PartialHeader, StdioErr, StdioResult, BROADCAST, TIMESTAMP_FORMAT};
 
 lazy_static::lazy_static! {
     static ref PRODUCERS: Mutex<Producers> = Default::default();
@@ -93,8 +93,8 @@ pub(crate) fn init() {
                                 );
                                 if loopback {
                                     let payload = message.message();
-                                    super::consumers::dispatch(
-                                        PartialMeta {
+                                    super::consumer::dispatch(
+                                        PartialHeader {
                                             timestamp: Some(message.timestamp()),
                                             stream_key: Some(stream_key),
                                             sequence: Some(seq),
