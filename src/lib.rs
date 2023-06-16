@@ -186,6 +186,10 @@ pub use sea_streamer_redis as redis;
 #[cfg_attr(docsrs, doc(cfg(feature = "sea-streamer-stdio")))]
 pub use sea_streamer_stdio as stdio;
 
+#[cfg(feature = "sea-streamer-file")]
+#[cfg_attr(docsrs, doc(cfg(feature = "sea-streamer-file")))]
+pub use sea_streamer_file as file;
+
 #[cfg(feature = "sea-streamer-socket")]
 #[cfg_attr(docsrs, doc(cfg(feature = "sea-streamer-socket")))]
 pub use sea_streamer_socket::*;
