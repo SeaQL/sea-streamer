@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 0.3.0 - Pending
+
++ Introducing `sea-streamer-file`: the File Backend
++ Added `File`, `OpenOptions`, `AsyncReadExt` etc to `sea-streamer-runtime`
++ Added `AsyncMutex` to `sea-streamer-runtime`
++ Added `OwnedMessage` to `sea-streamer-types`
++ Added `TIMESTAMP_FORMAT` and `SEA_STREAMER_INTERNAL` to `sea-streamer-types`
++ Implemented `serde::Serialize` for `MessageHeader`
+
+### Breaking changes
+
++ Removed const `SEA_STREAMER_INTERNAL` from `sea-streamer-redis`
++ `StreamUrl` now requires an ending slash to avoid ambiguity, `StreamerUri` remains unchanged
+```rust
+assert!("redis://localhost/a,b".parse::<StreamUrl>().is_ok());
+assert!("redis://localhost/".parse::<StreamUrl>().is_ok());
+assert!("redis://localhost".parse::<StreamUrl>().is_err()); // previously this was OK
+assert!("redis://localhost".parse::<StreamerUri>().is_ok());
+```
+
 ## 0.2.1 - 2023-05-07
 
 + Added a `MKSTREAM` option when creating Redis consumer groups (`RedisConsumerOptions::set_mkstream`) https://github.com/SeaQL/sea-streamer/pull/4
