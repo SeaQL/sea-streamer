@@ -112,8 +112,8 @@ impl StreamerUri {
     pub fn protocol(&self) -> Option<&str> {
         match self.nodes.first() {
             Some(node) => {
-                if !node.scheme().is_empty() && node.host().is_some() {
-                    Some(node.scheme())
+                if let Some((front, _)) = node.as_str().split_once("://") {
+                    Some(front)
                 } else {
                     None
                 }
@@ -338,6 +338,10 @@ mod test {
         let uri: StreamerUri = "file://./path/to/hi".parse().unwrap();
         assert_eq!(uri.protocol(), Some("file"));
         assert_eq!(uri.nodes(), &["file://./path/to/hi".parse().unwrap()]);
+
+        let uri: StreamerUri = "file:///path/to/hi".parse().unwrap();
+        assert_eq!(uri.protocol(), Some("file"));
+        assert_eq!(uri.nodes(), &["file:///path/to/hi".parse().unwrap()]);
     }
 
     #[test]

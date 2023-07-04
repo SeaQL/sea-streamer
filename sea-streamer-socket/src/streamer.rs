@@ -175,6 +175,12 @@ impl Streamer for SeaStreamer {
                         .await
                         .map_err(map_err)?,
                 ),
+                #[cfg(feature = "backend-file")]
+                "file" => SeaStreamerInner::File(
+                    FileStreamer::connect(uri, options.into_file_connect_options())
+                        .await
+                        .map_err(map_err)?,
+                ),
                 _ => {
                     return Err(StreamErr::Connect(format!("unknown protocol `{protocol}`")));
                 }
