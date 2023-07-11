@@ -39,6 +39,20 @@ cargo run --bin consumer -- --stream redis://localhost:6379/hello2
 kill %1 %2
 ```
 
+With File:
+
+```bash
+# Create the file
+file=/tmp/sea-streamer-$(date +%s)
+touch $file && echo "File created at $file"
+# Produce some input
+cargo run --bin producer -- --stream file://$file/hello &
+# Replay the input
+cargo run --bin consumer -- --stream file://$file/hello
+# Start the processor, producing some output
+cargo run --bin processor -- --input file://$file/hello --output stdio:///hello
+```
+
 With Stdio:
 
 ```bash
