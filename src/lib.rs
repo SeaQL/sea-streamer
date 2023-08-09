@@ -5,7 +5,7 @@
 //!   <h1>SeaStreamer</h1>
 //!
 //!   <p>
-//!     <strong>🌊 The stream processing toolkit for Rust</strong>
+//!     <strong>🌊 A real-time stream processing toolkit for Rust</strong>
 //!   </p>
 //!
 //!   [![crate](https://img.shields.io/crates/v/sea-streamer.svg)](https://crates.io/crates/sea-streamer)
@@ -14,7 +14,7 @@
 //!
 //! </div>
 //!
-//! SeaStreamer is a stream processing toolkit to help you build stream processors in Rust.
+//! SeaStreamer is a toolkit to help you build real-time stream processors in Rust.
 //!
 //! ## Features
 //!
