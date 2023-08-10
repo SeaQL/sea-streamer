@@ -93,7 +93,6 @@ async fn main() -> Result<()> {
             }
             Format::Ndjson => {
                 let payload = message.message.message();
-                let string = payload.as_str()?;
                 println!(
                     "{}",
                     serde_json::to_string(&MessageJson {
@@ -101,10 +100,17 @@ async fn main() -> Result<()> {
                         payload: if header_only {
                             None
                         } else {
-                            Some(
+                            Some(if let Ok(string) = payload.as_str() {
                                 serde_json::from_str(string)
-                                    .unwrap_or(serde_json::Value::String(string.to_owned())),
-                            )
+                                    .unwrap_or(serde_json::Value::String(string.to_owned()))
+                            } else {
+                                let bytes: Vec<_> = payload
+                                    .into_bytes()
+                                    .into_iter()
+                                    .map(|b| serde_json::Value::Number(b.into()))
+                                    .collect();
+                                serde_json::Value::Array(bytes)
+                            })
                         }
                     })?
                 );
