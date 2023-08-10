@@ -1,10 +1,10 @@
 import { AsyncFile } from './file';
-import { SeqPosWhere } from './types';
+import { SeqPos } from './types';
 
 async function main() {
     const file = new AsyncFile("/home/chris/sea-streamer/sea-streamer-file/sea-streamer-file-reader/testcases/consumer.ss");
 
-    await file.open_read();
+    await file.openRead();
 
     while (true) {
         const buffer = await file.read();
@@ -14,10 +14,7 @@ async function main() {
         console.log(buffer.toString());
     }
 
-    const res = await file.seek({
-        where: SeqPosWhere.At,
-        at: 1000000000000n,
-    });
+    const res = await file.seek(new SeqPos.At(1000000000000n));
     console.log(res);
 
     await file.close();
