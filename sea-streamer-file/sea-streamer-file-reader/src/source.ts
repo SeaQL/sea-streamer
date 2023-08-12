@@ -1,5 +1,5 @@
-import { NotEnoughBytes } from "./error";
+import { FileErr } from "./error";
 
 export interface ByteSource {
-    async requestBytes(size: bigint): Promise<Buffer | NotEnoughBytes>;
+    async requestBytes(size: bigint): Promise<Buffer | FileErr>;
 }

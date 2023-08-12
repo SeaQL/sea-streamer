@@ -1,1 +1,3 @@
-export class NotEnoughBytes {}
+export enum FileErr {
+    NotEnoughBytes,
+}

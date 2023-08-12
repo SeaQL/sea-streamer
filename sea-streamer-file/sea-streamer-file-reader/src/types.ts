@@ -18,3 +18,18 @@ const SeqPos = {
 }
 export { SeqPos }
 export type SeqPosEnum = SeqPosBeginning | SeqPosEnd | SeqPosAt;
+
+export enum StreamMode {
+    /**
+     * Streaming from a file at the end
+     */
+    Live,
+    /**
+     * Replaying a dead file
+     */
+    Replay,
+    /**
+     * Replaying a live file, might catch up to live
+     */
+    LiveReplay,
+}

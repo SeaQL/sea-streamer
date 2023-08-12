@@ -1,11 +1,13 @@
 import { open as openFile, FileHandle } from 'node:fs/promises';
 import { Buffer } from 'node:buffer';
 import { SeqPosEnum, SeqPos } from './types';
-import { NotEnoughBytes } from './error';
+import { FileErr } from './error';
+import { ByteSource } from './source';
+import { DynFileSource, FileSourceType } from './dyn_file';
 
 const BUFFER_SIZE: number = 1024;
 
-export class FileReader {
+export class FileReader implements ByteSource, DynFileSource {
     private file: AsyncFile;
     private offset: bigint;
     private buffer: Buffer;
@@ -20,10 +22,10 @@ export class FileReader {
         await this.file.openRead();
     }
 
-    async seek(to: SeqPosEnum): Promise<bigint | NotEnoughBytes> {
+    async seek(to: SeqPosEnum): Promise<bigint | FileErr> {
         const result = await this.file.seek(to);
         if (result instanceof Error) {
-            return NotEnoughBytes;
+            return FileErr.NotEnoughBytes;
         }
         this.offset = result;
         this.buffer = Buffer.alloc(0);
@@ -42,9 +44,13 @@ export class FileReader {
         await this.file.resize();
     }
 
-    async requestBytes(size: bigint): Promise<Buffer | NotEnoughBytes> {
+    sourceType(): FileSourceType {
+        return FileSourceType.FileReader;
+    }
+
+    async requestBytes(size: bigint): Promise<Buffer | FileErr> {
         if (this.offset + size > this.file.getSize()) {
-            return NotEnoughBytes;
+            return FileErr.NotEnoughBytes;
         }
         while (true) {
             if (this.buffer.length >= size) {
@@ -54,7 +60,7 @@ export class FileReader {
             }
             const bytes = await this.file.read();
             if (!bytes.length) {
-                return NotEnoughBytes;
+                return FileErr.NotEnoughBytes;
             }
             this.buffer = Buffer.concat([this.buffer, bytes]);
         }
