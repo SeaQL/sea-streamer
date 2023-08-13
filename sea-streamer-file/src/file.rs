@@ -106,6 +106,7 @@ impl ByteSource for FileReader {
             }
             loop {
                 if self.buffer.size() >= size {
+                    self.offset += size as u64;
                     return Ok(self.buffer.consume(size));
                 }
                 let bytes = self.file.read().await?;
