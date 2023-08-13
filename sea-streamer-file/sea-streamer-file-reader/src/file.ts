@@ -1,7 +1,8 @@
 import { open as openFile, FileHandle } from 'node:fs/promises';
-import { Buffer } from 'node:buffer';
+import { Buffer as SystemBuffer } from 'node:buffer';
+import { Buffer } from './buffer';
 import { SeqPosEnum, SeqPos } from './types';
-import { FileErr } from './error';
+import { FileErr, FileErrType } from './error';
 import { ByteSource } from './source';
 import { DynFileSource, FileSourceType } from './dyn_file';
 
@@ -9,13 +10,14 @@ const BUFFER_SIZE: number = 1024;
 
 export class FileReader implements ByteSource, DynFileSource {
     private file: AsyncFile;
+    /// This is the user's read offset, not the same as file's read pos
     private offset: bigint;
     private buffer: Buffer;
 
     constructor(path: string) {
         this.file = new AsyncFile(path);
         this.offset = 0n;
-        this.buffer = Buffer.alloc(0);
+        this.buffer = new Buffer();
     }
 
     async open() {
@@ -25,10 +27,10 @@ export class FileReader implements ByteSource, DynFileSource {
     async seek(to: SeqPosEnum): Promise<bigint | FileErr> {
         const result = await this.file.seek(to);
         if (result instanceof Error) {
-            return FileErr.NotEnoughBytes;
+            return new FileErr(FileErrType.NotEnoughBytes);
         }
         this.offset = result;
-        this.buffer = Buffer.alloc(0);
+        this.buffer = new Buffer();
         return this.offset;
     }
 
@@ -50,19 +52,18 @@ export class FileReader implements ByteSource, DynFileSource {
 
     async requestBytes(size: bigint): Promise<Buffer | FileErr> {
         if (this.offset + size > this.file.getSize()) {
-            return FileErr.NotEnoughBytes;
+            return new FileErr(FileErrType.NotEnoughBytes);
         }
         while (true) {
-            if (this.buffer.length >= size) {
-                const bytes = Buffer.from(this.buffer.subarray(0, Number(size)));
-                this.buffer = this.buffer.subarray(Number(size));
-                return bytes;
+            if (this.buffer.size() >= size) {
+                this.offset += size;
+                return this.buffer.consume(size);
             }
             const bytes = await this.file.read();
             if (!bytes.length) {
-                return FileErr.NotEnoughBytes;
+                return new FileErr(FileErrType.NotEnoughBytes);
             }
-            this.buffer = Buffer.concat([this.buffer, bytes]);
+            this.buffer.append(bytes);
         }
     }
 }
@@ -72,27 +73,27 @@ export class AsyncFile {
     private file: FileHandle | null;
     private size: bigint;
     private pos: bigint;
-    private buf: Buffer;
+    private buf: SystemBuffer;
 
     constructor(path: string) {
         this.path = path;
         this.file = null;
         this.size = 0n;
         this.pos = 0n;
-        this.buf = Buffer.alloc(BUFFER_SIZE);
+        this.buf = SystemBuffer.alloc(BUFFER_SIZE);
     }
 
     async openRead() {
         this.file = await openFile(this.path, 'r');
         await this.resize();
         this.pos = 0n;
-        this.buf = Buffer.alloc(BUFFER_SIZE);
+        this.buf = SystemBuffer.alloc(BUFFER_SIZE);
     }
 
     /**
      * @returns the returned Buffer is shared. consume immediately! it will be overwritten soon.
      */
-    async read(): Promise<Buffer> {
+    async read(): Promise<SystemBuffer> {
         const file = this.file ?? throwNewError("File not yet opened");
         const bytesRead = (await file.read(this.buf, 0, BUFFER_SIZE, Number(this.pos))).bytesRead;
         this.pos += BigInt(bytesRead);

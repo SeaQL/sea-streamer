@@ -1,7 +1,24 @@
+export const SEA_STREAMER_INTERNAL: string = "SEA_STREAMER_INTERNAL";
+
 export type Timestamp = Date;
-export type StreamKey = string;
-export type SeqNo = bigint;
-export type ShardId = bigint;
+export class StreamKey {
+    name: string;
+    constructor(name: string) {
+        this.name = name;
+    }
+}
+export class SeqNo {
+    no: bigint;
+    constructor(no: bigint) {
+        this.no = no;
+    }
+}
+export class ShardId {
+    id: bigint;
+    constructor(id: bigint) {
+        this.id = id;
+    }
+}
 
 class SeqPosBeginning { }
 class SeqPosEnd { }

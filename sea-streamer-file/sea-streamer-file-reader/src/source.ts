@@ -1,5 +1,6 @@
 import { FileErr } from "./error";
+import { Buffer } from './buffer';
 
 export interface ByteSource {
-    async requestBytes(size: bigint): Promise<Buffer | FileErr>;
+    requestBytes(size: bigint): Promise<Buffer | FileErr>;
 }
