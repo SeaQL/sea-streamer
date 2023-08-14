@@ -53,4 +53,3 @@ There is also a Typescript implementation under [`sea-streamer-file-reader`](htt
 1. Resumable: currently unimplemented. A potential implementation might be to commit into a local SQLite database.
 2. Sharding: currently it only streams to Shard ZERO.
 3. Verify: a utility program to verify and repair SeaStreamer binary file.
-

@@ -407,7 +407,6 @@ There is also a Typescript implementation under [`sea-streamer-file-reader`](htt
 2. Sharding: currently it only streams to Shard ZERO.
 3. Verify: a utility program to verify and repair SeaStreamer binary file.
 
-
 ### `sea-streamer-runtime`: Async runtime abstraction
 
 This crate provides a small set of functions aligning the type signatures between `async-std` and `tokio`,
