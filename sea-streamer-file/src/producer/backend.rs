@@ -121,6 +121,12 @@ impl Writers {
         None
     }
 
+    fn clone(&mut self, file_id: &FileId) {
+        if let Some(writer) = self.writers.get_mut(file_id) {
+            writer.count += 1;
+        }
+    }
+
     fn dispatch(&mut self, request: RequestTo) {
         if matches!(request.data, Request::Drop) {
             // if this Writer becomes orphaned, remove it
@@ -130,6 +136,8 @@ impl Writers {
                 }
                 self.ending.push(writer);
             }
+        } else if matches!(request.data, Request::Clone) {
+            self.clone(&request.file_id);
         } else if matches!(request.data, Request::End(_)) {
             if let Some(writer) = self.writers.remove(&request.file_id) {
                 if writer.sender.send(request.data).is_err() {
@@ -279,6 +287,9 @@ impl Writer {
                         }
                         .ok();
                         break;
+                    }
+                    Request::Clone => {
+                        panic!("Should not dispatch Request::Clone");
                     }
                     Request::Drop => {
                         sink.end(false).await.ok();

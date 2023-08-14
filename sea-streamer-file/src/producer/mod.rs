@@ -12,7 +12,7 @@ use sea_streamer_types::{
 
 pub(crate) use backend::{end_producer, new_producer};
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct FileProducer {
     file_id: FileId,
     stream: Option<StreamKey>,
@@ -34,6 +34,7 @@ enum Request {
     Send(SendRequest),
     Flush(Reply),
     End(Reply),
+    Clone,
     Drop,
 }
 
@@ -157,6 +158,22 @@ impl ProducerTrait for FileProducer {
             Ok(stream)
         } else {
             Err(StreamErr::NotAnchored)
+        }
+    }
+}
+
+impl Clone for FileProducer {
+    fn clone(&self) -> Self {
+        self.sender
+            .send(RequestTo {
+                file_id: self.file_id.clone(),
+                data: Request::Clone,
+            })
+            .expect("Request handler should never die");
+        Self {
+            file_id: self.file_id.clone(),
+            stream: self.stream.clone(),
+            sender: self.sender,
         }
     }
 }
