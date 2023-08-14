@@ -1,7 +1,7 @@
 mod backend;
 
 use flume::{r#async::RecvFut, unbounded, Sender};
-use std::{fmt::Debug, future::Future};
+use std::{fmt::Debug, future::Future, sync::Arc};
 
 use crate::{Bytes, FileErr, FileId, FileResult};
 use sea_streamer_types::{
@@ -14,8 +14,14 @@ pub(crate) use backend::{end_producer, new_producer};
 
 #[derive(Debug, Clone)]
 pub struct FileProducer {
-    file_id: FileId,
+    inner: Arc<FileProducerInner>,
     stream: Option<StreamKey>,
+}
+
+/// FileProducer can be cloned. No matter how many times it is cloned, it should only be dropped once.
+#[derive(Debug)]
+pub(crate) struct FileProducerInner {
+    file_id: FileId,
     sender: &'static Sender<RequestTo>,
 }
 
@@ -80,6 +86,37 @@ impl ProducerTrait for FileProducer {
         stream_key: &StreamKey,
         buffer: S,
     ) -> FileResult<Self::SendFuture> {
+        self.inner.send_to(stream_key, buffer)
+    }
+
+    async fn end(mut self) -> FileResult<()> {
+        self.inner.end().await
+    }
+
+    async fn flush(&mut self) -> FileResult<()> {
+        self.inner.flush().await
+    }
+
+    fn anchor(&mut self, stream: StreamKey) -> FileResult<()> {
+        if self.stream.is_none() {
+            self.stream = Some(stream);
+            Ok(())
+        } else {
+            Err(StreamErr::AlreadyAnchored)
+        }
+    }
+
+    fn anchored(&self) -> FileResult<&StreamKey> {
+        if let Some(stream) = &self.stream {
+            Ok(stream)
+        } else {
+            Err(StreamErr::NotAnchored)
+        }
+    }
+}
+
+impl FileProducerInner {
+    fn send_to<S: Buffer>(&self, stream_key: &StreamKey, buffer: S) -> FileResult<SendFuture> {
         let err = || Err(StreamErr::Backend(FileErr::ProducerEnded));
         let (s, r) = unbounded();
         if self
@@ -103,7 +140,7 @@ impl ProducerTrait for FileProducer {
         })
     }
 
-    async fn end(mut self) -> FileResult<()> {
+    async fn end(&self) -> FileResult<()> {
         let err = || Err(StreamErr::Backend(FileErr::ProducerEnded));
         let (s, r) = unbounded();
         if self
@@ -123,7 +160,7 @@ impl ProducerTrait for FileProducer {
         }
     }
 
-    async fn flush(&mut self) -> FileResult<()> {
+    async fn flush(&self) -> FileResult<()> {
         let err = || Err(StreamErr::Backend(FileErr::ProducerEnded));
         let (s, r) = unbounded();
         if self
@@ -142,26 +179,9 @@ impl ProducerTrait for FileProducer {
             Err(_) => err(),
         }
     }
-
-    fn anchor(&mut self, stream: StreamKey) -> FileResult<()> {
-        if self.stream.is_none() {
-            self.stream = Some(stream);
-            Ok(())
-        } else {
-            Err(StreamErr::AlreadyAnchored)
-        }
-    }
-
-    fn anchored(&self) -> FileResult<&StreamKey> {
-        if let Some(stream) = &self.stream {
-            Ok(stream)
-        } else {
-            Err(StreamErr::NotAnchored)
-        }
-    }
 }
 
-impl Drop for FileProducer {
+impl Drop for FileProducerInner {
     fn drop(&mut self) {
         self.sender
             .send(RequestTo {

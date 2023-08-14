@@ -1,13 +1,13 @@
 use flume::{unbounded, Receiver, Sender};
 use sea_streamer_runtime::{spawn_task, AsyncMutex, TaskHandle};
-use std::{collections::HashMap, num::NonZeroU32};
+use std::{collections::HashMap, num::NonZeroU32, sync::Arc};
 
 use super::{Request, RequestTo};
 use crate::{
     format::{Checksum, Header, RunningChecksum},
     BeaconReader, BeaconState, ByteBuffer, DynFileSource, FileConnectOptions, FileErr, FileId,
-    FileProducer, FileProducerOptions, FileReader, FileSink, MessageSink, MessageSource,
-    StreamMode,
+    FileProducer, FileProducerInner, FileProducerOptions, FileReader, FileSink, MessageSink,
+    MessageSource, StreamMode,
 };
 use sea_streamer_types::{
     Message, MessageHeader, OwnedMessage, SeqNo, SeqPos, ShardId, StreamKey, Timestamp,
@@ -104,9 +104,11 @@ impl Writers {
         writer.count += 1;
 
         Ok(FileProducer {
-            file_id,
+            inner: Arc::new(FileProducerInner {
+                file_id,
+                sender: &SENDER.0,
+            }),
             stream: None,
-            sender: &SENDER.0,
         })
     }
 
