@@ -106,7 +106,10 @@ export class MessageSource implements ByteSource {
         }
         let computed = message.computeChecksum();
         if (message.checksum !== computed) {
-            return new FileErr(FileErrType.FormatErr__ChecksumErr, { checksum: message.checksum, computed });
+            return new FileErr(FileErrType.FormatErr__ChecksumErr, {
+                received: message.checksum,
+                computed,
+            });
         } else {
             return message.message;
         }
