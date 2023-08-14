@@ -33,9 +33,9 @@
 //! Example `log` format:
 //!
 //! ```ignore
-//! # header
+//!  # header
 //! [2023-06-05T13:55:53.001 | hello | 1 | 0] message-1
-//! # beacon
+//!  # beacon
 //! ```
 //!
 //! Example `ndjson` format:

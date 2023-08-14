@@ -386,7 +386,9 @@ decoder -- --file <file> --format <format>
 Example `log` format:
 
 ```rust
+ # header
 [2023-06-05T13:55:53.001 | hello | 1 | 0] message-1
+ # beacon
 ```
 
 Example `ndjson` format:
