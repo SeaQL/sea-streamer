@@ -21,6 +21,33 @@
 //! the behaviour of other SeaStreamer backends. In particular, the load-balancing behaviour is same as Stdio,
 //! i.e. round-robin.
 //!
+//! ### Decoder
+//!
+//! We provide a small utility to decode `.ss` files:
+//!
+//! ```ignore
+//! alias decoder='cargo run --package sea-streamer-file --features=executables --bin decoder'
+//! decoder -- --file <file> --format <format>
+//! ```
+//!
+//! Example `log` format:
+//!
+//! ```ignore
+//! # header
+//! [2023-06-05T13:55:53.001 | hello | 1 | 0] message-1
+//! # beacon
+//! ```
+//!
+//! Example `ndjson` format:
+//!
+//! ```ignore
+//! /* header */
+//! {"header":{"stream_key":"hello","shard_id":0,"sequence":1,"timestamp":"2023-06-05T13:55:53.001"},"payload":"message-1"}
+//! /* beacon */
+//! ```
+//!
+//! There is also a Typescript implementation under [`sea-streamer-file-reader`](https://github.com/SeaQL/sea-streamer/tree/main/sea-streamer-file/sea-streamer-file-reader).
+//!
 //! ### TODO
 //!
 //! 1. Resumable: currently unimplemented. A potential implementation might be to commit into a local SQLite database.
