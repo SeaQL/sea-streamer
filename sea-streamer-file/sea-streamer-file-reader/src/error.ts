@@ -11,6 +11,7 @@ export class FileErr {
 }
 
 export enum FileErrType {
+    TimedOut = "TimedOut",
     NotEnoughBytes = "NotEnoughBytes",
     FormatErr__ByteMark = "FormatErr::ByteMark",
     FormatErr__Version = "FormatErr::Version",

@@ -3,7 +3,7 @@ import { Buffer as SystemBuffer } from 'node:buffer';
 import { Buffer } from './buffer';
 import { SeqPosEnum, SeqPos } from './types';
 import { FileErr, FileErrType } from './error';
-import { ByteSource } from './source';
+import { ByteSource, FileSource } from './source';
 import { DynFileSource, FileSourceType } from './dyn_file';
 
 const BUFFER_SIZE: number = 1024;
@@ -21,15 +21,16 @@ export class FileReader implements ByteSource, DynFileSource {
     private offset: bigint;
     private buffer: Buffer;
 
-    private constructor(file: AsyncFile) {
+    /** @internal */
+    constructor(file: AsyncFile, offset: bigint, buffer: Buffer) {
         this.file = file;
-        this.offset = 0n;
-        this.buffer = new Buffer();
+        this.offset = offset;
+        this.buffer = buffer;
     }
 
     static async new(path: string): Promise<FileReader> {
         const file = await AsyncFile.openRead(path);
-        const reader = new FileReader(file);
+        const reader = new FileReader(file, 0n, new Buffer());
         return reader;
     }
 
@@ -43,11 +44,19 @@ export class FileReader implements ByteSource, DynFileSource {
         return this.offset;
     }
 
+    switchTo(type: FileSourceType): DynFileSource {
+        if (type == FileSourceType.FileReader) {
+            return this;
+        } else {
+            return new FileSource(this.file, this.offset, this.buffer);
+        }
+    }
+
     getOffset(): bigint {
         return this.offset;
     }
 
-    getFileSize(): bigint {
+    fileSize(): bigint {
         return this.file.getSize();
     }
 
@@ -75,6 +84,8 @@ export class FileReader implements ByteSource, DynFileSource {
             this.buffer.append(bytes);
         }
     }
+
+    setTimeout(ms: number) {}
 }
 
 /**

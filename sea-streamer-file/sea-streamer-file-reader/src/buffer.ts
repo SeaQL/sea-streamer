@@ -1,6 +1,8 @@
 import { Buffer as SystemBuffer } from 'node:buffer';
+import { FileErr, FileErrType } from './error';
+import { ByteSource } from './source';
 
-export class Buffer {
+export class Buffer implements ByteSource {
     buffer: SystemBuffer;
 
     constructor() {
@@ -33,5 +35,17 @@ export class Buffer {
 
     toString(): string {
         return this.buffer.toString("utf8");
+    }
+
+    clear() {
+        this.buffer = SystemBuffer.alloc(0);
+    }
+
+    async requestBytes(size: bigint): Promise<Buffer | FileErr> {
+        if (size <= this.size()) {
+            return this.consume(size);
+        } else {
+            return new FileErr(FileErrType.NotEnoughBytes);
+        }
     }
 }
