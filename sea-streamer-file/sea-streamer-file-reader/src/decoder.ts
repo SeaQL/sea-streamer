@@ -14,10 +14,9 @@ async function main() {
     if (!path) {
         throw new Error("Please specify the file path with `--file`");
     }
-    const source = new MessageSource(path, StreamMode.Replay);
-
-    await source.open();
-    console.log("#", JSON.stringify(source.fileHeader()?.toJson()));
+    const source = await MessageSource.new(path, StreamMode.Replay);
+    if (source instanceof FileErr) { throw new Error("Failed to read file header"); }
+    console.log("#", JSON.stringify(source.fileHeader().toJson()));
 
     let beacon = 0;
     while (true) {

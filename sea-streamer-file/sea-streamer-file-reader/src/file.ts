@@ -8,20 +8,29 @@ import { DynFileSource, FileSourceType } from './dyn_file';
 
 const BUFFER_SIZE: number = 1024;
 
+/**
+ * A simple buffered and bounded file reader.
+ * The implementation is much simpler than `FileSource`.
+ *
+ * `FileReader` treats file as a fixed depot of bytes.
+ * Attempt to read beyond the end will result in a `NotEnoughBytes` error.
+ */
 export class FileReader implements ByteSource, DynFileSource {
     private file: AsyncFile;
     /// This is the user's read offset, not the same as file's read pos
     private offset: bigint;
     private buffer: Buffer;
 
-    constructor(path: string) {
-        this.file = new AsyncFile(path);
+    private constructor(file: AsyncFile) {
+        this.file = file;
         this.offset = 0n;
         this.buffer = new Buffer();
     }
 
-    async open() {
-        await this.file.openRead();
+    static async new(path: string): Promise<FileReader> {
+        const file = await AsyncFile.openRead(path);
+        const reader = new FileReader(file);
+        return reader;
     }
 
     async seek(to: SeqPosEnum): Promise<bigint | FileErr> {
@@ -68,34 +77,36 @@ export class FileReader implements ByteSource, DynFileSource {
     }
 }
 
+/**
+ * A minimal wrapper over system's File IO
+ */
 export class AsyncFile {
     private path: string;
-    private file: FileHandle | null;
+    private file: FileHandle;
     private size: bigint;
     private pos: bigint;
     private buf: SystemBuffer;
 
-    constructor(path: string) {
+    private constructor(path: string, file: FileHandle) {
         this.path = path;
-        this.file = null;
+        this.file = file;
         this.size = 0n;
         this.pos = 0n;
         this.buf = SystemBuffer.alloc(BUFFER_SIZE);
     }
 
-    async openRead() {
-        this.file = await openFile(this.path, 'r');
-        await this.resize();
-        this.pos = 0n;
-        this.buf = SystemBuffer.alloc(BUFFER_SIZE);
+    static async openRead(path: string): Promise<AsyncFile> {
+        const handle = await openFile(path, 'r');
+        const file = new AsyncFile(path, handle);
+        await file.resize();
+        return file;
     }
 
     /**
      * @returns the returned Buffer is shared. consume immediately! it will be overwritten soon.
      */
     async read(): Promise<SystemBuffer> {
-        const file = this.file ?? throwNewError("File not yet opened");
-        const bytesRead = (await file.read(this.buf, 0, BUFFER_SIZE, Number(this.pos))).bytesRead;
+        const bytesRead = (await this.file.read(this.buf, 0, BUFFER_SIZE, Number(this.pos))).bytesRead;
         this.pos += BigInt(bytesRead);
         this.size = this.pos > this.size ? this.pos : this.size;
         return this.buf.subarray(0, bytesRead);
@@ -131,14 +142,11 @@ export class AsyncFile {
     }
 
     async resize() {
-        const file = this.file ?? throwNewError("File not yet opened");
-        this.size = (await file.stat({ bigint: true })).size;
+        this.size = (await this.file.stat({ bigint: true })).size;
     }
 
     async close() {
-        if (this.file !== null) {
-            await this.file.close();
-        }
+        await this.file.close();
     }
 }
 

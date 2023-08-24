@@ -40,13 +40,13 @@ export enum StreamMode {
     /**
      * Streaming from a file at the end
      */
-    Live,
+    Live = "Live",
     /**
      * Replaying a dead file
      */
-    Replay,
+    Replay = "Replay",
     /**
      * Replaying a live file, might catch up to live
      */
-    LiveReplay,
+    LiveReplay = "LiveReplay",
 }

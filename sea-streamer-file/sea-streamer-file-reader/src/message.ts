@@ -10,49 +10,54 @@ export const END_OF_STREAM: string = "EOS";
 
 export class MessageSource implements ByteSource {
     private mode: StreamMode;
-    private header: Header | null;
+    private header: Header;
     private source: DynFileSource & ByteSource;
     private buffer: Buffer;
     private offset: bigint;
     private beacon: [number, Marker[]];
     private pending: Message | null;
 
-    constructor(path: string, mode: StreamMode) {
+    private constructor(
+        mode: StreamMode,
+        header: Header,
+        source: DynFileSource & ByteSource,
+    ) {
         this.mode = mode;
-        this.header = null;
-        switch (mode) {
-            case StreamMode.Live:
-            case StreamMode.LiveReplay:
-                throw new Error("Not implemented yet");
-                break;
-            case StreamMode.Replay:
-                this.source = new FileReader(path);
-                break;
-        }
+        this.header = header;
+        this.source = source;
         this.buffer = new Buffer();
         this.offset = Header.size();
         this.beacon = [0, []];
         this.pending = null;
     }
 
-    async open() {
-        await this.source.open();
-        const header = await Header.readFrom(this.source); if (header instanceof FileErr) { return header; }
-        this.header = header;
-        Header.size() <= header.beaconInterval || throwNewError("Header size must be smaller than beaconInterval");
-        if (this.mode === StreamMode.Live) {
-            await this.rewind(SeqPos.End);
+    static async new(path: string, mode: StreamMode): Promise<MessageSource | FileErr> {
+        let file;
+        switch (mode) {
+            case StreamMode.Live:
+            case StreamMode.LiveReplay:
+                throw new Error("Not implemented yet");
+                break;
+            case StreamMode.Replay:
+                file = await FileReader.new(path);
+                break;
         }
+        const header = await Header.readFrom(file); if (header instanceof FileErr) { return header; }
+        Header.size() <= header.beaconInterval || throwNewError("Header size must be smaller than beaconInterval");
+
+        const source = new MessageSource(mode, header, file);
+        // if (mode === StreamMode.Live) {
+        //     await source.rewind(SeqPos.End);
+        // }
+        return source;
     }
 
-    fileHeader(): Header | null {
-        const header = this.header ?? throwNewError("Header not read");
-        return header;
+    fileHeader(): Header {
+        return this.header;
     }
 
     beaconInterval(): bigint {
-        const header = this.header ?? throwNewError("Header not read");
-        return header.beaconInterval;
+        return this.header.beaconInterval;
     }
 
     hasBeacon(offset: bigint): number | null {
