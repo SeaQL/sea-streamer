@@ -4,6 +4,10 @@ This library implements a decoder for the [SeaStreamer file format](https://gith
 
 It does not provide the high-level Consumer interface. But the reason it is so complex in Rust is due to multi-threaded concurrency. Since node.js is basically single threaded, this made the implementation much simpler.
 
+### Features
+
+Lightweight. There are 0 dependencies. It only depends on the node.js standard library.
+
 ### Install
 
 This package is published on npm as [`sea-streamer-file-reader`](https://www.npmjs.com/package/sea-streamer-file-reader).

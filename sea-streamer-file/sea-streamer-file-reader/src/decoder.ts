@@ -14,7 +14,7 @@ async function main() {
     if (!path) {
         throw new Error("Please specify the file path with `--file`");
     }
-    const source = await MessageSource.new(path, StreamMode.Replay);
+    const source = await MessageSource.new(path, StreamMode.LiveReplay);
     if (source instanceof FileErr) { throw new Error("Failed to read file header"); }
     console.log("#", JSON.stringify(source.fileHeader().toJson()));
 

@@ -1,8 +1,8 @@
-import { Buffer } from './buffer';
+import { Buffer } from "./buffer";
 import { Timestamp, StreamKey, SeqNo, ShardId } from "./types";
-import { FileErr, FileErrType } from './error';
-import { ByteSource } from './source';
-import { crc16Cdma2000 } from './crc';
+import { FileErr, FileErrType } from "./error";
+import { ByteSource } from "./source";
+import { crc16Cdma2000 } from "./crc";
 
 export class Header {
     fileName: string;

@@ -1,4 +1,4 @@
-import { Buffer } from './buffer';
+import { Buffer } from "./buffer";
 import { DynFileSource } from "./dyn_file";
 import { FileErr, FileErrType } from "./error";
 import { FileReader } from "./file";

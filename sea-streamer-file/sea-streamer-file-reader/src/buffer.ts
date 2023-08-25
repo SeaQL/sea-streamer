@@ -1,6 +1,6 @@
-import { Buffer as SystemBuffer } from 'node:buffer';
-import { FileErr, FileErrType } from './error';
-import { ByteSource } from './source';
+import { Buffer as SystemBuffer } from "node:buffer";
+import { FileErr, FileErrType } from "./error";
+import { ByteSource } from "./source";
 
 export class Buffer implements ByteSource {
     buffer: SystemBuffer;

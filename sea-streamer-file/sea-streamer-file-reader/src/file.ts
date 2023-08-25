@@ -1,10 +1,10 @@
-import { open as openFile, FileHandle } from 'node:fs/promises';
-import { Buffer as SystemBuffer } from 'node:buffer';
-import { Buffer } from './buffer';
-import { SeqPosEnum, SeqPos } from './types';
-import { FileErr, FileErrType } from './error';
-import { ByteSource, FileSource } from './source';
-import { DynFileSource, FileSourceType } from './dyn_file';
+import { open as openFile, FileHandle } from "node:fs/promises";
+import { Buffer as SystemBuffer } from "node:buffer";
+import { Buffer } from "./buffer";
+import { SeqPosEnum, SeqPos } from "./types";
+import { FileErr, FileErrType } from "./error";
+import { ByteSource, FileSource } from "./source";
+import { DynFileSource, FileSourceType } from "./dyn_file";
 
 const BUFFER_SIZE: number = 1024;
 
