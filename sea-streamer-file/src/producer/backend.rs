@@ -23,8 +23,6 @@ lazy_static::lazy_static! {
 /// to share the same FileSink.
 ///
 /// It also have to keep track of the sequence ids of every (stream_key, shard_id).
-///
-/// Producers (N) -> SENDER (1) -> Writers (N)
 struct Writers {
     writers: HashMap<FileId, Writer>,
     ending: Vec<Writer>,
@@ -78,7 +76,10 @@ impl Writers {
         let _handle = spawn_task(async move {
             while let Ok(req) = SENDER.1.recv_async().await {
                 let mut writers = WRITERS.lock().await;
-                writers.dispatch(req);
+                if let Err((file_id, err)) = writers.dispatch(req) {
+                    log::error!("{err}: {file_id}");
+                    writers.remove(&file_id);
+                }
             }
         });
 
@@ -106,7 +107,8 @@ impl Writers {
         Ok(FileProducer {
             file_id,
             stream: None,
-            sender: &SENDER.0,
+            master: &SENDER.0,
+            sender: writer.sender.clone(),
         })
     }
 
@@ -121,37 +123,36 @@ impl Writers {
         None
     }
 
-    fn clone(&mut self, file_id: &FileId) {
-        if let Some(writer) = self.writers.get_mut(file_id) {
-            writer.count += 1;
-        }
+    fn remove(&mut self, file_id: &FileId) {
+        self.writers.remove(file_id);
     }
 
-    fn dispatch(&mut self, request: RequestTo) {
+    fn dispatch(&mut self, request: RequestTo) -> Result<(), (FileId, FileErr)> {
         if matches!(request.data, Request::Drop) {
             // if this Writer becomes orphaned, remove it
             if let Some(writer) = self.drop(&request.file_id) {
                 if writer.sender.send(Request::Drop).is_err() {
-                    log::error!("Dead File {}", request.file_id);
+                    return Err((request.file_id, FileErr::FileRemoved));
                 }
                 self.ending.push(writer);
             }
         } else if matches!(request.data, Request::Clone) {
-            self.clone(&request.file_id);
+            if let Some(writer) = self.writers.get_mut(&request.file_id) {
+                writer.count += 1;
+            }
         } else if matches!(request.data, Request::End(_)) {
             if let Some(writer) = self.writers.remove(&request.file_id) {
                 if writer.sender.send(request.data).is_err() {
-                    log::error!("Dead File {}", request.file_id);
+                    return Err((request.file_id, FileErr::FileRemoved));
                 }
                 // we should wait until the Writer task actually received the request
                 self.ending.push(writer);
             }
-        } else if let Some(writer) = self.writers.get(&request.file_id) {
-            if writer.sender.send(request.data).is_err() {
-                log::error!("Dead File {}", request.file_id);
-            }
+        } else {
+            log::error!("Please send the request to the Writer directly {request:?}");
         }
         self.ending.retain(|s| !s.sender.is_disconnected());
+        Ok(())
     }
 }
 

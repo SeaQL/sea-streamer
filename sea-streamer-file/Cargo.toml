@@ -43,11 +43,6 @@ runtime-async-std = ["async-std", "sea-streamer-runtime/runtime-async-std"]
 runtime-tokio = ["tokio", "sea-streamer-runtime/runtime-tokio"]
 
 [[bin]]
-name = "tail"
-path = "src/bin/tail.rs"
-required-features = ["executables"]
-
-[[bin]]
 name = "clock"
 path = "src/bin/clock.rs"
 required-features = ["executables"]
@@ -55,4 +50,14 @@ required-features = ["executables"]
 [[bin]]
 name = "decoder"
 path = "src/bin/decoder.rs"
+required-features = ["executables"]
+
+[[bin]]
+name = "raw_clock"
+path = "src/bin/raw_clock.rs"
+required-features = ["executables"]
+
+[[bin]]
+name = "tail"
+path = "src/bin/tail.rs"
 required-features = ["executables"]

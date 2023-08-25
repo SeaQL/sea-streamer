@@ -209,7 +209,8 @@ impl HeaderV1 {
         Ok(sum)
     }
 
-    pub fn size() -> usize {
+    #[inline]
+    pub const fn size() -> usize {
         HEADER_SIZE
     }
 

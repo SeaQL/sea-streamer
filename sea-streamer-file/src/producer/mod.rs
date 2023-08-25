@@ -16,13 +16,15 @@ pub(crate) use backend::{end_producer, new_producer};
 pub struct FileProducer {
     file_id: FileId,
     stream: Option<StreamKey>,
-    sender: &'static Sender<RequestTo>,
+    master: &'static Sender<RequestTo>,
+    sender: Sender<Request>,
 }
 
 pub struct SendFuture {
     fut: RecvFut<'static, Result<MessageHeader, FileErr>>,
 }
 
+#[derive(Debug)]
 struct RequestTo {
     file_id: FileId,
     data: Request,
@@ -30,6 +32,7 @@ struct RequestTo {
 
 type Reply = Sender<Result<(), FileErr>>;
 
+#[derive(Debug)]
 enum Request {
     Send(SendRequest),
     Flush(Reply),
@@ -38,6 +41,7 @@ enum Request {
     Drop,
 }
 
+#[derive(Debug)]
 struct SendRequest {
     stream_key: StreamKey,
     shard_id: ShardId,
@@ -85,16 +89,13 @@ impl ProducerTrait for FileProducer {
         let (s, r) = unbounded();
         if self
             .sender
-            .send(RequestTo {
-                file_id: self.file_id.clone(),
-                data: Request::Send(SendRequest {
-                    stream_key: stream_key.clone(),
-                    shard_id: ShardId::new(0),
-                    timestamp: Timestamp::now_utc(),
-                    bytes: Bytes::Bytes(buffer.into_bytes()),
-                    receipt: s,
-                }),
-            })
+            .send(Request::Send(SendRequest {
+                stream_key: stream_key.clone(),
+                shard_id: ShardId::new(0),
+                timestamp: Timestamp::now_utc(),
+                bytes: Bytes::Bytes(buffer.into_bytes()),
+                receipt: s,
+            }))
             .is_err()
         {
             return err();
@@ -108,7 +109,7 @@ impl ProducerTrait for FileProducer {
         let err = || Err(StreamErr::Backend(FileErr::ProducerEnded));
         let (s, r) = unbounded();
         if self
-            .sender
+            .master
             .send(RequestTo {
                 file_id: self.file_id.clone(),
                 data: Request::End(s),
@@ -127,14 +128,7 @@ impl ProducerTrait for FileProducer {
     async fn flush(&mut self) -> FileResult<()> {
         let err = || Err(StreamErr::Backend(FileErr::ProducerEnded));
         let (s, r) = unbounded();
-        if self
-            .sender
-            .send(RequestTo {
-                file_id: self.file_id.clone(),
-                data: Request::Flush(s),
-            })
-            .is_err()
-        {
+        if self.sender.send(Request::Flush(s)).is_err() {
             return err();
         }
         match r.recv_async().await {
@@ -164,7 +158,7 @@ impl ProducerTrait for FileProducer {
 
 impl Clone for FileProducer {
     fn clone(&self) -> Self {
-        self.sender
+        self.master
             .send(RequestTo {
                 file_id: self.file_id.clone(),
                 data: Request::Clone,
@@ -173,14 +167,15 @@ impl Clone for FileProducer {
         Self {
             file_id: self.file_id.clone(),
             stream: self.stream.clone(),
-            sender: self.sender,
+            master: self.master,
+            sender: self.sender.clone(),
         }
     }
 }
 
 impl Drop for FileProducer {
     fn drop(&mut self) {
-        self.sender
+        self.master
             .send(RequestTo {
                 file_id: self.file_id.clone(),
                 data: Request::Drop,

@@ -27,11 +27,9 @@ pub enum FileErr {
     TaskDead(&'static str),
     #[error("Not Enough Bytes: the file might be truncated.")]
     NotEnoughBytes,
-    #[error("Stream Ended: the stream might have encountered an error or an EOS message.")]
+    #[error("Stream Ended: the file might have been removed or an EOS message.")]
     StreamEnded,
-    #[error(
-        "Producer Ended: the producer might have encountered an error or was ended intentionally."
-    )]
+    #[error("Producer Ended: the file might have been removed or was ended intentionally.")]
     ProducerEnded,
 }
 

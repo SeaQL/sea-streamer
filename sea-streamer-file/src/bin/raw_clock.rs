@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
-use sea_streamer_file::{FileId, FileStreamer};
-use sea_streamer_types::{Producer, StreamKey, Streamer};
-use std::time::{Duration, Instant};
+use sea_streamer_file::{FileId, MessageSink, DEFAULT_BEACON_INTERVAL, DEFAULT_FILE_SIZE_LIMIT};
+use sea_streamer_types::{MessageHeader, OwnedMessage, ShardId, StreamKey, Timestamp};
+use std::time::Duration;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -29,25 +29,21 @@ async fn main() -> Result<()> {
     env_logger::init();
 
     let Args { file, interval } = Args::from_args();
-
-    let stream_key = StreamKey::new("clock")?;
-    let streamer = FileStreamer::connect(file.to_streamer_uri()?, Default::default()).await?;
-    let producer = streamer
-        .create_producer(stream_key, Default::default())
-        .await?;
+    let mut sink = MessageSink::new(
+        file.clone(),
+        DEFAULT_BEACON_INTERVAL,
+        DEFAULT_FILE_SIZE_LIMIT,
+    )
+    .await?;
+    let stream_key = StreamKey::new("hello")?;
+    let shard = ShardId::new(0);
 
     for i in 0..u64::MAX {
-        let next = Instant::now() + interval;
-        producer.send(format!("tick-{i}"))?;
-        let now = Instant::now();
-        if let Some(dur) = next.checked_duration_since(now) {
-            tokio::time::sleep(dur).await;
-        } else {
-            tokio::time::sleep(Duration::from_nanos(1)).await;
-        }
+        let header = MessageHeader::new(stream_key.clone(), shard, i, Timestamp::now_utc());
+        let message = OwnedMessage::new(header, format!("hello-{i}").into_bytes());
+        sink.write(message).await?;
+        tokio::time::sleep(interval).await;
     }
-
-    producer.end().await?;
 
     Ok(())
 }
