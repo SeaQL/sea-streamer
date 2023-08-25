@@ -89,7 +89,7 @@ async fn producer() -> anyhow::Result<()> {
         streamer.disconnect().await?;
 
         assert!(matches!(
-            producer.send("hello")?.await,
+            producer.send("hello"),
             Err(StreamErr::Backend(FileErr::ProducerEnded))
         ));
         assert!(matches!(
