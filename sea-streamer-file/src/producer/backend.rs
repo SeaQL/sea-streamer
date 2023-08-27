@@ -207,7 +207,7 @@ impl Writer {
                                 match source.next().await {
                                     Ok(msg) => {
                                         let m = &msg.message;
-                                        let mut entry = streams
+                                        let entry = streams
                                             .entry((m.stream_key(), m.shard_id()))
                                             .or_insert(StreamState::default());
                                         if entry.seq_no < m.sequence() {

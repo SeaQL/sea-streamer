@@ -11,6 +11,8 @@ pub trait ByteSink {
     fn write(&mut self, bytes: Bytes) -> Result<(), FileErr>;
 }
 
+const CHUNK_SIZE: usize = 1024 * 1024; // 1 MiB
+
 /// Buffered file writer.
 ///
 /// If the file is removed from the file system, the stream ends.
@@ -35,6 +37,9 @@ enum Update {
     Receipt(u32),
 }
 
+#[derive(Debug)]
+struct QuotaFull;
+
 impl FileSink {
     pub fn new(mut file: AsyncFile, mut quota: u64) -> Result<Self, FileErr> {
         let (sender, pending) = unbounded();
@@ -44,56 +49,92 @@ impl FileSink {
         quota -= file.size();
 
         let handle = spawn_task(async move {
-            'outer: while let Ok(request) = pending.recv_async().await {
-                match request {
-                    Request::Bytes(mut bytes) => {
-                        let mut len = bytes.len() as u64;
-                        if quota < len {
-                            bytes = bytes.pop(quota as usize);
-                            len = quota;
-                        }
+            let mut buffer = Vec::new();
 
-                        if let Err(err) = file.write_all(bytes).await {
-                            std::mem::drop(pending); // trigger error
-                            send_error(&notify, err).await;
-                            break;
-                        }
+            'outer: loop {
+                let mut request: Result<Request, TryRecvError> = match pending.recv_async().await {
+                    Ok(request) => Ok(request),
+                    Err(_) => break,
+                };
 
-                        quota -= len;
-                        if quota == 0 {
-                            std::mem::drop(pending); // trigger error
-                            send_error(&notify, FileErr::FileLimitExceeded).await;
-                            break;
+                let request: Result<Option<Request>, Result<(), QuotaFull>> = loop {
+                    match request {
+                        Ok(Request::Bytes(mut bytes)) => {
+                            let mut len = bytes.len() as u64;
+                            if quota < len {
+                                bytes = bytes.pop(quota as usize);
+                                len = quota;
+                            }
+                            // accumulate bytes ...
+                            buffer.append(&mut bytes.bytes());
+
+                            quota -= len;
+                            if quota == 0 {
+                                break Err(Err(QuotaFull));
+                            }
+                            if buffer.len() >= CHUNK_SIZE {
+                                break (Ok(None));
+                            }
+                            // continue; delay write until 1) some other request 2) some error 3) queue is empty
                         }
+                        Ok(request) => break Ok(Some(request)),
+                        Err(TryRecvError::Disconnected) => break Err(Ok(())),
+                        Err(TryRecvError::Empty) => break Ok(None),
                     }
-                    Request::Flush(marker) => {
+                    request = pending.try_recv();
+                };
+
+                if !buffer.is_empty() {
+                    // ... write all in one shot
+                    if let Err(err) = file.write_all(&buffer).await {
+                        std::mem::drop(pending); // trigger error
+                        send_error(&notify, err).await;
+                        break 'outer;
+                    }
+                    buffer.truncate(0);
+                }
+
+                if let Err(Ok(())) = request {
+                    break 'outer;
+                } else if let Err(Err(QuotaFull)) = request {
+                    std::mem::drop(pending); // trigger error
+                    send_error(&notify, FileErr::FileLimitExceeded).await;
+                    break 'outer;
+                }
+
+                match request.unwrap() {
+                    Some(Request::Flush(marker)) => {
                         if let Err(err) = file.flush().await {
                             std::mem::drop(pending); // trigger error
                             send_error(&notify, err).await;
-                            break;
+                            break 'outer;
                         }
                         if notify.send_async(Update::Receipt(marker)).await.is_err() {
-                            break;
+                            break 'outer;
                         }
                     }
-                    Request::SyncAll | Request::End => {
+                    request @ Some(Request::SyncAll | Request::End) => {
                         if let Err(err) = file.sync_all().await {
                             std::mem::drop(pending); // trigger error
                             send_error(&notify, err).await;
-                            break;
+                            break 'outer;
                         }
                         match request {
-                            Request::SyncAll => {
+                            Some(Request::SyncAll) => {
                                 if notify.send_async(Update::Receipt(u32::MAX)).await.is_err() {
-                                    break;
+                                    break 'outer;
                                 }
                             }
-                            Request::End => {
-                                break;
+                            Some(Request::End) => {
+                                break 'outer;
                             }
                             _ => unreachable!(),
                         }
                     }
+                    Some(_) => {
+                        unreachable!();
+                    }
+                    None => (),
                 }
 
                 loop {

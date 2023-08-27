@@ -192,11 +192,8 @@ impl AsyncFile {
     }
 
     #[inline]
-    pub async fn write_all(&mut self, bytes: Bytes) -> Result<(), FileErr> {
-        self.file
-            .write_all(&bytes.bytes())
-            .await
-            .map_err(FileErr::IoError)
+    pub async fn write_all(&mut self, bytes: &[u8]) -> Result<(), FileErr> {
+        self.file.write_all(bytes).await.map_err(FileErr::IoError)
     }
 
     #[inline]
