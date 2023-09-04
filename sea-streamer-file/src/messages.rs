@@ -634,8 +634,8 @@ impl MessageSink {
     pub async fn end(mut self, eos: bool) -> Result<(), FileErr> {
         if eos {
             self.write(end_of_stream())?;
-            self.flush().await?;
         }
+        self.flush().await?;
         self.sink().sync_all().await
     }
 

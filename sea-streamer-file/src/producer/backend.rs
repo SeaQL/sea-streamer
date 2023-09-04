@@ -281,7 +281,9 @@ impl Writer {
                     }
                     Request::End(receipt) => {
                         debug_assert!(receipt.is_empty());
-                        match sink.end(end_with_eos).await {
+                        let ended = sink.end(end_with_eos).await;
+                        std::mem::drop(receiver); // kill the channel
+                        match ended {
                             Ok(()) => receipt.send(Ok(())),
                             Err(e) => receipt.send(Err(e)),
                         }
