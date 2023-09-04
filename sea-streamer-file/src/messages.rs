@@ -557,9 +557,8 @@ impl MessageSink {
         }
     }
 
-    /// This future is cancel safe. If it's canceled after polled once, the message
-    /// will have been written. Otherwise it will be dropped. In other words, it's atomic.
-    pub async fn write(&mut self, message: OwnedMessage) -> Result<Checksum, FileErr> {
+    /// This method does not block. To make sure messages have been written, call [`MessageSink::flush`].
+    pub fn write(&mut self, message: OwnedMessage) -> Result<Checksum, FileErr> {
         let key = (message.stream_key(), message.shard_id());
         let (seq_no, ts) = (message.sequence(), message.timestamp());
         let message = Message {
@@ -611,7 +610,6 @@ impl MessageSink {
         }
 
         self.message_count += 1;
-        self.flush().await?;
 
         Ok(checksum)
     }
@@ -635,7 +633,8 @@ impl MessageSink {
     /// End this stream gracefully, with an optional EOS message
     pub async fn end(mut self, eos: bool) -> Result<(), FileErr> {
         if eos {
-            self.write(end_of_stream()).await?;
+            self.write(end_of_stream())?;
+            self.flush().await?;
         }
         self.sink().sync_all().await
     }

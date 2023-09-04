@@ -35,15 +35,17 @@ async fn main() -> Result<()> {
         DEFAULT_FILE_SIZE_LIMIT,
     )
     .await?;
-    let stream_key = StreamKey::new("hello")?;
+    let stream_key = StreamKey::new("clock")?;
     let shard = ShardId::new(0);
 
     for i in 0..u64::MAX {
         let header = MessageHeader::new(stream_key.clone(), shard, i, Timestamp::now_utc());
-        let message = OwnedMessage::new(header, format!("hello-{i}").into_bytes());
-        sink.write(message).await?;
+        let message = OwnedMessage::new(header, format!("tick-{i}").into_bytes());
+        sink.write(message)?;
         tokio::time::sleep(interval).await;
     }
+
+    sink.flush().await?;
 
     Ok(())
 }

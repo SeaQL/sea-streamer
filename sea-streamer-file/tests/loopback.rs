@@ -330,19 +330,19 @@ async fn sink() -> anyhow::Result<()> {
 
         let mut sink = MessageSink::new(path.clone(), bea_int, 1024 * 1024).await?;
         for i in 0..10 {
-            sink.write(message(i)).await?;
+            sink.write(message(i))?;
         }
         sink.end(false).await?;
 
         let mut sink = MessageSink::append(path.clone(), bea_int, 1024 * 1024).await?;
         for i in 10..20 {
-            sink.write(message(i)).await?;
+            sink.write(message(i))?;
         }
         sink.end(true).await?;
 
         let mut sink = MessageSink::append(path.clone(), bea_int, 1024 * 1024).await?;
         for i in 20..30 {
-            sink.write(message(i)).await?;
+            sink.write(message(i))?;
         }
         sink.end(true).await?;
 
@@ -382,7 +382,8 @@ async fn rewind() -> anyhow::Result<()> {
 
     let header = MessageHeader::new(stream_key.clone(), ShardId::new(2), 1, now());
     let world = OwnedMessage::new(header, "world".into_bytes());
-    running_checksum.update(sink.write(world.clone()).await?);
+    running_checksum.update(sink.write(world.clone())?);
+    sink.flush().await?;
     let read = source.next().await?;
     assert_eq(&read.message, &world);
 
@@ -393,13 +394,15 @@ async fn rewind() -> anyhow::Result<()> {
 
     let header = MessageHeader::new(stream_key.clone(), ShardId::new(2), 2, now());
     let message = OwnedMessage::new(header, payload.clone());
-    running_checksum.update(sink.write(message.clone()).await?);
+    running_checksum.update(sink.write(message.clone())?);
+    sink.flush().await?;
     let read = source.next().await?;
     assert_eq(&read.message, &message);
 
     let header = MessageHeader::new(stream_key.clone(), ShardId::new(2), 3, now());
     let message = OwnedMessage::new(header, payload.clone());
-    running_checksum.update(sink.write(message.clone()).await?);
+    running_checksum.update(sink.write(message.clone())?);
+    sink.flush().await?;
     let read = source.next().await?;
     assert_eq(&read.message, &message);
 
@@ -412,7 +415,8 @@ async fn rewind() -> anyhow::Result<()> {
 
     let header = MessageHeader::new(stream_key.clone(), ShardId::new(2), 4, now());
     let message = OwnedMessage::new(header, payload.clone());
-    running_checksum.update(sink.write(message.clone()).await?);
+    running_checksum.update(sink.write(message.clone())?);
+    sink.flush().await?;
     let read = source.next().await?;
     assert_eq(&read.message, &message);
 
@@ -427,13 +431,15 @@ async fn rewind() -> anyhow::Result<()> {
     // Let's make a message spanning multiple beacons
     let header = MessageHeader::new(stream_key.clone(), ShardId::new(2), 5, now());
     let message = OwnedMessage::new(header, vec![1; 768]);
-    running_checksum.update(sink.write(message.clone()).await?);
+    running_checksum.update(sink.write(message.clone())?);
+    sink.flush().await?;
     let read = source.next().await?;
     assert_eq(&read.message, &message);
 
     let header = MessageHeader::new(stream_key.clone(), ShardId::new(2), 6, now());
     let message = OwnedMessage::new(header, payload.clone());
-    running_checksum.update(sink.write(message.clone()).await?);
+    running_checksum.update(sink.write(message.clone())?);
+    sink.flush().await?;
     let read = source.next().await?;
     assert_eq(&read.message, &message);
 
@@ -451,7 +457,8 @@ async fn rewind() -> anyhow::Result<()> {
     assert_eq!(3, source.rewind(SeqPos::End).await?);
     let header = MessageHeader::new(stream_key.clone(), ShardId::new(2), 7, now());
     let message = OwnedMessage::new(header, payload.clone());
-    running_checksum.update(sink.write(message.clone()).await?);
+    running_checksum.update(sink.write(message.clone())?);
+    sink.flush().await?;
     let read = source.next().await?;
     assert_eq(&read.message, &message);
 
@@ -511,8 +518,9 @@ async fn source() -> anyhow::Result<()> {
                 )
                 .into_bytes(),
             );
-            sink.write(message).await?;
+            sink.write(message)?;
         }
+        sink.flush().await?;
 
         source
             .seek(&stream_key, &shard_id, SeekTarget::SeqNo(0))

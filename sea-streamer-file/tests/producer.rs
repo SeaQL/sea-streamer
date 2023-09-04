@@ -35,10 +35,10 @@ async fn producer() -> anyhow::Result<()> {
         options.set_end_with_eos(true);
         let streamer = FileStreamer::connect(file_id.to_streamer_uri()?, options.clone()).await?;
 
-        let producer = streamer
+        let mut producer = streamer
             .create_producer(stream_key.clone(), Default::default())
             .await?;
-        let secondary = if shared {
+        let mut secondary = if shared {
             producer.clone()
         } else {
             streamer
@@ -60,6 +60,9 @@ async fn producer() -> anyhow::Result<()> {
         for i in 1..25 {
             let mess = format!("{}", i);
             producer.send(mess)?;
+        }
+        producer.flush().await?;
+        for i in 1..25 {
             check(consumer.next().await?, i);
         }
         println!("Send ... ok");
@@ -69,8 +72,10 @@ async fn producer() -> anyhow::Result<()> {
             producer.send(mess)?;
             let mess = format!("{}", i + 1);
             secondary.send(mess)?;
+        }
+        secondary.flush().await?;
+        for i in 25..75 {
             check(consumer.next().await?, i);
-            check(consumer.next().await?, i + 1);
         }
         println!("Mux ... ok");
 
@@ -81,6 +86,7 @@ async fn producer() -> anyhow::Result<()> {
             let mess = format!("{}", i);
             producer.send(mess)?;
         }
+        producer.flush().await?;
         for i in 75..125 {
             check(consumer.next().await?, i);
         }

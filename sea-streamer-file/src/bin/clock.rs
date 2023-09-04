@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use sea_streamer_file::{FileId, FileStreamer};
 use sea_streamer_types::{Producer, StreamKey, Streamer};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -37,14 +37,8 @@ async fn main() -> Result<()> {
         .await?;
 
     for i in 0..u64::MAX {
-        let next = Instant::now() + interval;
         producer.send(format!("tick-{i}"))?;
-        let now = Instant::now();
-        if let Some(dur) = next.checked_duration_since(now) {
-            tokio::time::sleep(dur).await;
-        } else {
-            tokio::time::sleep(Duration::from_nanos(1)).await;
-        }
+        tokio::time::sleep(interval).await;
     }
 
     producer.end().await?;

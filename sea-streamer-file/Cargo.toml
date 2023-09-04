@@ -53,8 +53,8 @@ path = "src/bin/decoder.rs"
 required-features = ["executables"]
 
 [[bin]]
-name = "raw_clock"
-path = "src/bin/raw_clock.rs"
+name = "sink"
+path = "src/bin/sink.rs"
 required-features = ["executables"]
 
 [[bin]]

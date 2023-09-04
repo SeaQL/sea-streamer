@@ -188,7 +188,7 @@ impl Writer {
                             let source = DynFileSource::FileReader(reader);
                             let mut source =
                                 MessageSource::new_with(source, StreamMode::Replay).await?;
-                            // 1. go backwards from started_from and look for the latest Beacon with our stream of interest
+                            // 1. go backwards from stream end and look for the latest Beacon with our stream of interest
                             let max_n = source.rewind(SeqPos::End).await?;
                             let mut n = max_n;
                             while n > 0 {
@@ -225,7 +225,7 @@ impl Writer {
                                     }
                                 }
                             }
-                            // 4. return ownership of the file
+                            // 3. return ownership of the file
                             let source = source.take_source();
                             let reader = match source {
                                 DynFileSource::FileReader(r) => r,
@@ -256,9 +256,8 @@ impl Writer {
                             req.timestamp,
                         );
                         // and write!
-                        let result = sink
-                            .write(OwnedMessage::new(header.clone(), req.bytes.bytes()))
-                            .await;
+                        let result =
+                            sink.write(OwnedMessage::new(header.clone(), req.bytes.bytes()));
                         let checksum = match result {
                             Ok(c) => {
                                 req.receipt.send(Ok(header)).ok();

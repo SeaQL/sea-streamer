@@ -51,8 +51,9 @@ async fn consumer() -> anyhow::Result<()> {
     .await?;
 
     for i in 0..50 {
-        sink.write(message(i)).await?;
+        sink.write(message(i))?;
     }
+    sink.flush().await?;
 
     let mut options = FileConsumerOptions::default();
     options.set_auto_stream_reset(AutoStreamReset::Earliest);
@@ -77,8 +78,10 @@ async fn consumer() -> anyhow::Result<()> {
         .await?;
 
     for i in 50..100 {
-        sink.write(message(i)).await?;
+        sink.write(message(i))?;
     }
+    sink.flush().await?;
+
     for i in 50..100 {
         check(i, earliest.next().await?);
         check(i, latest.next().await?);
@@ -168,11 +171,13 @@ async fn demux() -> anyhow::Result<()> {
 
         for i in 0..100 {
             if i % 2 == 0 {
-                sink.write(cat(i)).await?;
+                sink.write(cat(i))?;
             } else {
-                sink.write(dog(i)).await?;
+                sink.write(dog(i))?;
             }
         }
+
+        sink.flush().await?;
 
         for i in 0..100 {
             if i % 2 == 0 {
@@ -255,8 +260,9 @@ async fn group() -> anyhow::Result<()> {
         assert_eq!(query_streamer(&file_id).await.unwrap().len(), 1);
 
         for i in 0..100 {
-            sink.write(message(i)).await?;
+            sink.write(message(i))?;
         }
+        sink.flush().await?;
 
         for i in 0..100 {
             // they share the nuts fairly
@@ -274,8 +280,9 @@ async fn group() -> anyhow::Result<()> {
 
         // for the next batch of nuts
         for i in 100..130 {
-            sink.write(message(i)).await?;
+            sink.write(message(i))?;
         }
+        sink.flush().await?;
 
         for i in 100..130 {
             match i % 3 {
@@ -360,8 +367,9 @@ async fn seek() -> anyhow::Result<()> {
             .await?;
 
         for i in 0..100 {
-            sink.write(message(i)).await?;
+            sink.write(message(i))?;
         }
+        sink.flush().await?;
         for i in 0..100 {
             check(i, solo.next().await?);
         }
