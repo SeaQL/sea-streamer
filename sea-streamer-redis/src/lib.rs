@@ -11,8 +11,11 @@
 //! While we'd like to provide a Kafka-like client experience, there are some fundamental differences between Redis and Kafka:
 //!
 //! 1. In Redis sequence numbers are not contiguous
+//!     1. In Kafka sequence numbers are contiguous
 //! 2. In Redis messages are dispatched to consumers among group members in a first-ask-first-served manner, which leads to the next point
+//!     1. In Kafka each consumer <-> shard is 1 to 1 in a consumer group
 //! 3. In Redis `ACK` has to be done per message
+//!     1. In Kafka only 1 Ack (read-up-to) is needed for a series of reads
 //!
 //! What's already implemented:
 //!
