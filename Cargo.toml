@@ -2,6 +2,7 @@
 members = [
     ".",
     "examples",
+    "benchmark",
     "sea-streamer-file",
     "sea-streamer-kafka",
     "sea-streamer-redis",

@@ -1,0 +1,29 @@
+[package]
+name = "sea-streamer-benchmark"
+version = "0.3.0"
+authors = ["Chris Tsang <chris.2y3@outlook.com>"]
+edition = "2021"
+description = "🌊 The stream processing toolkit for Rust"
+license = "MIT OR Apache-2.0"
+documentation = "https://docs.rs/sea-streamer"
+repository = "https://github.com/SeaQL/sea-streamer"
+categories = ["concurrency"]
+rust-version = "1.60"
+
+[dependencies]
+anyhow = { version = "1" }
+async-std = { version = "1", features = ["attributes"], optional = true }
+env_logger = { version = "0.9" }
+flume = { version = "0.10", default-features = false, features = ["async"] }
+structopt = { version = "0.3" }
+tokio = { version = "1.10", features = ["full"], optional = true }
+
+[dependencies.sea-streamer]
+path = ".."                             # remove this line in your own project
+version = "0.3"
+features = ["kafka", "redis", "stdio", "file", "socket"]
+
+[features]
+default = ["runtime-tokio"]
+runtime-tokio = ["tokio", "sea-streamer/runtime-tokio"]
+runtime-async-std = ["async-std", "sea-streamer/runtime-async-std"]
