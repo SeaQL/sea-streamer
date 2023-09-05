@@ -165,6 +165,8 @@ impl Writer {
                 .await?;
         let (sender, receiver) = unbounded::<Request>();
         let mut streams: HashMap<(StreamKey, ShardId), StreamState> = Default::default();
+        #[cfg(feature = "runtime-async-std")]
+        let mut last_flush = std::time::Instant::now();
 
         let _handle: TaskHandle<Result<(), FileErr>> = spawn_task(async move {
             'outer: while let Ok(request) = receiver.recv_async().await {
@@ -270,6 +272,17 @@ impl Writer {
                         };
                         stream.ts = req.timestamp;
                         stream.checksum = checksum;
+                        #[cfg(feature = "runtime-async-std")]
+                        {
+                            let now = std::time::Instant::now();
+                            if now.duration_since(last_flush).as_secs() > 0 {
+                                last_flush = now;
+                                // Again, for async-std, we have to actively flush
+                                if sink.flush().await.is_err() {
+                                    break;
+                                }
+                            }
+                        }
                     }
                     Request::Flush(receipt) => {
                         debug_assert!(receipt.is_empty());
