@@ -1,5 +1,5 @@
 use flume::{bounded, r#async::RecvFut, unbounded, Sender};
-use redis::{aio::ConnectionLike, cmd as command, ErrorKind};
+use redis::{aio::ConnectionLike, cmd as command, ErrorKind, Pipeline};
 use std::{fmt::Debug, future::Future, sync::Arc, time::Duration};
 
 use crate::{
@@ -9,8 +9,8 @@ use crate::{
 use sea_streamer_runtime::{sleep, spawn_task};
 use sea_streamer_types::{
     export::{async_trait, futures::FutureExt},
-    Buffer, MessageHeader, Producer, ProducerOptions, Receipt, ShardId, StreamErr, StreamKey,
-    Timestamp, SEA_STREAMER_INTERNAL,
+    Buffer, MessageHeader, Producer, ProducerOptions, ShardId, StreamErr, StreamKey, Timestamp,
+    SEA_STREAMER_INTERNAL,
 };
 
 const MAX_RETRY: usize = 100;
@@ -36,15 +36,17 @@ impl Debug for RedisProducerOptions {
     }
 }
 
+type Receipt = Sender<RedisResult<MessageHeader>>;
+
 struct SendRequest {
     stream_key: StreamKey,
     bytes: Vec<u8>,
-    receipt: Sender<RedisResult<Receipt>>,
+    receipt: Receipt,
 }
 
 /// A future that returns a Send Receipt. This future is cancel safe.
 pub struct SendFuture {
-    fut: RecvFut<'static, RedisResult<Receipt>>,
+    fut: RecvFut<'static, RedisResult<MessageHeader>>,
 }
 
 impl Debug for SendFuture {
@@ -192,102 +194,158 @@ pub(crate) async fn create_producer(
     // Redis commands are exclusive (`&mut self`), so we need a producer task
     spawn_task(async move {
         // exit if all senders have been dropped
-        while let Ok(SendRequest {
-            stream_key,
-            bytes,
-            receipt,
-        }) = receiver.recv_async().await
-        {
-            if stream_key.name() == SEA_STREAMER_INTERNAL && bytes.is_empty() {
-                // A signalling message
-                receipt
-                    .send_async(Ok(MessageHeader::new(
-                        stream_key,
-                        ZERO,
+        while let Ok(request) = receiver.recv_async().await {
+            let mut requests = vec![request];
+            requests.extend(receiver.drain());
+            let mut remaining = requests.len();
+            let mut requests = requests.into_iter();
+            let mut batch: (Vec<(String, StreamKey, ShardId, Receipt)>, Pipeline) =
+                Default::default();
+            let mut next_batch = batch.clone();
+            while remaining > 0 {
+                while let Some(SendRequest {
+                    stream_key,
+                    bytes,
+                    receipt,
+                }) = requests.next()
+                {
+                    if stream_key.name() == SEA_STREAMER_INTERNAL && bytes.is_empty() {
+                        // A signalling message
+                        next_batch.0.push((
+                            SEA_STREAMER_INTERNAL.to_owned(),
+                            stream_key,
+                            ZERO,
+                            receipt,
+                        ));
+                        break;
+                    } else {
+                        let redis_stream_key;
+                        let (redis_key, shard) = if let Some(sharder) = sharder.as_mut() {
+                            let shard = sharder.shard(&stream_key, bytes.as_slice());
+                            redis_stream_key = format!("{name}:{shard}", name = stream_key.name());
+                            (redis_stream_key.as_str(), ShardId::new(shard))
+                        } else {
+                            (stream_key.name(), ZERO)
+                        };
+                        let mut cmd = command("XADD");
+                        cmd.arg(redis_key);
+                        cmd.arg("*");
+                        let msg = [(MSG, bytes)];
+                        cmd.arg(&msg);
+                        let command = (redis_key.to_owned(), stream_key, shard, receipt);
+                        if batch.0.is_empty() || batch.0.last().unwrap().0 == command.0 {
+                            batch.0.push(command);
+                            batch.1.add_command(cmd);
+                        } else {
+                            next_batch.0.push(command);
+                            next_batch.1.add_command(cmd);
+                            break;
+                        }
+                    }
+                }
+
+                if batch.0.is_empty() {
+                    batch = next_batch;
+                    next_batch = Default::default();
+                    continue;
+                }
+
+                let results: Vec<_> = if batch.0.first().unwrap().0 == SEA_STREAMER_INTERNAL {
+                    vec![Ok(MessageHeader::new(
+                        batch.0.first().unwrap().1.clone(),
+                        batch.0.first().unwrap().2.clone(),
                         0,
                         Timestamp::now_utc(),
-                    )))
-                    .await
-                    .ok();
-            } else {
-                let mut cmd = command("XADD");
-                let redis_stream_key;
-                let (redis_key, shard) = if let Some(sharder) = sharder.as_mut() {
-                    let shard = sharder.shard(&stream_key, bytes.as_slice());
-                    redis_stream_key = format!("{name}:{shard}", name = stream_key.name());
-                    (redis_stream_key.as_str(), ShardId::new(shard))
+                    ))]
                 } else {
-                    (stream_key.name(), ZERO)
-                };
-                cmd.arg(redis_key);
-                cmd.arg("*");
-                let msg = [(MSG, bytes)];
-                cmd.arg(&msg);
-                let (mut retried, mut asked) = (0, 0);
-                let result = loop {
-                    let (node, conn) = match cluster.get_connection_for(redis_key).await {
-                        Ok(conn) => conn,
-                        Err(StreamErr::Backend(RedisErr::TryAgain(_))) => continue, // it will sleep inside `get_connection`
-                        Err(err) => {
-                            log::error!("{err:?}");
-                            return; // this will kill the producer
-                        }
-                    };
-                    match conn.req_packed_command(&cmd).await {
-                        Ok(id) => {
-                            break match string_from_redis_value(id) {
-                                Ok(id) => match parse_message_id(&id) {
-                                    Ok((timestamp, sequence)) => Ok(MessageHeader::new(
-                                        stream_key, shard, sequence, timestamp,
-                                    )),
-                                    Err(err) => Err(err),
-                                },
-                                Err(err) => Err(err),
+                    let (mut retried, mut asked) = (0, 0);
+                    let redis_key = &batch.0.first().unwrap().0;
+                    loop {
+                        let (node, conn) = match cluster.get_connection_for(redis_key).await {
+                            Ok(conn) => conn,
+                            Err(StreamErr::Backend(RedisErr::TryAgain(_))) => continue, // it will sleep inside `get_connection`
+                            Err(err) => {
+                                log::error!("{err:?}");
+                                return; // this will kill the producer
                             }
-                        }
-                        Err(err) => {
-                            retried += 1;
-                            if retried == MAX_RETRY {
-                                panic!(
+                        };
+                        match conn.req_packed_commands(&batch.1, 0, batch.0.len()).await {
+                            Ok(ids) => {
+                                assert_eq!(batch.0.len(), ids.len());
+                                break ids
+                                    .into_iter()
+                                    .zip(batch.0.iter())
+                                    .map(|(id, (_, stream_key, shard, _))| {
+                                        match string_from_redis_value(id) {
+                                            Ok(id) => match parse_message_id(&id) {
+                                                Ok((timestamp, sequence)) => {
+                                                    Ok(MessageHeader::new(
+                                                        stream_key.clone(),
+                                                        *shard,
+                                                        sequence,
+                                                        timestamp,
+                                                    ))
+                                                }
+                                                Err(err) => Err(err),
+                                            },
+                                            Err(err) => Err(err),
+                                        }
+                                    })
+                                    .collect();
+                            }
+                            Err(err) => {
+                                retried += 1;
+                                if retried == MAX_RETRY {
+                                    panic!(
                                     "The cluster might have a problem. Already retried {retried} times."
                                 );
-                            }
-                            let kind = err.kind();
-                            if kind == ErrorKind::Moved {
-                                cluster.moved(
-                                    redis_key,
-                                    match err.redirect_node() {
-                                        Some((to, _slot)) => {
-                                            // `to` must be in form of `host:port` without protocol
-                                            format!("{}://{}", cluster.protocol().unwrap(), to)
-                                                .parse()
-                                                .expect("Failed to parse URL: {to}")
-                                        }
-                                        None => panic!("Key is moved, but to where? {err:?}"),
-                                    },
-                                );
-                            } else if matches!(
-                                kind,
-                                ErrorKind::Ask
-                                    | ErrorKind::TryAgain
-                                    | ErrorKind::ClusterDown
-                                    | ErrorKind::MasterDown
-                            ) {
-                                // If it's an ASK, we wait until it finished moving.
-                                // This is an exponential backoff, in seq of [1, 2, 4, 8, 16, 32, 64].
-                                sleep(Duration::from_secs(1 << std::cmp::min(6, asked))).await;
-                                asked += 1;
-                            } else if kind == ErrorKind::IoError {
-                                let node = node.to_owned();
-                                cluster.reconnect(&node).ok();
-                            } else {
-                                // unrecoverable
-                                break Err(map_err(err));
+                                }
+                                let kind = err.kind();
+                                if kind == ErrorKind::Moved {
+                                    cluster.moved(
+                                        redis_key,
+                                        match err.redirect_node() {
+                                            Some((to, _slot)) => {
+                                                // `to` must be in form of `host:port` without protocol
+                                                format!("{}://{}", cluster.protocol().unwrap(), to)
+                                                    .parse()
+                                                    .expect("Failed to parse URL: {to}")
+                                            }
+                                            None => panic!("Key is moved, but to where? {err:?}"),
+                                        },
+                                    );
+                                } else if is_ask(&kind) {
+                                    // If it's an ASK, we wait until it finished moving.
+                                    // This is an exponential backoff, in seq of [1, 2, 4, 8, 16, 32, 64].
+                                    sleep(Duration::from_secs(1 << std::cmp::min(6, asked))).await;
+                                    asked += 1;
+                                } else if kind == ErrorKind::IoError {
+                                    let node = node.to_owned();
+                                    cluster.reconnect(&node).ok();
+                                } else {
+                                    // unrecoverable
+                                    let err = match map_err(err) {
+                                        StreamErr::Backend(err) => err,
+                                        _ => unreachable!(),
+                                    };
+                                    break std::iter::repeat_with(|| {
+                                        Err(StreamErr::Backend(err.clone()))
+                                    })
+                                    .collect();
+                                }
                             }
                         }
                     }
                 };
-                receipt.send_async(result).await.ok();
+
+                remaining -= results.len();
+                assert_eq!(batch.0.len(), results.len());
+                for ((_, _, _, receipt), result) in batch.0.into_iter().zip(results.into_iter()) {
+                    receipt.send_async(result).await.ok();
+                }
+
+                batch = next_batch;
+                next_batch = Default::default();
             }
         }
     });
@@ -296,6 +354,13 @@ pub(crate) async fn create_producer(
         stream: None,
         sender,
     })
+}
+
+fn is_ask(kind: &ErrorKind) -> bool {
+    matches!(
+        kind,
+        ErrorKind::Ask | ErrorKind::TryAgain | ErrorKind::ClusterDown | ErrorKind::MasterDown
+    )
 }
 
 impl PseudoRandomSharder {

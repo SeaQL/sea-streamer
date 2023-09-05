@@ -4,7 +4,7 @@ use util::*;
 static INIT: std::sync::Once = std::sync::Once::new();
 
 // cargo test --test consumer-group --features=test,runtime-tokio -- --nocapture
-// cargo test --test consumer-group --features=test,runtime-async-std -- --nocapture
+// cargo test --test consumer-group --no-default-features --features=test,runtime-async-std -- --nocapture
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
@@ -24,6 +24,7 @@ async fn consumer_group() -> anyhow::Result<()> {
     INIT.call_once(env_logger::init);
 
     test(false).await?;
+    sleep(Duration::from_millis(1)).await;
     test(true).await?;
 
     async fn test(mkstream: bool) -> anyhow::Result<()> {
@@ -44,6 +45,7 @@ async fn consumer_group() -> anyhow::Result<()> {
             TEST,
             now.unix_timestamp_nanos() / 1_000_000
         ))?;
+        println!("stream = {stream}");
 
         let mut producer = streamer
             .create_producer(stream.clone(), Default::default())
@@ -57,16 +59,17 @@ async fn consumer_group() -> anyhow::Result<()> {
             .create_consumer(&[stream.clone()], options.clone())
             .await?;
 
+        if !mkstream {
+            assert!(consumer.next().await.is_err());
+        }
+
         for i in 0..5 {
             let message = format!("{i}");
             producer.send(message)?;
         }
-
         producer.flush().await?;
 
-        if !mkstream {
-            assert!(consumer.next().await.is_err());
-        } else {
+        if mkstream {
             let seq = consume(&mut consumer, 5).await?;
             assert_eq!(seq, [0, 1, 2, 3, 4]);
         }
