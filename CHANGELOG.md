@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 0.3.2 - 2023-09-05
+
++ [`sea-streamer-file`] Improvements over read and write throughput
++ [`sea-streamer-file-reader`] A node.js library for decoding sea-streamer files
++ [`sea-streamer-redis`] Improvements over write throughput
+
 ### `sea-streamer-file` 0.3.1 - 2023-08-21
 
 + Enhance decoder to display binary payload for JSON
