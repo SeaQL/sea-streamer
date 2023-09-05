@@ -25,14 +25,16 @@ i.e. round-robin.
 
 We provide a small utility to decode `.ss` files:
 
-```rust
+```sh
 alias decoder='cargo run --package sea-streamer-file --features=executables --bin decoder'
 decoder -- --file <file> --format <format>
+ # or if you wish to install it
+cargo install sea-streamer-file --features=executables --bin decoder
 ```
 
 Example `log` format:
 
-```rust
+```log
  # header
 [2023-06-05T13:55:53.001 | hello | 1 | 0] message-1
  # beacon
@@ -40,7 +42,7 @@ Example `log` format:
 
 Example `ndjson` format:
 
-```rust
+```json
 /* header */
 {"header":{"stream_key":"hello","shard_id":0,"sequence":1,"timestamp":"2023-06-05T13:55:53.001"},"payload":"message-1"}
 /* beacon */
