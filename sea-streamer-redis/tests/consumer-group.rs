@@ -9,22 +9,17 @@ static INIT: std::sync::Once = std::sync::Once::new();
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
 async fn consumer_group() -> anyhow::Result<()> {
-    use flume::unbounded;
     use sea_streamer_redis::{
-        AutoCommit, AutoStreamReset, RedisConnectOptions, RedisConsumerOptions, RedisStreamer,
+        AutoStreamReset, RedisConnectOptions, RedisConsumerOptions, RedisStreamer,
     };
-    use sea_streamer_runtime::{sleep, spawn_task};
     use sea_streamer_types::{
-        export::futures::stream::StreamExt, Buffer, Consumer, ConsumerMode, ConsumerOptions,
-        Message, Producer, StreamKey, Streamer, Timestamp,
+        Consumer, ConsumerMode, ConsumerOptions, Producer, StreamKey, Streamer, Timestamp,
     };
-    use std::time::Duration;
 
     const TEST: &str = "group-1";
     INIT.call_once(env_logger::init);
 
     test(false).await?;
-    sleep(Duration::from_millis(1)).await;
     test(true).await?;
 
     async fn test(mkstream: bool) -> anyhow::Result<()> {
@@ -63,9 +58,12 @@ async fn consumer_group() -> anyhow::Result<()> {
             assert!(consumer.next().await.is_err());
         }
 
+        let mut last = 0;
         for i in 0..5 {
             let message = format!("{i}");
-            producer.send(message)?;
+            let receipt = producer.send(message)?.await?;
+            assert!(*receipt.sequence() > last);
+            last = *receipt.sequence();
         }
         producer.flush().await?;
 
