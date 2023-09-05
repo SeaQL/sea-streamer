@@ -39,6 +39,7 @@ struct Streamers {
 
 pub(crate) type Sid = u32;
 const ZERO: ShardId = ShardId::new(0);
+const PREFETCH_MESSAGE: usize = 100;
 
 #[derive(Debug, Clone, Copy)]
 enum BgTask {
@@ -238,37 +239,51 @@ pub async fn query_streamer(file_id: &FileId) -> Option<Vec<StreamerInfo>> {
 impl Streamer {
     fn create(mut source: MessageSource) -> Self {
         let subscribers = Subscribers::new();
-        let (sender, ctrl) = bounded(0);
+        let (ctrler, ctrl) = bounded(0);
         let (ticker, tick) = bounded(1);
         let ret = subscribers.clone();
+        let mut ended = false;
 
         let _handle = spawn_task(async move {
             loop {
-                match ctrl.recv_async().await {
-                    Ok(CtrlMsg::Read) => {
-                        if tick.try_recv().is_ok() {
-                            // if there is a tick already, don't enter the future
+                if ended && subscribers.channel_empty() {
+                    // log::debug!("stream ended");
+                    break;
+                }
+                if !ended && subscribers.has_capacity() && tick.try_recv().is_err() {
+                    // read the next message; yield point!
+                    select! {
+                        // this future is not cancel safe, but a subsequent seek will rectify the internal states
+                        res = source.next().fuse() => {
+                            let res: Result<SharedMessage, FileErr> = res.map(|m| m.message.to_shared());
+                            let err = match &res {
+                                Ok(m) => {
+                                    ended = is_end_of_stream(m);
+                                    false
+                                }
+                                Err(_) => {
+                                    true
+                                }
+                            };
+                            subscribers.dispatch(res);
+                            if err {
+                                // when this ends, source will be dropped as well
+                                break;
+                            }
                             continue;
                         }
-                        let res = select! {
-                            m = source.next().fuse() => m,
-                            // the above future is not cancel safe, but a subsequent seek
-                            // will rectify the internal states
-                            _ = tick.recv_async().fuse() => continue,
-                        };
-                        let res: Result<SharedMessage, FileErr> =
-                            res.map(|m| m.message.to_shared());
-                        let end = match &res {
-                            Ok(m) => is_end_of_stream(m),
-                            Err(_) => true,
-                        };
-                        subscribers.dispatch(res);
-                        if end {
-                            // when this ends, source will be dropped as well
-                            break;
-                        }
+                        // it will only yield in case of an upcoming Seek request
+                        _ = tick.recv_async().fuse() => {}
+                    }
+                }
+                // wait for the next control message
+                match ctrl.recv_async().await {
+                    Ok(CtrlMsg::Read) => {
+                        // it should be impossible to receive a Read after a Tick
                     }
                     Ok(CtrlMsg::Seek(target)) => {
+                        ended = false;
+                        tick.drain();
                         if let Some(keys) = subscribers.solo_keys() {
                             match source.seek(&keys[0], &ZERO, target).await {
                                 Ok(()) => {
@@ -284,14 +299,16 @@ impl Streamer {
                             break;
                         }
                     }
-                    Err(_) => break,
+                    Err(_) => {
+                        break;
+                    }
                 }
             }
         });
 
         Self {
             subscribers: ret,
-            ctrl: sender,
+            ctrl: ctrler,
             tick: ticker,
         }
     }
@@ -471,5 +488,25 @@ impl Subscribers {
                 }
             }
         }
+    }
+
+    fn has_capacity(&self) -> bool {
+        let map = self.subscribers.lock().unwrap();
+        for sender in map.senders.values() {
+            if sender.len() <= PREFETCH_MESSAGE {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn channel_empty(&self) -> bool {
+        let map = self.subscribers.lock().unwrap();
+        for sender in map.senders.values() {
+            if !sender.is_empty() {
+                return false;
+            }
+        }
+        true
     }
 }

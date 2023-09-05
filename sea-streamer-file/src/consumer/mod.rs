@@ -3,7 +3,7 @@ mod group;
 
 pub use future::StreamFuture as FileMessageStream;
 
-use flume::{r#async::SendFut, Receiver, Sender, TryRecvError};
+use flume::{r#async::RecvFut, Receiver, Sender, TrySendError};
 use sea_streamer_types::{
     export::{
         async_trait,
@@ -37,9 +37,9 @@ enum CtrlMsg {
     Seek(SeekTarget),
 }
 
-pub struct NextFuture<'a> {
-    inner: &'a FileConsumer,
-    future: Option<SendFut<'a, CtrlMsg>>,
+pub enum NextFuture<'a> {
+    Future(RecvFut<'a, Result<SharedMessage, FileErr>>),
+    Error(Option<StreamErr<FileErr>>),
 }
 
 pub type FileMessage = SharedMessage;
@@ -109,14 +109,13 @@ impl ConsumerTrait for FileConsumer {
         ))
     }
 
-    /// If this future is canceled, a Message might still be read.
-    /// It will be queued for you to consume on the next next() call,
-    /// which yields immediately. In a nutshell, cancelling this
-    /// future does not undo the read, but it will not cause any error.
+    /// If there is already a message in the buffer, it yields immediately.
+    /// Otherwise it will await the next message.
     fn next(&self) -> Self::NextFuture<'_> {
-        NextFuture {
-            inner: self,
-            future: None,
+        if let Err(TrySendError::Disconnected(_)) = self.ctrl.try_send(CtrlMsg::Read) {
+            NextFuture::Error(Some(StreamErr::Backend(FileErr::StreamEnded)))
+        } else {
+            NextFuture::Future(self.receiver.recv_async())
         }
     }
 
@@ -153,44 +152,24 @@ impl FileConsumer {
     }
 }
 
-/// Hand-unrolled of the following:
-/// ```ignore
-/// loop {
-///     if let Ok(m) = receiver.try_recv() {
-///         return Ok(m);
-///     }
-///     ctrl.send_async(Read).await?;
-/// }
-/// ```
 impl<'a> Future for NextFuture<'a> {
     type Output = FileResult<SharedMessage>;
 
     fn poll(
-        mut self: std::pin::Pin<&mut Self>,
+        self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
         use std::task::Poll::{Pending, Ready};
-        loop {
-            match self.inner.receiver.try_recv() {
-                Ok(Ok(m)) => return Ready(Ok(m)),
-                Ok(Err(e)) => return Ready(Err(StreamErr::Backend(e))),
-                Err(TryRecvError::Disconnected) => {
-                    return Ready(Err(StreamErr::Backend(FileErr::TaskDead("Streamer Recv"))))
-                }
-                Err(TryRecvError::Empty) => (),
-            }
-            if self.future.is_none() {
-                self.future = Some(self.inner.ctrl.send_async(CtrlMsg::Read));
-            }
-            match self.future.as_mut().unwrap().poll_unpin(cx) {
+        match std::pin::Pin::into_inner(self) {
+            Self::Error(e) => Ready(Err(e.take().unwrap())),
+            Self::Future(future) => match future.poll_unpin(cx) {
                 Ready(res) => match res {
-                    Ok(_) => {
-                        self.future = None;
-                    }
-                    Err(_) => return Ready(Err(StreamErr::Backend(FileErr::StreamEnded))),
+                    Ok(Ok(m)) => Ready(Ok(m)),
+                    Ok(Err(e)) => Ready(Err(StreamErr::Backend(e))),
+                    Err(_) => Ready(Err(StreamErr::Backend(FileErr::StreamEnded))),
                 },
-                Pending => return Pending,
-            }
+                Pending => Pending,
+            },
         }
     }
 }
