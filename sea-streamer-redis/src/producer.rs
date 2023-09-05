@@ -203,11 +203,11 @@ pub(crate) async fn create_producer(
                 Default::default();
             let mut next_batch = batch.clone();
             while remaining > 0 {
-                while let Some(SendRequest {
+                for SendRequest {
                     stream_key,
                     bytes,
                     receipt,
-                }) = requests.next()
+                } in requests.by_ref()
                 {
                     if stream_key.name() == SEA_STREAMER_INTERNAL && bytes.is_empty() {
                         // A signalling message
@@ -253,7 +253,7 @@ pub(crate) async fn create_producer(
                 let results: Vec<_> = if batch.0.first().unwrap().0 == SEA_STREAMER_INTERNAL {
                     vec![Ok(MessageHeader::new(
                         batch.0.first().unwrap().1.clone(),
-                        batch.0.first().unwrap().2.clone(),
+                        batch.0.first().unwrap().2,
                         0,
                         Timestamp::now_utc(),
                     ))]

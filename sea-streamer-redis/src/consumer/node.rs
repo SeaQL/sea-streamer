@@ -305,8 +305,7 @@ impl Node {
                     }
                 }
             }
-            while !self.buffer.is_empty() {
-                let msg = self.buffer.pop().unwrap();
+            while let Some(msg) = self.buffer.pop() {
                 let header = msg.header().to_owned();
                 if let Ok(()) = self.messages.send_async(Ok(msg)).await {
                     // we keep track of messages read ourselves
