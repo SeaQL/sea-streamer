@@ -1,6 +1,6 @@
 [package]
 name = "sea-streamer-runtime"
-version = "0.3.0"
+version = "0.3.2"
 authors = ["Chris Tsang <chris.2y3@outlook.com>"]
 edition = "2021"
 description = "🌊 SeaStreamer async runtime abstraction"
