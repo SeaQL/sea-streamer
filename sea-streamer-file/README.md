@@ -25,11 +25,9 @@ i.e. round-robin.
 
 We provide a small utility to decode `.ss` files:
 
-```sh
+```rust
 alias decoder='cargo run --package sea-streamer-file --features=executables --bin decoder'
 decoder -- --file <file> --format <format>
-# if you want to install it
-cargo install sea-streamer-file --features=executables --bin decoder
 ```
 
 Example `log` format:
