@@ -57,6 +57,7 @@
 //! 3. Verify: a utility program to verify and repair SeaStreamer binary file.
 mod buffer;
 mod consumer;
+mod crc;
 mod dyn_file;
 mod error;
 mod file;

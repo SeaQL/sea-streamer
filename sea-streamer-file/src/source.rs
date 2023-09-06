@@ -56,8 +56,7 @@ impl FileSource {
         offset: u64,
         buffer: ByteBuffer,
     ) -> Result<Self, FileErr> {
-        // This allows the consumer to control the pace
-        let (sender, receiver) = bounded(0);
+        let (sender, receiver) = new_channel();
         let (notify, event) = unbounded();
         let watcher = new_watcher(file.id(), notify.clone())?;
         let file_size = file.size();
@@ -232,7 +231,7 @@ impl FileSource {
         ByteBuffer,
     ) {
         // Create a fresh channel
-        let (sender, receiver) = bounded(0);
+        let (sender, receiver) = new_channel();
         // Drops the old channel; this may stop the task
         self.receiver = receiver;
         // Notify the task in case it is sleeping
@@ -327,4 +326,9 @@ impl<'a> Future for FileSourceFuture<'a> {
             }
         }
     }
+}
+
+fn new_channel<T>() -> (Sender<T>, Receiver<T>) {
+    // This prevents over-read
+    bounded(1024)
 }

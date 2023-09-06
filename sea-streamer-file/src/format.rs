@@ -55,11 +55,13 @@
 //! All numbers are encoded in big endian. There are 0x0D in places so that it will not blow up
 //! plain text editors. And it's semi-human-readable.
 //!
-//! A SeaStream can be terminated by a End-of-Stream Message,
+//! A SeaStreamer file can be terminated by a End-of-Stream Message,
 //! with the stream key `SEA_STREAMER_INTERNAL` and payload `EOS`.
 
-use crate::{ByteSink, ByteSource, Bytes, FileErr};
-use crczoo::{calculate_crc16, crc16_cdma2000, CRC16_CDMA2000_POLY};
+use crate::{
+    crc::{crc16_cdma2000, crc_update},
+    ByteSink, ByteSource, Bytes, FileErr,
+};
 use sea_streamer_types::{
     Buffer, Message as MessageTrait, OwnedMessage, ShardId, StreamKey, StreamKeyErr, Timestamp,
 };
@@ -485,7 +487,7 @@ impl RunningChecksum {
     }
 
     fn byte(&mut self, byte: u8) {
-        self.crc = calculate_crc16(&[byte], CRC16_CDMA2000_POLY, self.crc, false, false, 0);
+        self.crc = crc_update(self.crc, &[byte]);
     }
 
     pub fn crc(&self) -> Checksum {

@@ -18,7 +18,6 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 anyhow = { version = "1", optional = true }
 async-std = { version = "1", optional = true }
-crczoo = { version = "0.1.3" }
 env_logger = { version = "0.9", optional = true }
 fastrand = { version = "1" }
 flume = { version = "0.10", default-features = false, features = ["async"] }

@@ -1,4 +1,15 @@
-const CRC_TABLE = [
+//! Generated on by pycrc https://pycrc.org
+//!
+//! using the configuration:
+//!  - Width         = 16
+//!  - Poly          = 0xc867
+//!  - XorIn         = 0xffff
+//!  - ReflectIn     = False
+//!  - XorOut        = 0x0000
+//!  - ReflectOut    = False
+//!  - Algorithm     = table-driven
+
+static CRC_TABLE: [u16; 256] = [
     0x0000, 0xc867, 0x58a9, 0x90ce, 0xb152, 0x7935, 0xe9fb, 0x219c, 0xaac3, 0x62a4, 0xf26a, 0x3a0d,
     0x1b91, 0xd3f6, 0x4338, 0x8b5f, 0x9de1, 0x5586, 0xc548, 0x0d2f, 0x2cb3, 0xe4d4, 0x741a, 0xbc7d,
     0x3722, 0xff45, 0x6f8b, 0xa7ec, 0x8670, 0x4e17, 0xded9, 0x16be, 0xf3a5, 0x3bc2, 0xab0c, 0x636b,
@@ -23,17 +34,28 @@ const CRC_TABLE = [
     0x04a2, 0xccc5, 0x5c0b, 0x946c,
 ];
 
-function crc_update(crc: number, data: Buffer): number {
-    for (let i = 0; i < data.length; i++) {
-        let d = data.readUInt8(i);
-        let tbl_idx = ((crc >> 8) ^ d) & 0xff;
-        crc = (CRC_TABLE[tbl_idx] ^ (crc << 8)) & 0xffff;
+pub(crate) fn crc_update(mut crc: u16, data: &[u8]) -> u16 {
+    for d in data.iter() {
+        let tbl_idx = (crc >> 8) as u8 ^ *d;
+        crc = CRC_TABLE[tbl_idx as usize] ^ (crc << 8);
     }
-    return crc & 0xffff;
+    crc
 }
 
-export function crc16Cdma2000(data: Buffer): number {
-    let crc = 0xffff;
+pub fn crc16_cdma2000(data: &[u8]) -> u16 {
+    let mut crc = 0xffff;
     crc = crc_update(crc, data);
-    return crc;
+    crc
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_crc16_cdma2000() {
+        assert_eq!(crc16_cdma2000("123456789".as_bytes()), 0x4C06);
+        let str = "hello, world";
+        assert_eq!(crc16_cdma2000(str.as_bytes()), 0x8028);
+    }
 }
