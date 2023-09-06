@@ -9,7 +9,7 @@ use sea_streamer_types::{
     SeqPos, StreamUrlErr, StreamerUri,
 };
 
-pub(crate) const BUFFER_SIZE: usize = 1024;
+pub(crate) const BUFFER_SIZE: usize = 10240;
 
 /// A simple buffered and bounded file reader.
 /// The implementation is much simpler than `FileSource`.

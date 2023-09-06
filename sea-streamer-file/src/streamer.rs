@@ -4,6 +4,7 @@ use thiserror::Error;
 use crate::{
     consumer::new_consumer, end_producer, format::Header, new_producer, AsyncFile, FileConsumer,
     FileErr, FileId, FileProducer, FileResult, DEFAULT_BEACON_INTERVAL, DEFAULT_FILE_SIZE_LIMIT,
+    DEFAULT_PREFETCH_MESSAGE,
 };
 use sea_streamer_types::{
     export::async_trait, ConnectOptions as ConnectOptionsTrait, ConsumerGroup, ConsumerMode,
@@ -23,6 +24,7 @@ pub struct FileConnectOptions {
     end_with_eos: bool,
     beacon_interval: u32,
     file_size_limit: u64,
+    prefetch_message: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -156,11 +158,13 @@ impl StreamerTrait for FileStreamer {
                 )))
             }
         };
+
         let consumer = new_consumer(
             self.file_id.clone(),
             stream_mode,
             options.group,
             streams.to_vec(),
+            self.options.prefetch_message,
         )
         .await?;
         Ok(consumer)
@@ -187,6 +191,7 @@ impl Default for FileConnectOptions {
             end_with_eos: false,
             beacon_interval: DEFAULT_BEACON_INTERVAL,
             file_size_limit: DEFAULT_FILE_SIZE_LIMIT,
+            prefetch_message: DEFAULT_PREFETCH_MESSAGE,
         }
     }
 }
@@ -234,6 +239,19 @@ impl FileConnectOptions {
     /// Default is [`crate::DEFAULT_FILE_SIZE_LIMIT`].
     pub fn set_file_size_limit(&mut self, v: u64) -> &mut Self {
         self.file_size_limit = v;
+        self
+    }
+
+    pub fn prefetch_message(&self) -> usize {
+        self.prefetch_message
+    }
+
+    /// Number of messages to prefetch. A larger number would lead to higher memory usage.
+    /// Choose the number by considering the typical size of messages.
+    ///
+    /// Default is [`crate::DEFAULT_PREFETCH_MESSAGE`].
+    pub fn set_prefetch_message(&mut self, v: usize) -> &mut Self {
+        self.prefetch_message = v;
         self
     }
 }

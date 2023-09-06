@@ -39,7 +39,6 @@ struct Streamers {
 
 pub(crate) type Sid = u32;
 const ZERO: ShardId = ShardId::new(0);
-const PREFETCH_MESSAGE: usize = 100;
 
 #[derive(Debug, Clone, Copy)]
 enum BgTask {
@@ -67,6 +66,7 @@ pub struct SubscriberInfo {
 #[derive(Clone)]
 struct Subscribers {
     subscribers: Arc<Mutex<SubscriberMap>>,
+    prefetch_message: usize,
 }
 
 struct SubscriberMap {
@@ -100,6 +100,7 @@ impl Streamers {
         mode: StreamMode,
         group: Option<ConsumerGroup>,
         keys: Vec<StreamKey>,
+        prefetch_message: usize,
     ) -> Result<FileConsumer, FileErr> {
         let (sender, receiver) = unbounded();
         self.max_sid += 1;
@@ -141,7 +142,10 @@ impl Streamers {
         if handle.is_none() {
             handles.push((
                 mode,
-                Streamer::create(MessageSource::new(file_id.clone(), mode).await?),
+                Streamer::create(
+                    MessageSource::new(file_id.clone(), mode).await?,
+                    prefetch_message,
+                ),
             ));
             handle = Some(&mut handles.last_mut().unwrap().1);
         }
@@ -183,9 +187,13 @@ impl Streamers {
                         let (sender, _group, keys) =
                             handle.subscribers.remove(sid).expect("Checked by has_sid");
                         // create a new source
+                        let prefetch_message = handle.subscribers.prefetch_message;
                         handles.push((
                             new_mode,
-                            Streamer::create(MessageSource::new(file_id.clone(), new_mode).await?),
+                            Streamer::create(
+                                MessageSource::new(file_id.clone(), new_mode).await?,
+                                prefetch_message,
+                            ),
                         ));
                         let handle = &mut handles.last_mut().unwrap().1;
                         // subscribe to the source
@@ -216,9 +224,12 @@ pub(crate) async fn new_consumer(
     mode: StreamMode,
     group: Option<ConsumerGroup>,
     keys: Vec<StreamKey>,
+    prefetch_message: usize,
 ) -> Result<FileConsumer, FileErr> {
     let mut streamers = STREAMERS.lock().await;
-    streamers.add(file_id, mode, group, keys).await
+    streamers
+        .add(file_id, mode, group, keys, prefetch_message)
+        .await
 }
 
 pub(crate) fn remove_consumer(sid: Sid) {
@@ -237,13 +248,14 @@ pub async fn query_streamer(file_id: &FileId) -> Option<Vec<StreamerInfo>> {
 }
 
 impl Streamer {
-    fn create(mut source: MessageSource) -> Self {
-        let subscribers = Subscribers::new();
+    fn create(mut source: MessageSource, prefetch_message: usize) -> Self {
+        let subscribers = Subscribers::new(prefetch_message);
         let (ctrler, ctrl) = bounded(0);
         let (ticker, tick) = bounded(1);
         let ret = subscribers.clone();
         let mut ended = false;
 
+        // FIXME if this task panics, the streamer halts
         let _handle = spawn_task(async move {
             loop {
                 if ended && subscribers.channel_empty() {
@@ -315,13 +327,14 @@ impl Streamer {
 }
 
 impl Subscribers {
-    fn new() -> Self {
+    fn new(prefetch_message: usize) -> Self {
         Self {
             subscribers: Arc::new(Mutex::new(SubscriberMap {
                 senders: Default::default(),
                 groups: Default::default(),
                 ungrouped: Default::default(),
             })),
+            prefetch_message,
         }
     }
 
@@ -493,7 +506,7 @@ impl Subscribers {
     fn has_capacity(&self) -> bool {
         let map = self.subscribers.lock().unwrap();
         for sender in map.senders.values() {
-            if sender.len() <= PREFETCH_MESSAGE {
+            if sender.len() <= self.prefetch_message {
                 return true;
             }
         }

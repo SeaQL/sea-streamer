@@ -39,6 +39,11 @@ pub struct FileSource {
     buffer: ByteBuffer,
 }
 
+fn new_channel<T>() -> (Sender<T>, Receiver<T>) {
+    // This prevents over-read
+    bounded(1024)
+}
+
 impl FileSource {
     pub async fn new(file_id: FileId, read_from: ReadFrom) -> Result<Self, FileErr> {
         let mut file = AsyncFile::new_r(file_id).await?;
@@ -326,9 +331,4 @@ impl<'a> Future for FileSourceFuture<'a> {
             }
         }
     }
-}
-
-fn new_channel<T>() -> (Sender<T>, Receiver<T>) {
-    // This prevents over-read
-    bounded(1024)
 }
