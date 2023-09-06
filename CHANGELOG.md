@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+### `sea-streamer-file` 0.3.3 - 2023-09-06
+
++ used a faster CRC implementation
++ added option `prefetch_message` to `FileConnectOptions`
+
 ## 0.3.2 - 2023-09-05
 
 + [`sea-streamer-file`] Improvements over read and write throughput
