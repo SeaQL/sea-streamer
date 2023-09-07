@@ -1,6 +1,6 @@
 [package]
 name = "redis-streams-dump"
-version = "0.3.2"
+version = "0.3.0"
 authors = ["Chris Tsang <chris.2y3@outlook.com>"]
 edition = "2021"
 description = "A small utility to dump Redis Streams content into a SeaStreamer file"
@@ -17,7 +17,7 @@ env_logger = { version = "0.9" }
 log = { version = "0.4", default-features = false }
 sea-streamer-file = { version = "0.3", path = "../../sea-streamer-file", features = ["runtime-tokio"] }
 sea-streamer-redis = { version = "0.3", path = "../../sea-streamer-redis", features = ["runtime-tokio"] }
-sea-streamer-types = { version = "0.3", path = "../../sea-streamer-types" }
+sea-streamer-types = { version = "0.3.1", path = "../../sea-streamer-types" }
 structopt = { version = "0.3" }
 time = { version = "0.3", default-features = false, features = ["std", "parsing"] }
 tokio = { version = "1.10.0", features = ["full"]}
