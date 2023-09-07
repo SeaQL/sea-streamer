@@ -13,7 +13,7 @@ cargo run --package redis-streams-dump -- ..
 ```
 
 ```sh
-redis-streams-dump 0.3.2
+redis-streams-dump
 
 USAGE:
     redis-streams-dump [OPTIONS] --output <output> --stream <stream>
