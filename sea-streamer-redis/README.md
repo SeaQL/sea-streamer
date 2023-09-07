@@ -57,4 +57,6 @@ In Redis, shards and nodes is a M-N mapping - shards can be moved among nodes *a
 It makes testing much more difficult.
 Let us know if you'd like to help!
 
+There is also a [small utility](https://github.com/SeaQL/sea-streamer/tree/main/sea-streamer-redis/redis-streams-dump) to dump Redis Streams messages into a SeaStreamer file.
+
 This crate is built on top of [`redis`](https://docs.rs/redis).

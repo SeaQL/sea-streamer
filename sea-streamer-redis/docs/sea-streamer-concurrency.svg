@@ -9,7 +9,8 @@
 	.st3{font-size:12px;}
 	.st4{fill:none;stroke:#000000;stroke-miterlimit:10;}
 </style>
-<rect x="292.4" y="85.8" class="st0" width="81.9" height="20"/>
+<path class="st0" d="M364.3,105.8h-61.9c-5.5,0-10-4.5-10-10v0c0-5.5,4.5-10,10-10h61.9c5.5,0,10,4.5,10,10v0
+	C374.3,101.3,369.8,105.8,364.3,105.8z"/>
 <rect x="58.1" y="39.1" class="st1" width="55.3" height="29.3"/>
 <text transform="matrix(1 0 0 1 71.9093 57.2611)" class="st2 st3">READ</text>
 <rect x="113.4" y="39.1" class="st1" width="68.3" height="29.3"/>
