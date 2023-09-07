@@ -248,3 +248,17 @@ impl ByteSink for FileSink {
         }
     }
 }
+
+impl std::io::Write for FileSink {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        use std::io::{Error, ErrorKind};
+        <Self as ByteSink>::write(self, Bytes::from_slice(buf))
+            .map_err(|_| Error::new(ErrorKind::BrokenPipe, "Failed to write"))?;
+        Ok(1)
+    }
+
+    /// This has no effect. Please call the async flush method and await it.
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}

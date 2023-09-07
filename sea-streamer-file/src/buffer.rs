@@ -166,6 +166,16 @@ impl Bytes {
         Bytes::Bytes(bytes)
     }
 
+    /// Construct a blob from a slice of bytes. Clones them.
+    pub fn from_slice(b: &[u8]) -> Self {
+        match b.len() {
+            0 => Bytes::Empty,
+            1 => Bytes::Byte(b[0]),
+            4 => Bytes::Word([b[0], b[1], b[2], b[3]]),
+            _ => Bytes::Bytes(b.to_vec()),
+        }
+    }
+
     /// Get the length of this blob of bytes.
     pub fn len(&self) -> usize {
         match self {
