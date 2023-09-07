@@ -57,7 +57,9 @@ impl Streamer for RedisStreamer {
     }
 
     async fn disconnect(self) -> RedisResult<()> {
-        todo!()
+        Err(StreamErr::Backend(RedisErr::Unknown(
+            "Not implemented".to_owned(),
+        )))
     }
 
     async fn create_generic_producer(

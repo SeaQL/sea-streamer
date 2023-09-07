@@ -38,7 +38,7 @@ jobs:
       - run: cargo test --package sea-streamer-stdio --test '*' --features test -- --nocapture
       - run: cargo test --package sea-streamer-file --test '*' --features test,runtime-async-std -- --nocapture
       - run: cargo test --package sea-streamer-file --test '*' --features test,runtime-tokio -- --nocapture
-      - run: cargo clippy --features json,kafka,stdio,socket -- -D warnings
+      - run: cargo clippy --features file,redis,kafka,stdio,socket,json -- -D warnings
       - run: cargo clippy --all
 
   kafka:
