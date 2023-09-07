@@ -6,6 +6,7 @@ members = [
     "sea-streamer-file",
     "sea-streamer-kafka",
     "sea-streamer-redis",
+    "sea-streamer-redis/redis-streams-dump",
     "sea-streamer-runtime",
     "sea-streamer-socket",
     "sea-streamer-stdio",

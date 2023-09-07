@@ -142,6 +142,20 @@ impl SharedMessage {
     pub fn take_header(self) -> MessageHeader {
         self.header
     }
+
+    /// This will attempt to convert self into an OwnedMessage *without* copying,
+    /// if the bytes are not shared with any other.
+    pub fn to_owned_message(self) -> OwnedMessage {
+        let payload = if self.offset == 0 && self.length as usize == self.bytes.len() {
+            Arc::try_unwrap(self.bytes).unwrap_or_else(|arc| (*arc).clone())
+        } else {
+            self.message().into_bytes()
+        };
+        OwnedMessage {
+            header: self.header,
+            payload,
+        }
+    }
 }
 
 impl Message for OwnedMessage {

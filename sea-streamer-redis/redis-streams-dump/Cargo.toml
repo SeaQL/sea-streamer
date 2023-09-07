@@ -1,0 +1,28 @@
+[package]
+name = "redis-streams-dump"
+version = "0.3.2"
+authors = ["Chris Tsang <chris.2y3@outlook.com>"]
+edition = "2021"
+description = "A small utility to dump Redis Streams content into a SeaStreamer file"
+license = "MIT OR Apache-2.0"
+documentation = "https://docs.rs/redis-streams-dump"
+repository = "https://github.com/SeaQL/sea-streamer"
+categories = ["concurrency"]
+keywords = ["async", "stream", "redis", "stream-processing"]
+rust-version = "1.60"
+
+[dependencies]
+anyhow = { version = "1" }
+env_logger = { version = "0.9" }
+log = { version = "0.4", default-features = false }
+sea-streamer-file = { version = "0.3", path = "../../sea-streamer-file", features = ["runtime-tokio"]}
+sea-streamer-redis = { version = "0.3", path = "../../sea-streamer-redis", features = ["runtime-tokio"]}
+sea-streamer-types = { version = "0.3", path = "../../sea-streamer-types" }
+structopt = { version = "0.3" }
+time = { version = "0.3", default-features = false, features = ["std", "parsing"] }
+tokio = { version = "1.10.0", features = ["full"]}
+
+[dev-dependencies]
+
+[features]
+runtime-tokio-native-tls = ["sea-streamer-redis/runtime-tokio-native-tls"]

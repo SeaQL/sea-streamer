@@ -21,7 +21,7 @@ tokio = { version = "1.10", features = ["full"], optional = true }
 [dependencies.sea-streamer]
 path = ".."                             # remove this line in your own project
 version = "0.3"
-features = ["kafka", "redis", "stdio", "file", "socket"]
+features = ["redis", "stdio", "file", "socket"]
 
 [features]
 default = ["runtime-tokio"]
