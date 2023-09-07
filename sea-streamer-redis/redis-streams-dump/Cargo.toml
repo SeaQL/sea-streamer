@@ -15,8 +15,8 @@ rust-version = "1.60"
 anyhow = { version = "1" }
 env_logger = { version = "0.9" }
 log = { version = "0.4", default-features = false }
-sea-streamer-file = { version = "0.3", path = "../../sea-streamer-file", features = ["runtime-tokio"]}
-sea-streamer-redis = { version = "0.3", path = "../../sea-streamer-redis", features = ["runtime-tokio"]}
+sea-streamer-file = { version = "0.3", path = "../../sea-streamer-file", features = ["runtime-tokio"] }
+sea-streamer-redis = { version = "0.3", path = "../../sea-streamer-redis", features = ["runtime-tokio"] }
 sea-streamer-types = { version = "0.3", path = "../../sea-streamer-types" }
 structopt = { version = "0.3" }
 time = { version = "0.3", default-features = false, features = ["std", "parsing"] }
