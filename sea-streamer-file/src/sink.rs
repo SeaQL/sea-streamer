@@ -23,6 +23,11 @@ pub struct FileSink {
     handle: TaskHandle<AsyncFile>,
 }
 
+/// A delegate that impl std::io::Write
+pub struct FileSinkWriter {
+    sender: Sender<Request>,
+}
+
 #[derive(Debug)]
 enum Request {
     Bytes(Bytes),
@@ -236,6 +241,12 @@ impl FileSink {
                 .map_err(|_| FileErr::TaskDead("FileSink::end"))
         }
     }
+
+    pub fn as_writer(&mut self) -> FileSinkWriter {
+        FileSinkWriter {
+            sender: self.sender.clone(),
+        }
+    }
 }
 
 impl ByteSink for FileSink {
@@ -249,15 +260,30 @@ impl ByteSink for FileSink {
     }
 }
 
-impl std::io::Write for FileSink {
+impl FileSinkWriter {
+    pub fn end(self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+impl std::io::Write for FileSinkWriter {
+    /// Nothing has actually been written, because it will be sent to another async thread and queued.
+    /// Call [`FileSink::flush`] afterwards.
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let len = buf.len();
         use std::io::{Error, ErrorKind};
-        <Self as ByteSink>::write(self, Bytes::from_slice(buf))
-            .map_err(|_| Error::new(ErrorKind::BrokenPipe, "Failed to write"))?;
-        Ok(1)
+        if self
+            .sender
+            .send(Request::Bytes(Bytes::from_slice(buf)))
+            .is_err()
+        {
+            Err(Error::new(ErrorKind::BrokenPipe, "Failed to write"))
+        } else {
+            Ok(len)
+        }
     }
 
-    /// This has no effect. Please call the async flush method and await it.
+    /// This has no effect. Please call the async [`FileSink::flush`] and await it.
     fn flush(&mut self) -> std::io::Result<()> {
         Ok(())
     }
