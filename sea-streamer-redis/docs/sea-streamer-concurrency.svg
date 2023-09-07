@@ -3,47 +3,49 @@
 <svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
 	 viewBox="0 0 535.7 262.7" style="enable-background:new 0 0 535.7 262.7;" xml:space="preserve">
 <style type="text/css">
-	.st0{fill:#FFFFFF;stroke:#000000;stroke-miterlimit:10;}
-	.st1{font-family:'MyriadPro-Regular';}
-	.st2{font-size:12px;}
-	.st3{fill:none;stroke:#000000;stroke-miterlimit:10;}
+	.st0{fill:#FFFFFF;}
+	.st1{fill:#FFFFFF;stroke:#000000;stroke-miterlimit:10;}
+	.st2{font-family:'ArialMT';}
+	.st3{font-size:12px;}
+	.st4{fill:none;stroke:#000000;stroke-miterlimit:10;}
 </style>
-<rect x="58.1" y="39.1" class="st0" width="55.3" height="29.3"/>
-<text transform="matrix(1 0 0 1 71.9093 57.2611)" class="st1 st2">READ</text>
-<rect x="113.4" y="39.1" class="st0" width="68.3" height="29.3"/>
-<text transform="matrix(1 0 0 1 124.9567 57.261)" class="st1 st2">PROCESS</text>
-<rect x="181.8" y="39.1" class="st0" width="55.3" height="29.3"/>
-<text transform="matrix(1 0 0 1 193.7518 57.2611)" class="st1 st2">WRITE</text>
-<rect x="237.1" y="39.1" class="st0" width="55.3" height="29.3"/>
-<text transform="matrix(1 0 0 1 250.9093 57.2611)" class="st1 st2">READ</text>
-<rect x="292.4" y="39.1" class="st0" width="68.3" height="29.3"/>
-<text transform="matrix(1 0 0 1 303.9567 57.261)" class="st1 st2">PROCESS</text>
-<rect x="360.8" y="39.1" class="st0" width="55.3" height="29.3"/>
-<text transform="matrix(1 0 0 1 372.7518 57.2611)" class="st1 st2">WRITE</text>
-<rect x="416.1" y="39.1" class="st0" width="55.3" height="29.3"/>
-<text transform="matrix(1 0 0 1 441.0851 57.2611)" class="st1 st2">...</text>
-<rect x="218.4" y="188" class="st0" width="55.3" height="29.3"/>
-<text transform="matrix(1 0 0 1 243.352 206.1886)" class="st1 st2">...</text>
-<rect x="299.4" y="158" class="st0" width="55.3" height="29.3"/>
-<text transform="matrix(1 0 0 1 324.352 176.1887)" class="st1 st2">...</text>
-<rect x="342" y="128" class="st0" width="55.3" height="29.3"/>
-<text transform="matrix(1 0 0 1 367.0187 146.1886)" class="st1 st2">...</text>
-<rect x="107.7" y="188" class="st0" width="55.3" height="29.3"/>
-<text transform="matrix(1 0 0 1 121.5095 206.1886)" class="st1 st2">READ</text>
-<rect x="163" y="158" class="st0" width="68.3" height="29.3"/>
-<text transform="matrix(1 0 0 1 174.5569 176.1886)" class="st1 st2">PROCESS</text>
-<rect x="231.4" y="128" class="st0" width="55.3" height="29.3"/>
-<text transform="matrix(1 0 0 1 243.352 146.1886)" class="st1 st2">WRITE</text>
-<rect x="163" y="188" class="st0" width="55.3" height="29.3"/>
-<text transform="matrix(1 0 0 1 176.8428 206.1886)" class="st1 st2">READ</text>
-<rect x="231" y="158" class="st0" width="68.3" height="29.3"/>
-<text transform="matrix(1 0 0 1 242.5569 176.1886)" class="st1 st2">PROCESS</text>
-<rect x="286.7" y="128" class="st0" width="55.3" height="29.3"/>
-<text transform="matrix(1 0 0 1 298.6853 146.1886)" class="st1 st2">WRITE</text>
-<path class="st3" d="M141.4,188L141.4,188c0-11,9-20,20-20h0"/>
-<polyline class="st3" points="157.3,163.3 162,168 157.3,172.8 "/>
-<path class="st3" d="M209.5,157.6L209.5,157.6c0-11,9-20,20-20h0"/>
-<polyline class="st3" points="225.4,132.9 230.1,137.6 225.4,142.4 "/>
-<polygon class="st3" points="279.5,103.5 279.5,80.5 264.5,80.5 264.5,103.5 259.2,103.5 272.3,116.6 285.4,103.5 "/>
-<text transform="matrix(1 0 0 1 298.3335 99.9165)" class="st1 st2">SeaStreamer</text>
+<rect x="292.4" y="85.8" class="st0" width="81.9" height="20"/>
+<rect x="58.1" y="39.1" class="st1" width="55.3" height="29.3"/>
+<text transform="matrix(1 0 0 1 71.9093 57.2611)" class="st2 st3">READ</text>
+<rect x="113.4" y="39.1" class="st1" width="68.3" height="29.3"/>
+<text transform="matrix(1 0 0 1 124.9567 57.261)" class="st2 st3">PROCESS</text>
+<rect x="181.8" y="39.1" class="st1" width="55.3" height="29.3"/>
+<text transform="matrix(1 0 0 1 193.7518 57.2611)" class="st2 st3">WRITE</text>
+<rect x="237.1" y="39.1" class="st1" width="55.3" height="29.3"/>
+<text transform="matrix(1 0 0 1 250.9093 57.2611)" class="st2 st3">READ</text>
+<rect x="292.4" y="39.1" class="st1" width="68.3" height="29.3"/>
+<text transform="matrix(1 0 0 1 303.9567 57.261)" class="st2 st3">PROCESS</text>
+<rect x="360.8" y="39.1" class="st1" width="55.3" height="29.3"/>
+<text transform="matrix(1 0 0 1 372.7518 57.2611)" class="st2 st3">WRITE</text>
+<rect x="416.1" y="39.1" class="st1" width="55.3" height="29.3"/>
+<text transform="matrix(1 0 0 1 441.0851 57.2611)" class="st2 st3">...</text>
+<rect x="218.4" y="188" class="st1" width="55.3" height="29.3"/>
+<text transform="matrix(1 0 0 1 243.352 206.1886)" class="st2 st3">...</text>
+<rect x="299.4" y="158" class="st1" width="55.3" height="29.3"/>
+<text transform="matrix(1 0 0 1 324.352 176.1887)" class="st2 st3">...</text>
+<rect x="342" y="128" class="st1" width="55.3" height="29.3"/>
+<text transform="matrix(1 0 0 1 367.0187 146.1886)" class="st2 st3">...</text>
+<rect x="107.7" y="188" class="st1" width="55.3" height="29.3"/>
+<text transform="matrix(1 0 0 1 121.5095 206.1886)" class="st2 st3">READ</text>
+<rect x="163" y="158" class="st1" width="68.3" height="29.3"/>
+<text transform="matrix(1 0 0 1 174.5569 176.1886)" class="st2 st3">PROCESS</text>
+<rect x="231.4" y="128" class="st1" width="55.3" height="29.3"/>
+<text transform="matrix(1 0 0 1 243.352 146.1886)" class="st2 st3">WRITE</text>
+<rect x="163" y="188" class="st1" width="55.3" height="29.3"/>
+<text transform="matrix(1 0 0 1 176.8428 206.1886)" class="st2 st3">READ</text>
+<rect x="231" y="158" class="st1" width="68.3" height="29.3"/>
+<text transform="matrix(1 0 0 1 242.5569 176.1886)" class="st2 st3">PROCESS</text>
+<rect x="286.7" y="128" class="st1" width="55.3" height="29.3"/>
+<text transform="matrix(1 0 0 1 298.6853 146.1886)" class="st2 st3">WRITE</text>
+<path class="st4" d="M141.4,188L141.4,188c0-11,9-20,20-20l0,0"/>
+<polyline class="st4" points="157.3,163.3 162,168 157.3,172.8 "/>
+<path class="st4" d="M209.5,157.6L209.5,157.6c0-11,9-20,20-20l0,0"/>
+<polyline class="st4" points="225.4,132.9 230.1,137.6 225.4,142.4 "/>
+<polygon class="st1" points="279.5,103.5 279.5,80.5 264.5,80.5 264.5,103.5 259.2,103.5 272.3,116.6 285.4,103.5 "/>
+<text transform="matrix(1 0 0 1 298.3335 99.9165)" class="st2 st3">SeaStreamer</text>
 </svg>
