@@ -5,6 +5,8 @@ Some micro benchmarks. Note: it is only meaningful for these numbers to compare 
 ## Commands
 
 ```sh
+time cargo run --release --bin baseline -- --stream stdio:///test
+
 time cargo run --release --bin producer -- --stream redis://localhost/clock
 rm clock.ss; touch clock.ss; time cargo run --release --bin producer -- --stream file://clock.ss/clock
 time cargo run --release --bin producer -- --stream stdio:///clock > clock.log
