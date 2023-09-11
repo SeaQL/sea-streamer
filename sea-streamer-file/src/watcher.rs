@@ -133,8 +133,10 @@ impl Watchers {
                                 sender.send((fid.clone(), FileEvent::Modify)).ok();
                             }
                             ModifyKind::Metadata(_) => {
-                                // it only shows `Any` on my machine
-                                sender.send((fid.clone(), FileEvent::Remove)).ok();
+                                // we are in a different thread, but blocking here is still undesirable
+                                if std::fs::metadata(fid.path()).is_err() {
+                                    sender.send((fid.clone(), FileEvent::Remove)).ok();
+                                }
                             }
                             _ => (),
                         }
@@ -153,7 +155,7 @@ impl Watchers {
         .map_err(|e| FileErr::WatchError(e.to_string()))?;
 
         watcher
-            .watch(file_id.path().as_ref(), RecursiveMode::Recursive)
+            .watch(file_id.path().as_ref(), RecursiveMode::NonRecursive)
             .map_err(|e| FileErr::WatchError(e.to_string()))?;
 
         Ok(watcher)
