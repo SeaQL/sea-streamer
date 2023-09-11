@@ -9,6 +9,7 @@ export enum FileSourceType {
 export interface DynFileSource {
     sourceType(): FileSourceType;
     seek(to: SeqPosEnum): Promise<bigint | FileErr>;
+    resize(): Promise<void>;
     switchTo(type: FileSourceType): DynFileSource;
     getOffset(): bigint;
     fileSize(): bigint;

@@ -17,6 +17,7 @@ async function testRewind(mode: StreamMode) {
     nth = await source.rewind(new SeqPos.At(1n)); if (nth instanceof FileErr) { throwNewError(nth); }
     expect(nth).toStrictEqual(1);
 
+    expect(await source.isStreamEnded()).toBe(true);
     await expectNext(21, 50);
 
     nth = await source.rewind(new SeqPos.At(4n)); if (nth instanceof FileErr) { throwNewError(nth); }

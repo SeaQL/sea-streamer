@@ -4,7 +4,7 @@ import { FileErr, FileErrType } from "./error";
 import { FileReader } from "./file";
 import { Header, Beacon, Marker, Message, MessageFrame } from "./format";
 import { ByteSource, FileSource } from "./source";
-import { SEA_STREAMER_INTERNAL, SeqPos, SeqPosEnum, StreamMode } from "./types";
+import { SEA_STREAMER_INTERNAL, EOS_MESSAGE_SIZE, SeqPos, SeqPosEnum, StreamMode } from "./types";
 
 export const END_OF_STREAM: string = "EOS";
 
@@ -144,6 +144,46 @@ export class MessageSource implements ByteSource {
         }
 
         return Number(this.offset / this.beaconInterval());
+    }
+
+    async isStreamEnded(): Promise<boolean | FileErr> {
+        const ES = EOS_MESSAGE_SIZE;
+        // read the last beacon
+        const anchor = this.source.fileSize() - this.source.fileSize() % this.beaconInterval();
+        let crossed;
+        let beacon;
+        if (anchor !== 0n) {
+            const offset = await this.source.seek(new SeqPos.At(anchor)); if (offset instanceof FileErr) { return offset; }
+            beacon = await Beacon.readFrom(this.source); if (beacon instanceof FileErr) { return beacon; }
+            crossed = anchor + beacon.size() + ES > this.source.fileSize();
+        } else {
+            crossed = false;
+        }
+
+        let buffer;
+        if (crossed) {
+            // this is a special case where the last message crossed a beacon
+            if (beacon === undefined) { throwNewError("unreachable"); }
+            // read the remaining half
+            const half = await this.source.requestBytes(beacon.remainingMessagesBytes); if (half instanceof FileErr) { return half; }
+            // read the first half
+            const at = anchor - (ES - beacon.remainingMessagesBytes);
+            const offset = await this.source.seek(new SeqPos.At(at)); if (offset instanceof FileErr) { return offset; }
+            buffer = await this.source.requestBytes(ES - beacon.remainingMessagesBytes); if (buffer instanceof FileErr) { return buffer; }
+            // stitch them together
+            buffer.append(half);
+        } else {
+            const at = this.source.fileSize() - ES;
+            const offset = await this.source.seek(new SeqPos.At(at)); if (offset instanceof FileErr) { return offset; }
+            buffer = await this.source.requestBytes(ES); if (buffer instanceof FileErr) { return buffer; }
+        }
+
+        // restore original state
+        const result = await this.source.seek(new SeqPos.At(this.offset)); if (result instanceof FileErr) { return result; }
+        // final check
+        const message = await MessageFrame.readFrom(buffer);
+        if (message instanceof FileErr) { return false; }
+        return isEndOfStream(message.message);
     }
 
     async requestBytes(size: bigint): Promise<Buffer | FileErr> {

@@ -8,6 +8,10 @@ export class FileErr {
         this.type = type;
         this.meta = meta;
     }
+
+    toString(): string {
+        return `${this.type}${this.meta !== undefined ? ": " + this.meta : ""}`;
+    }
 }
 
 export enum FileErrType {
