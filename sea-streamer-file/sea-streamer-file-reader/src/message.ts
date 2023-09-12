@@ -52,6 +52,10 @@ export class MessageSource implements ByteSource {
         return source;
     }
 
+    async close(): Promise<void> {
+        await this.source.close();
+    }
+
     fileHeader(): Header {
         return this.header;
     }

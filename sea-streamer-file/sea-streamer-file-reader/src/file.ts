@@ -34,6 +34,10 @@ export class FileReader implements ByteSource, DynFileSource {
         return reader;
     }
 
+    async close(): Promise<void> {
+        await this.file.close();
+    }
+
     async seek(to: SeqPosEnum): Promise<bigint | FileErr> {
         const result = await this.file.seek(to);
         if (result instanceof Error) {
@@ -113,6 +117,10 @@ export class AsyncFile {
         return file;
     }
 
+    async close(): Promise<void> {
+        await this.file.close();
+    }
+
     /**
      * @returns the returned Buffer is shared. consume immediately! it will be overwritten soon.
      */
@@ -154,10 +162,6 @@ export class AsyncFile {
 
     async resize() {
         this.size = (await this.file.stat({ bigint: true })).size;
-    }
-
-    async close() {
-        await this.file.close();
     }
 }
 

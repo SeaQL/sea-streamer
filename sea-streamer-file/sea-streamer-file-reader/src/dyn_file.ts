@@ -14,4 +14,5 @@ export interface DynFileSource {
     getOffset(): bigint;
     fileSize(): bigint;
     setTimeout(ms: number): void;
+    close(): Promise<void>;
 }

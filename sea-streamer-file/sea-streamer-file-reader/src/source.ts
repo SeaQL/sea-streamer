@@ -36,6 +36,10 @@ export class FileSource implements ByteSource, DynFileSource {
         return reader;
     }
 
+    async close(): Promise<void> {
+        await this.file.close();
+    }
+
     async seek(to: SeqPosEnum): Promise<bigint | FileErr> {
         let result = await this.file.seek(to);
         if (result instanceof Error) {
