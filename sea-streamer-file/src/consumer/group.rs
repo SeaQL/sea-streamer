@@ -69,6 +69,7 @@ struct Subscribers {
     prefetch_message: usize,
 }
 
+#[derive(Default)]
 struct SubscriberMap {
     senders: HashMap<Sid, Sender<Result<SharedMessage, FileErr>>>,
     groups: Vec<((ConsumerGroup, StreamKey), Vec<Sid>)>,
@@ -82,7 +83,7 @@ impl Streamers {
                 match ctrl {
                     BgTask::Drop(sid) => {
                         let mut streamers = STREAMERS.lock().await;
-                        streamers.remove(sid);
+                        streamers.remove_subscriber(sid);
                     }
                 }
             }
@@ -159,7 +160,18 @@ impl Streamers {
         ))
     }
 
-    fn remove(&mut self, sid: Sid) {
+    /// Returns number of purged streamers
+    fn purge(&mut self, file_id: FileId) -> usize {
+        if let Some(handles) = self.streamers.get_mut(&file_id) {
+            let size = handles.len();
+            handles.retain(|(_, h)| !h.ctrl.is_disconnected());
+            size - handles.len()
+        } else {
+            0
+        }
+    }
+
+    fn remove_subscriber(&mut self, sid: Sid) {
         for (_, handles) in self.streamers.iter_mut() {
             for (_, handle) in handles.iter_mut() {
                 handle.subscribers.remove(sid);
@@ -241,6 +253,11 @@ pub(crate) async fn preseek_consumer(file_id: &FileId, sid: Sid) -> Result<(), F
     streamers.pre_seek(file_id, sid).await
 }
 
+async fn end_streamer(file_id: FileId) -> usize {
+    let mut streamers = STREAMERS.lock().await;
+    streamers.purge(file_id)
+}
+
 /// Query info about global Streamer(s) topology
 pub async fn query_streamer(file_id: &FileId) -> Option<Vec<StreamerInfo>> {
     let streamers = STREAMERS.lock().await;
@@ -316,6 +333,10 @@ impl Streamer {
                     }
                 }
             }
+            std::mem::drop(ctrl); // disconnect ctrl; so that it can be purged
+            let source = source.take_source();
+            let file = source.end().await;
+            assert_eq!(end_streamer(file.id()).await, 1);
         });
 
         Self {
@@ -329,11 +350,7 @@ impl Streamer {
 impl Subscribers {
     fn new(prefetch_message: usize) -> Self {
         Self {
-            subscribers: Arc::new(Mutex::new(SubscriberMap {
-                senders: Default::default(),
-                groups: Default::default(),
-                ungrouped: Default::default(),
-            })),
+            subscribers: Default::default(),
             prefetch_message,
         }
     }

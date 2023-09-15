@@ -1,8 +1,8 @@
 use std::{future::Future, pin::Pin};
 
 use crate::{
-    ByteSource, Bytes, FileErr, FileId, FileReader, FileReaderFuture, FileSource, FileSourceFuture,
-    ReadFrom,
+    AsyncFile, ByteSource, Bytes, FileErr, FileId, FileReader, FileReaderFuture, FileSource,
+    FileSourceFuture, ReadFrom,
 };
 use sea_streamer_types::{export::futures::FutureExt, SeqPos};
 
@@ -72,6 +72,20 @@ impl DynFileSource {
                 )?))
             }
             (myself, _) => Ok(myself),
+        }
+    }
+
+    pub async fn end(self) -> AsyncFile {
+        match self {
+            Self::Dead => panic!("DynFileSource: Dead"),
+            Self::FileReader(file) => {
+                let (file, _, _) = file.end();
+                file
+            }
+            Self::FileSource(mut src) => {
+                let (file, _, _, _) = src.end().await;
+                file
+            }
         }
     }
 

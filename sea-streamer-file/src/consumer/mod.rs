@@ -113,6 +113,8 @@ impl ConsumerTrait for FileConsumer {
     /// Otherwise it will await the next message.
     fn next(&self) -> Self::NextFuture<'_> {
         if let Err(TrySendError::Disconnected(_)) = self.ctrl.try_send(CtrlMsg::Read) {
+            // race: there is a possibility that *after* we enter the receiver future
+            // ctrl disconnect immediately. it will manifest in the StreamEnded below.
             NextFuture::Error(Some(StreamErr::Backend(FileErr::StreamEnded)))
         } else {
             NextFuture::Future(self.receiver.recv_async())
