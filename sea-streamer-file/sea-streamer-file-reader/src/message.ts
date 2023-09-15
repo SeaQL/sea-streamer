@@ -259,6 +259,10 @@ export class MessageSource implements ByteSource {
         return this.source.fileSize();
     }
 
+    getOffset(): bigint {
+        return this.offset;
+    }
+
     setTimeout(ms: number) {
         this.source.setTimeout(ms);
     }
