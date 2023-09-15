@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+### `sea-streamer-file` 0.3.4 - 2023-09-15
+
++ impl std::io::Write for FileSink
++ more precise `FileEvent::Remove`
++ end streamer properly after EOS
+
 ### `sea-streamer-file` 0.3.3 - 2023-09-06
 
 + used a faster CRC implementation
