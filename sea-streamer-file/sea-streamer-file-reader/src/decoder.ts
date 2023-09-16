@@ -1,4 +1,3 @@
-import * as process from "node:process";
 import { FileErr } from "./error";
 import { MessageSource, isEndOfStream } from "./message";
 import { SeqPos, StreamMode } from "./types";

@@ -6,7 +6,7 @@ import { FileErr, FileErrType } from "./error";
 import { ByteSource, FileSource } from "./source";
 import { DynFileSource, FileSourceType } from "./dyn_file";
 
-const BUFFER_SIZE: number = 1024;
+const BUFFER_SIZE: number = 10240;
 
 /**
  * A simple buffered and bounded file reader.

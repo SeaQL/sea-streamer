@@ -13,6 +13,7 @@ export class MessageSource implements ByteSource {
     private header: Header;
     private source: DynFileSource & ByteSource;
     private buffer: Buffer;
+    private readFrom: bigint;
     private offset: bigint;
     private beacon: [number, Marker[]];
     private pending: Message | null;
@@ -26,6 +27,7 @@ export class MessageSource implements ByteSource {
         this.header = header;
         this.source = source;
         this.buffer = new Buffer();
+        this.readFrom = 0n;
         this.offset = Header.size();
         this.beacon = [0, []];
         this.pending = null;
@@ -147,6 +149,7 @@ export class MessageSource implements ByteSource {
             this.offset = offset;
         }
 
+        this.readFrom = this.offset;
         return Number(this.offset / this.beaconInterval());
     }
 
@@ -259,6 +262,10 @@ export class MessageSource implements ByteSource {
         return this.source.fileSize();
     }
 
+    getReadFrom(): bigint {
+        return this.readFrom;
+    }
+
     getOffset(): bigint {
         return this.offset;
     }
@@ -281,6 +288,6 @@ function throwNewError(errMsg: string): never {
 }
 
 export function isEndOfStream(message: Message): boolean {
-    return message.header.streamKey.name === SEA_STREAMER_INTERNAL
-        && message.payload.toString() === END_OF_STREAM;
+    return message.header.streamKey.name === SEA_STREAMER_INTERNAL &&
+        message.payload.buffer.toString("utf8") === END_OF_STREAM;
 }
