@@ -336,7 +336,7 @@ impl Streamer {
             std::mem::drop(ctrl); // disconnect ctrl; so that it can be purged
             let source = source.take_source();
             let file = source.end().await;
-            assert_eq!(end_streamer(file.id()).await, 1);
+            end_streamer(file.id()).await;
         });
 
         Self {
