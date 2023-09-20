@@ -5,16 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+### `sea-streamer-file` 0.3.5 - 2023-09-20
+
++ Fixed a potential race condition
+
 ### `sea-streamer-file` 0.3.4 - 2023-09-15
 
 + impl std::io::Write for FileSink
-+ more precise `FileEvent::Remove`
-+ end streamer properly after EOS
++ More precise `FileEvent::Remove`
++ End streamer properly after EOS
 
 ### `sea-streamer-file` 0.3.3 - 2023-09-06
 
-+ used a faster CRC implementation
-+ added option `prefetch_message` to `FileConnectOptions`
++ Used a faster CRC implementation
++ Added option `prefetch_message` to `FileConnectOptions`
 
 ## 0.3.2 - 2023-09-05
 
