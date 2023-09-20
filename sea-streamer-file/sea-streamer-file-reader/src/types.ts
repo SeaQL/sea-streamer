@@ -1,4 +1,5 @@
 export const SEA_STREAMER_INTERNAL: string = "SEA_STREAMER_INTERNAL";
+export const PULSE_MESSAGE: string = "PULSE";
 export const EOS_MESSAGE_SIZE: bigint = 56n;
 
 export type Timestamp = Date;
