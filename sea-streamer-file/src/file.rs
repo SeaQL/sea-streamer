@@ -148,6 +148,15 @@ impl AsyncFile {
         Self::new_with(id, file).await
     }
 
+    /// Always create a new file. If the file already exists, abort.
+    pub async fn new_w(id: FileId) -> Result<Self, FileErr> {
+        log::debug!("AsyncFile Create ({})", id.path());
+        let mut options = OpenOptions::new();
+        options.write(true).create_new(true);
+        let file = options.open(id.path()).await.map_err(FileErr::IoError)?;
+        Self::new_with(id, file).await
+    }
+
     async fn new_with(id: FileId, file: File) -> Result<Self, FileErr> {
         let size = file_size_of(&file).await?;
         let pos = 0;

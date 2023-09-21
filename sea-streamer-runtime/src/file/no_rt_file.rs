@@ -110,6 +110,10 @@ impl OpenOptions {
         self
     }
 
+    pub fn create_new(&mut self, _: bool) -> &mut OpenOptions {
+        self
+    }
+
     pub async fn open(&self, _: impl AsRef<Path>) -> Result<File, IoError> {
         Err(IoError::new(ErrorKind::Other, "Please enable a runtime"))
     }

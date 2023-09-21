@@ -20,11 +20,20 @@ pub struct FileStreamer {
 
 #[derive(Debug, Clone)]
 pub struct FileConnectOptions {
-    create_if_not_exists: bool,
+    create_file: CreateFileOption,
     end_with_eos: bool,
     beacon_interval: u32,
     file_size_limit: u64,
     prefetch_message: usize,
+}
+
+#[derive(Debug, Clone)]
+enum CreateFileOption {
+    /// File must already exists
+    Never,
+    CreateIfNotExists,
+    /// Fail if the file already exists
+    Always,
 }
 
 #[derive(Debug, Clone)]
@@ -88,11 +97,11 @@ impl StreamerTrait for FileStreamer {
             .trim_start_matches("file://")
             .trim_end_matches('/');
         let file_id = FileId::new(path);
-        if options.create_if_not_exists {
-            AsyncFile::new_rw(file_id.clone()).await?;
-        } else {
-            AsyncFile::new_r(file_id.clone()).await?;
-        }
+        match options.create_file {
+            CreateFileOption::Never => AsyncFile::new_r(file_id.clone()).await,
+            CreateFileOption::CreateIfNotExists => AsyncFile::new_rw(file_id.clone()).await,
+            CreateFileOption::Always => AsyncFile::new_w(file_id.clone()).await,
+        }?;
         Ok(Self { file_id, options })
     }
 
@@ -187,7 +196,7 @@ impl ConnectOptionsTrait for FileConnectOptions {
 impl Default for FileConnectOptions {
     fn default() -> Self {
         Self {
-            create_if_not_exists: false,
+            create_file: CreateFileOption::Never,
             end_with_eos: false,
             beacon_interval: DEFAULT_BEACON_INTERVAL,
             file_size_limit: DEFAULT_FILE_SIZE_LIMIT,
@@ -198,11 +207,28 @@ impl Default for FileConnectOptions {
 
 impl FileConnectOptions {
     pub fn create_if_not_exists(&self) -> bool {
-        self.create_if_not_exists
+        matches!(self.create_file, CreateFileOption::CreateIfNotExists)
     }
     /// Default is `false`.
     pub fn set_create_if_not_exists(&mut self, v: bool) -> &mut Self {
-        self.create_if_not_exists = v;
+        if v {
+            self.create_file = CreateFileOption::CreateIfNotExists;
+        } else {
+            self.create_file = CreateFileOption::Never;
+        }
+        self
+    }
+
+    pub fn create_only(&self) -> bool {
+        matches!(self.create_file, CreateFileOption::Always)
+    }
+    /// Always create the file. Fail if already exists. Default is `false`.
+    pub fn set_create_only(&mut self, v: bool) -> &mut Self {
+        if v {
+            self.create_file = CreateFileOption::Always;
+        } else {
+            self.create_file = CreateFileOption::Never;
+        }
         self
     }
 
