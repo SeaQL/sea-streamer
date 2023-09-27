@@ -1,9 +1,11 @@
 import { FileErr } from "./error";
 import { MessageSource, isEndOfStream } from "./message";
 import { PULSE_MESSAGE, SEA_STREAMER_INTERNAL, SeqNo, SeqPos, ShardId, StreamKey, StreamMode } from "./types";
-import { Message, MessageHeader } from "./format";
+import { FileHeader, Message, MessageHeader } from "./format";
 import { Buffer } from "./buffer";
 import { Buffer as SystemBuffer } from "node:buffer";
+
+export const DEFAULT_QUOTA: number = 10000;
 
 export interface CtrlMsg {
     cmd: "open" | "more" | "seek" | "exit";
@@ -13,9 +15,23 @@ export interface CtrlMsg {
     nth?: number;
 }
 
-export interface IpcMessage {
+export type IpcMessage = MetaUpdate | MessageUpdate;
+
+export interface MetaUpdate {
+    header: FileHeader;
+}
+
+export interface MessageUpdate {
     messages: Message[];
     status: StatusUpdate;
+}
+
+export function isMetaUpdate(m: IpcMessage): m is MetaUpdate {
+    return typeof (m as MetaUpdate).header !== "undefined";
+}
+
+export function isMessageUpdate(m: IpcMessage): m is MessageUpdate {
+    return typeof (m as MessageUpdate).messages !== "undefined";
 }
 
 export interface StatusUpdate {
@@ -32,7 +48,7 @@ enum State {
 }
 
 let sleepFor = 1;
-let quota = 10000;
+let quota = DEFAULT_QUOTA;
 let global: {
     error: boolean;
     state: State;
@@ -45,14 +61,17 @@ let global: {
 
 process.on("message", (msg) => onMessage(msg as CtrlMsg));
 
+const process_log = (msg: string) => process.send!({ log: msg });
+
 function onMessage(ctrl: CtrlMsg) {
     if (ctrl.cmd === "open") {
         open(ctrl.path!).then(run);
     } else if (ctrl.cmd === "more") {
         sleepFor = 1;
-        quota = 10000;
+        quota = DEFAULT_QUOTA;
     } else if (ctrl.cmd === "seek") {
         if (global.state === State.Running) {
+            process_log(`seek ${ctrl.nth}`);
             seek(ctrl.nth!).then(run);
         } else {
             process.send!({ error: "Not seekable" }); global.error = true; return;
@@ -78,6 +97,7 @@ async function open(path: string) {
         source = await MessageSource.new(path, StreamMode.LiveReplay);
         if (source instanceof FileErr) { process.send!({ error: "Failed to read file header" }); global.error = true; return; }
         global.source = source;
+        process.send!({ header: source.fileHeader().toJson() });
     } catch (e) {
         process.send!({ error: `Failed to open file: ${e}` }); global.error = true; return;
     }
@@ -94,6 +114,7 @@ async function run() {
     let ended = false;
 
     while (!ended) {
+        if (global.state as State === State.PreSeek) { global.state = State.Seeking as State; return; }
         if (quota <= 0) {
             await sleep(sleepFor);
             if (sleepFor < 1024) {
@@ -101,7 +122,6 @@ async function run() {
             }
             continue;
         }
-        if (global.state as State === State.PreSeek) { global.state = State.Seeking as State; return; }
         for (let i = 0; i < batchSize; i++) {
             const message = await source.next();
             if (message instanceof FileErr) { process.send!({ error: message.toString() }); global.error = true; return; }
@@ -126,10 +146,11 @@ async function seek(nth: number) {
         return;
     }
     global.state = State.PreSeek as State;
-    while (global.state === State.PreSeek) { await sleep(1); }
+    while (global.state === State.PreSeek) { await sleep(10); }
     if (global.state === State.Seeking) {
         const source = global.source!;
         await source.rewind(new SeqPos.At(BigInt(nth)));
+        process_log("rewinded");
         const payload = new Buffer();
         payload.append(SystemBuffer.from(PULSE_MESSAGE));
         const pulse = new Message(new MessageHeader(
@@ -139,6 +160,7 @@ async function seek(nth: number) {
             new Date(),
         ), payload);
         process.send!({ messages: [pulse], status: getStatus() });
+        quota = DEFAULT_QUOTA;
     } else {
         process.send!({ error: "Not seeking?" }); global.error = true; return;
     }

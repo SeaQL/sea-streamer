@@ -4,9 +4,7 @@ import { FileErr, FileErrType } from "./error";
 import { FileReader } from "./file";
 import { Header, Beacon, Marker, Message, MessageFrame } from "./format";
 import { ByteSource, FileSource } from "./source";
-import { SEA_STREAMER_INTERNAL, EOS_MESSAGE_SIZE, SeqPos, SeqPosEnum, StreamMode } from "./types";
-
-export const END_OF_STREAM: string = "EOS";
+import { SEA_STREAMER_INTERNAL, END_OF_STREAM, EOS_MESSAGE_SIZE, SeqPos, SeqPosEnum, StreamMode, PULSE_MESSAGE } from "./types";
 
 export class MessageSource implements ByteSource {
     private mode: StreamMode;
@@ -285,6 +283,11 @@ function bigintMax(a: bigint, b: bigint): bigint {
 
 function throwNewError(errMsg: string): never {
     throw new Error(errMsg);
+}
+
+export function isPulseMessage(message: Message): boolean {
+    return message.header.streamKey.name === SEA_STREAMER_INTERNAL &&
+        message.payload.buffer.toString("utf8") === PULSE_MESSAGE;
 }
 
 export function isEndOfStream(message: Message): boolean {

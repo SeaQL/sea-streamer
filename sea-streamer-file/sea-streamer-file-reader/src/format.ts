@@ -4,6 +4,12 @@ import { FileErr, FileErrType } from "./error";
 import { ByteSource } from "./source";
 import { crc16Cdma2000 } from "./crc";
 
+export interface FileHeader {
+    fileName: string;
+    createdAt: string;
+    beaconInterval: number;
+}
+
 export class Header {
     fileName: string;
     createdAt: Timestamp;
@@ -19,10 +25,10 @@ export class Header {
         this.beaconInterval = beaconInterval;
     }
 
-    toJson(): any {
+    toJson(): FileHeader {
         return {
             fileName: this.fileName,
-            createdAt: this.createdAt,
+            createdAt: this.createdAt.toISOString(),
             beaconInterval: Number(this.beaconInterval),
         }
     }
