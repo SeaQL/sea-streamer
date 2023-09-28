@@ -153,7 +153,7 @@ async function run() {
         }
         for (let i = 0; i < batchSize; i++) {
             const message = await source.next();
-            if (message instanceof FileErr) { process.send!({ error: message.toString() }); global.error = true; return; }
+            if (message instanceof FileErr) { process.send!({ error: `${message}` }); global.error = true; return; }
             buffer.push(message);
             if (isEndOfStream(message)) {
                 ended = true;
@@ -200,7 +200,8 @@ async function seek(nth: number) {
     }
     global.state = State.Seeking as State;
     const source = global.source!;
-    await source.rewind(new SeqPos.At(BigInt(nth)));
+    const rewinded = await source.rewind(new SeqPos.At(BigInt(nth)));
+    if (rewinded instanceof FileErr) { process.send!({ error: `${rewinded}` }); global.error = true; return; }
     process_log("rewinded");
     const payload = new Buffer();
     payload.append(SystemBuffer.from(PULSE_MESSAGE));

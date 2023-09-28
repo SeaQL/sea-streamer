@@ -66,14 +66,14 @@ export class MessageSource implements ByteSource {
      * Returns the current location in terms of N-th beacon.
      */
     async rewind(target: SeqPosEnum): Promise<number | FileErr> {
-        let pos;
+        let pos: SeqPosEnum;
         if (target instanceof SeqPos.Beginning) {
             pos = new SeqPos.At(Header.size());
         } else if (target instanceof SeqPos.End) {
             pos = target;
         } else if (target instanceof SeqPos.At) {
             if (target.at === 0n) {
-                pos = Header.size();
+                pos = new SeqPos.At(Header.size());
             } else {
                 let at = target.at * this.beaconInterval();
                 if (at < this.knownSize()) {
