@@ -156,6 +156,12 @@ impl ProducerTrait for FileProducer {
     }
 }
 
+impl FileProducer {
+    pub fn path(&self) -> &str {
+        self.file_id.path()
+    }
+}
+
 impl Clone for FileProducer {
     fn clone(&self) -> Self {
         self.master
