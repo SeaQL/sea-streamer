@@ -179,7 +179,7 @@ impl Writer {
                             stream
                         } else if sink.started_from() == Header::size() as u64 {
                             // this is a fresh new file stream
-                            streams.entry(key).or_insert(StreamState::default())
+                            streams.entry(key).or_default()
                         } else {
                             // we'll need to seek backwards until we find the last message of the same stream
 
@@ -211,7 +211,7 @@ impl Writer {
                                         let m = &msg.message;
                                         let entry = streams
                                             .entry((m.stream_key(), m.shard_id()))
-                                            .or_insert(StreamState::default());
+                                            .or_default();
                                         if entry.seq_no < m.sequence() {
                                             entry.seq_no = m.sequence();
                                             entry.ts = m.timestamp();
@@ -237,8 +237,7 @@ impl Writer {
                             file.seek(SeqPos::At(sink.offset())).await?; // restore offset
                             sink.use_file(FileSink::new(file, file_size_limit)?);
                             // now we've gone through the stream, we can safely assume the stream state
-                            let entry =
-                                streams.entry(key.clone()).or_insert(StreamState::default());
+                            let entry = streams.entry(key.clone()).or_default();
                             sink.update_stream_state(
                                 key,
                                 BeaconState {
