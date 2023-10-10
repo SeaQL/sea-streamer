@@ -3,7 +3,7 @@ use std::{future::Future, time::Duration};
 #[derive(Debug)]
 pub struct TimeoutError;
 
-pub async fn timeout<F, T>(_: Duration, _: F) -> Result<T, TimeoutError>
+pub async fn timeout<F, T>(_: Duration, _f: F) -> Result<T, TimeoutError>
 where
     F: Future<Output = T>,
 {
