@@ -157,8 +157,9 @@ impl ProducerTrait for FileProducer {
 }
 
 impl FileProducer {
-    pub fn path(&self) -> &str {
-        self.file_id.path()
+    /// Get the [`FileId`]
+    pub fn file_id(&self) -> &FileId {
+        &self.file_id
     }
 }
 

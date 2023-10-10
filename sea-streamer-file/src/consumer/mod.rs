@@ -127,6 +127,11 @@ impl ConsumerTrait for FileConsumer {
 }
 
 impl FileConsumer {
+    /// Get the [`FileId`]
+    pub fn file_id(&self) -> &FileId {
+        &self.file_id
+    }
+
     /// Seeking revokes the group membership of the Consumer
     ///
     /// Warning: This future must not be canceled.
