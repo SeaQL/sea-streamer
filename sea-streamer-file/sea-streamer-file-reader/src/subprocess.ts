@@ -5,7 +5,7 @@ import { FileHeader, Message, MessageHeader } from "./format";
 import { Buffer } from "./buffer";
 import { Buffer as SystemBuffer } from "node:buffer";
 
-export const DEFAULT_QUOTA: number = 10000;
+export const READ_QUOTA: number = 10000;
 
 export type CtrlMsg = OpenCmd | RunCmd | MoreCmd | SeekCmd | ExitCmd;
 
@@ -67,7 +67,7 @@ enum State {
 }
 
 let sleepFor = 1;
-let quota = DEFAULT_QUOTA;
+let quota = READ_QUOTA;
 let global: {
     error: boolean;
     state: State;
@@ -89,7 +89,7 @@ function onMessage(ctrl: CtrlMsg) {
         run();
     } else if (ctrl.cmd === "more") {
         sleepFor = 1;
-        quota = DEFAULT_QUOTA;
+        quota = READ_QUOTA;
     } else if (ctrl.cmd === "seek") {
         process_log(`seek ${ctrl.nth}`);
         if (global.state === State.Init) {
@@ -161,7 +161,10 @@ async function run() {
             }
         }
         if (global.state as State === State.PreSeek) { global.state = State.Seeking as State; return; }
-        process.send!({ messages: buffer, status: getStatus() });
+        for (const messages of splitArray(buffer, 10)) {
+            // for some reason, I can't send messages in batch of 100 on MacOS
+            process.send!({ messages, status: getStatus() });
+        }
         quota -= buffer.length;
         buffer.length = 0;
     }
@@ -212,7 +215,15 @@ async function seek(nth: number) {
         new Date(),
     ), payload);
     process.send!({ messages: [pulse], status: getStatus() });
-    quota = DEFAULT_QUOTA;
+    quota = READ_QUOTA;
+}
+
+function splitArray<T>(input: T[], chunkSize: number): T[][] {
+    const chunks = [];
+    for (let i = 0; i < input.length; i += chunkSize) {
+        chunks.push(input.slice(i, i + chunkSize));
+    }
+    return chunks;
 }
 
 function getStatus(): StatusUpdate {
