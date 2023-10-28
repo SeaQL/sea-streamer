@@ -65,7 +65,6 @@ impl MessageSource {
     /// from the file's beginning.
     ///
     /// If StreamMode is `Live`, it will fast forward to the file's end.
-    /// Thanks to SeaStreamer's Beacon system, this is pretty efficient.
     pub async fn new(file_id: FileId, mode: StreamMode) -> Result<Self, FileErr> {
         let source = DynFileSource::new(
             file_id,
