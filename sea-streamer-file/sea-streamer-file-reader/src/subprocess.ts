@@ -138,7 +138,7 @@ async function run() {
     }
     global.state = State.Running as State;
     const source = global.source!;
-    const batchSize = 100;
+    let batchSize = 1;
     const buffer = [];
     let ended = false;
 
@@ -159,6 +159,11 @@ async function run() {
                 ended = true;
                 break;
             }
+        }
+        if (batchSize < 10) {
+            batchSize += 1;
+        } else if (batchSize < 100) {
+            batchSize += 10;
         }
         if (global.state as State === State.PreSeek) { global.state = State.Seeking as State; return; }
         for (const messages of splitArray(buffer, 10)) {
