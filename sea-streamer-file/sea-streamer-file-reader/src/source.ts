@@ -9,6 +9,8 @@ export interface ByteSource {
     requestBytes(size: bigint): Promise<Buffer | FileErr>;
 }
 
+export const DEFAULT_TIMEOUT: number = 10000;
+
 /**
  * `FileSource` treats files as a live stream of bytes.
  * It will read til the end, and will resume reading when the file grows.
@@ -27,7 +29,7 @@ export class FileSource implements ByteSource, DynFileSource {
         this.file = file;
         this.offset = offset;
         this.buffer = buffer;
-        this.timeout = 10 * 1000;
+        this.timeout = DEFAULT_TIMEOUT;
     }
 
     static async new(path: string): Promise<FileSource> {
