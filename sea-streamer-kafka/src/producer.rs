@@ -134,6 +134,28 @@ impl KafkaProducer {
             .expect("Producer is still inside a transaction, please await the future")
     }
 
+    /// Send a record to a stream
+    pub fn send_record<K, P>(
+        &self,
+        record: rdkafka::producer::FutureRecord<K, P>,
+    ) -> KafkaResult<SendFuture>
+    where
+        K: rdkafka::message::ToBytes + ?Sized,
+        P: rdkafka::message::ToBytes + ?Sized,
+    {
+        let stream = StreamKey::new(record.topic.to_owned())?;
+
+        let fut = self
+            .get()
+            .send_result(record)
+            .map_err(|(err, _raw)| stream_err(err))?;
+
+        Ok(SendFuture {
+            stream_key: Some(stream),
+            fut,
+        })
+    }
+
     /// Returns the number of messages that are either waiting to be sent or
     /// are sent but are waiting to be acknowledged.
     pub fn in_flight_count(&self) -> i32 {

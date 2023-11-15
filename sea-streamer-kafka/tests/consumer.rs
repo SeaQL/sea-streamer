@@ -42,6 +42,21 @@ async fn main() -> anyhow::Result<()> {
         producer.send(message)?;
     }
 
+    for i in 10..20 {
+        use rdkafka::producer::FutureRecord;
+        let key = i.to_string();
+        let payload = format!("{i}");
+        let record = FutureRecord::to(topic.name())
+            .key(&key)
+            .partition(0)
+            .payload(&payload);
+        let receipt = producer.send_record(record)?.await?;
+        println!("Receipt: {:?}", receipt);
+        assert_eq!(receipt.stream_key(), &topic);
+        assert_eq!(receipt.sequence(), &i);
+        assert_eq!(receipt.shard_id(), &zero);
+    }
+
     producer.end().await?;
 
     let mut options = KafkaConsumerOptions::new(ConsumerMode::RealTime);
