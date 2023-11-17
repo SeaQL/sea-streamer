@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+### `sea-streamer-file` 0.3.8 - 2023-11-17
+
+* Added `FileSource::drain`
+
 ### `sea-streamer-file` 0.3.7 - 2023-10-18
 
 * Added `FileProducer::path()`, `FileConsumer::file_id()`, `FileProducer::file_id()`
