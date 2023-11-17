@@ -225,6 +225,22 @@ impl FileSource {
         Ok(self.offset)
     }
 
+    /// Drain all bytes and end the stream
+    pub async fn drain(mut self) -> ByteBuffer {
+        // Prompt it to make a final read
+        self.notify
+            .send(FileEvent::Modify) // unbounded, never blocks
+            .expect("FileSource: task panic");
+        // Stop the task
+        let (_, _, _, mut buffer) = self.end().await;
+        // Drain all bytes in the channel
+        let mut drain = self.receiver.drain();
+        while let Some(Ok(bytes)) = drain.next() {
+            buffer.append(bytes);
+        }
+        buffer
+    }
+
     /// Stop the existing task and reclaim it's resources.
     /// Also clears the buffer.
     pub(crate) async fn end(
