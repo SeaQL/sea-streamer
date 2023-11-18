@@ -51,7 +51,6 @@ async fn main() -> anyhow::Result<()> {
             .partition(0)
             .payload(&payload);
         let receipt = producer.send_record(record)?.await?;
-        println!("Receipt: {:?}", receipt);
         assert_eq!(receipt.stream_key(), &topic);
         assert_eq!(receipt.sequence(), &i);
         assert_eq!(receipt.shard_id(), &zero);
@@ -114,6 +113,15 @@ async fn main() -> anyhow::Result<()> {
     // this should continue from 7
     assert_eq!(seq, [7, 8, 9]);
     println!("Seek stream ... ok");
+
+    let seq = consume(&mut consumer, 10).await;
+    // this should continue from 10
+    assert_eq!(seq, [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
+    println!("Resume ... ok");
+
+    // commit up to 19
+    consumer.commit(&topic, &zero, &19).await?;
+    println!("Commit ... ok");
 
     async fn consume(consumer: &mut KafkaConsumer, num: usize) -> Vec<usize> {
         consumer
