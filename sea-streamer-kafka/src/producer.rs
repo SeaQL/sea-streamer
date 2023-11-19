@@ -4,9 +4,10 @@ use crate::{
     cluster::cluster_uri, impl_into_string, stream_err, BaseOptionKey, KafkaConnectOptions,
     KafkaErr, KafkaResult, DEFAULT_TIMEOUT,
 };
+pub use rdkafka::producer::FutureRecord;
 use rdkafka::{
     config::ClientConfig,
-    producer::{DeliveryFuture, FutureRecord as RawPayload, Producer as ProducerTrait},
+    producer::{DeliveryFuture, Producer as ProducerTrait},
 };
 pub use rdkafka::{consumer::ConsumerGroupMetadata, TopicPartitionList};
 use sea_streamer_runtime::spawn_blocking;
@@ -88,7 +89,7 @@ impl Producer for KafkaProducer {
     fn send_to<S: Buffer>(&self, stream: &StreamKey, payload: S) -> KafkaResult<Self::SendFuture> {
         let fut = self
             .get()
-            .send_result(RawPayload::<str, [u8]>::to(stream.name()).payload(payload.as_bytes()))
+            .send_result(FutureRecord::<str, [u8]>::to(stream.name()).payload(payload.as_bytes()))
             .map_err(|(err, _raw)| stream_err(err))?;
 
         Ok(SendFuture {
@@ -132,6 +133,25 @@ impl KafkaProducer {
         self.inner
             .as_ref()
             .expect("Producer is still inside a transaction, please await the future")
+    }
+
+    /// Send a `FutureRecord` to a stream
+    pub fn send_record<K, P>(&self, record: FutureRecord<K, P>) -> KafkaResult<SendFuture>
+    where
+        K: rdkafka::message::ToBytes + ?Sized,
+        P: rdkafka::message::ToBytes + ?Sized,
+    {
+        let stream = StreamKey::new(record.topic.to_owned())?;
+
+        let fut = self
+            .get()
+            .send_result(record)
+            .map_err(|(err, _raw)| stream_err(err))?;
+
+        Ok(SendFuture {
+            stream_key: Some(stream),
+            fut,
+        })
     }
 
     /// Returns the number of messages that are either waiting to be sent or
