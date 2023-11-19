@@ -134,7 +134,7 @@ impl KafkaProducer {
             .expect("Producer is still inside a transaction, please await the future")
     }
 
-    /// Send a `FutureRecord` to a stream
+    /// Send a raw [`FutureRecord`] to a stream
     pub fn send_record<K, P>(&self, record: FutureRecord<K, P>) -> KafkaResult<SendFuture>
     where
         K: rdkafka::message::ToBytes + ?Sized,
@@ -151,6 +151,24 @@ impl KafkaProducer {
             stream_key: Some(stream),
             fut,
         })
+    }
+
+    /// Send a message to a particular (topic, partition).
+    /// The `timestamp` and `sequence` of [`MessageHeader`] is currently ignored.
+    pub fn send_message<S: Buffer>(
+        &self,
+        header: MessageHeader,
+        payload: S,
+    ) -> KafkaResult<SendFuture> {
+        let partition = header
+            .shard_id()
+            .id()
+            .try_into()
+            .expect("shard_id out of range");
+        let record = FutureRecord::<(), _>::to(header.stream_key().name())
+            .partition(partition)
+            .payload(payload.as_bytes());
+        self.send_record(record)
     }
 
     /// Returns the number of messages that are either waiting to be sent or

@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+### `sea-streamer-kafka` 0.3.2 - 2023-11-19
+
+* Added `KafkaProducer::send_record`, `KafkaProducer::send_message` https://github.com/SeaQL/sea-streamer/pull/17
+
 ### `sea-streamer-file` 0.3.8 - 2023-11-17
 
 * Added `FileSource::drain`
