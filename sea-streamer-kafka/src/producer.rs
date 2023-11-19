@@ -4,12 +4,11 @@ use crate::{
     cluster::cluster_uri, impl_into_string, stream_err, BaseOptionKey, KafkaConnectOptions,
     KafkaErr, KafkaResult, DEFAULT_TIMEOUT,
 };
-pub use rdkafka::producer::FutureRecord;
 use rdkafka::{
     config::ClientConfig,
-    producer::{DeliveryFuture, Producer as ProducerTrait},
+    producer::{DeliveryFuture, FutureRecord as RawPayload, Producer as ProducerTrait},
 };
-pub use rdkafka::{consumer::ConsumerGroupMetadata, TopicPartitionList};
+pub use rdkafka::{consumer::ConsumerGroupMetadata, producer::FutureRecord, TopicPartitionList};
 use sea_streamer_runtime::spawn_blocking;
 use sea_streamer_types::{
     export::{async_trait, futures::FutureExt},
@@ -89,7 +88,7 @@ impl Producer for KafkaProducer {
     fn send_to<S: Buffer>(&self, stream: &StreamKey, payload: S) -> KafkaResult<Self::SendFuture> {
         let fut = self
             .get()
-            .send_result(FutureRecord::<str, [u8]>::to(stream.name()).payload(payload.as_bytes()))
+            .send_result(RawPayload::<str, [u8]>::to(stream.name()).payload(payload.as_bytes()))
             .map_err(|(err, _raw)| stream_err(err))?;
 
         Ok(SendFuture {
