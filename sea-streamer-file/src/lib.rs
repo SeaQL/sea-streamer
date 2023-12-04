@@ -26,10 +26,16 @@
 //! We provide a small utility to decode `.ss` files:
 //!
 //! ```sh
-//! alias decoder='cargo run --package sea-streamer-file --features=executables --bin decoder'
-//! decoder -- --file <file> --format <format>
-//!  # or if you wish to install it
-//! cargo install sea-streamer-file --features=executables --bin decoder
+//! cargo install sea-streamer-file --features=executables --bin ss-decode
+//!  # local version
+//! alias ss-decode='cargo run --package sea-streamer-file --features=executables --bin ss-decode'
+//! ss-decode -- --file <file> --format <format>
+//! ```
+//! 
+//! Pro tip: pipe it to `less` for pagination
+//! 
+//! ```sh
+//! ss-decode --file mystream.ss | less
 //! ```
 //!
 //! Example `log` format:

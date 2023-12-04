@@ -1,6 +1,6 @@
 [package]
 name = "sea-streamer-file"
-version = "0.3.8"
+version = "0.3.9"
 authors = ["Chris Tsang <chris.2y3@outlook.com>"]
 edition = "2021"
 description = "🌊 SeaStreamer File Backend"
@@ -47,7 +47,7 @@ path = "src/bin/clock.rs"
 required-features = ["executables"]
 
 [[bin]]
-name = "decoder"
+name = "ssdecode"
 path = "src/bin/decoder.rs"
 required-features = ["executables"]
 
