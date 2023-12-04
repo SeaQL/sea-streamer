@@ -1,2 +1,3 @@
-target
+target/
+firedbg/
 Cargo.lock
