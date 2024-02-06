@@ -31,9 +31,9 @@
 //! alias ss-decode='cargo run --package sea-streamer-file --features=executables --bin ss-decode'
 //! ss-decode -- --file <file> --format <format>
 //! ```
-//! 
+//!
 //! Pro tip: pipe it to `less` for pagination
-//! 
+//!
 //! ```sh
 //! ss-decode --file mystream.ss | less
 //! ```
