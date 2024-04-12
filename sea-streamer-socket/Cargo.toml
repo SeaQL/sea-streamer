@@ -23,13 +23,13 @@ sea-streamer-redis = { version = "0.3", path = "../sea-streamer-redis", optional
 sea-streamer-stdio = { version = "0.3", path = "../sea-streamer-stdio", optional = true }
 sea-streamer-file = { version = "0.3", path = "../sea-streamer-file", optional = true }
 sea-streamer-types = { version = "0.3", path = "../sea-streamer-types" }
-structopt = { version = "0.3", optional = true }
+clap = { version = "4.5", features = ["derive"], optional = true }
 thiserror = { version = "1", default-features = false }
 tokio = { version = "1.10.0", optional = true }
 
 [features]
 default = ["backend-stdio"] # sadly cannot compile without one backend
-executables = ["anyhow", "env_logger", "structopt", "tokio/full", "runtime-tokio"]
+executables = ["anyhow", "env_logger", "clap", "tokio/full", "runtime-tokio"]
 runtime-async-std = ["sea-streamer-kafka?/runtime-async-std", "sea-streamer-redis?/runtime-async-std", "sea-streamer-stdio?/runtime-async-std", "sea-streamer-file?/runtime-async-std"]
 runtime-tokio = ["sea-streamer-kafka?/runtime-tokio", "sea-streamer-redis?/runtime-tokio", "sea-streamer-stdio?/runtime-tokio", "sea-streamer-file?/runtime-tokio"]
 backend-kafka = ["sea-streamer-kafka"]
