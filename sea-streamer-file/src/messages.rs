@@ -201,7 +201,7 @@ impl MessageSource {
         #[allow(clippy::never_loop)]
         let res = 'outer: loop {
             // survey the beacons to narrow down the scope of search
-            let surveyor = match Surveyor::new(self, |b: &Beacon| {
+            let surveyor = Surveyor::new(self, |b: &Beacon| {
                 for item in b.items.iter() {
                     if (stream_key, shard_id) == (item.header.stream_key(), item.header.shard_id())
                     {
@@ -210,8 +210,9 @@ impl MessageSource {
                 }
                 SurveyResult::Undecided
             })
-            .await
-            {
+            .await;
+
+            let surveyor = match surveyor {
                 Ok(s) => s,
                 Err(e) => {
                     break Err(e);

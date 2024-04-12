@@ -579,8 +579,6 @@ where
 
 #[cfg(test)]
 mod test {
-    use sea_streamer_types::Buffer;
-
     use super::*;
 
     #[test]

@@ -167,7 +167,7 @@ impl Cluster {
                     }
                     StatusMsg::Moved { shard, from, to } => {
                         log::info!("Shard {shard:?} moving from {from} to {to}");
-                        let conn = if self.nodes.get(&to).is_none() {
+                        let conn = if !self.nodes.contains_key(&to) {
                             Some(
                                 Connection::create_or_reconnect(
                                     to.clone(),
@@ -217,7 +217,7 @@ impl Cluster {
     }
 
     fn add_node(&mut self, node_id: NodeId, event_sender: Sender<StatusMsg>) -> &Sender<CtrlMsg> {
-        if self.nodes.get(&node_id).is_none() {
+        if !self.nodes.contains_key(&node_id) {
             let (ctrl_sender, receiver) = bounded(128);
             self.nodes.insert(node_id.clone(), ctrl_sender);
             let node = Node::add(
