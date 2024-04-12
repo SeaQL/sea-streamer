@@ -23,7 +23,7 @@ flume = { version = "0.10", default-features = false, features = ["async"] }
 lazy_static = { version = "1.4" }
 log = { version = "0.4", default-features = false }
 mac_address = { version = "1" }
-redis = { version = "0.22", default-features = false, features = ["acl", "streams"] }
+redis = { version = "0.25", default-features = false, features = ["acl", "streams"] }
 sea-streamer-types = { version = "0.3", path = "../sea-streamer-types" }
 sea-streamer-runtime = { version = "0.3", path = "../sea-streamer-runtime" }
 structopt = { version = "0.3", optional = true }
