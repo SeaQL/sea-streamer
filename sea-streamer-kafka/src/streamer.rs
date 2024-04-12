@@ -6,8 +6,8 @@ use std::{
 
 use sea_streamer_runtime::spawn_blocking;
 use sea_streamer_types::{
-    export::async_trait, runtime_error, ConnectOptions, ConsumerGroup, ConsumerMode,
-    ConsumerOptions, StreamErr, StreamKey, Streamer, StreamerUri,
+    runtime_error, ConnectOptions, ConsumerGroup, ConsumerMode, ConsumerOptions, StreamErr,
+    StreamKey, Streamer, StreamerUri,
 };
 
 use crate::{
@@ -196,7 +196,6 @@ impl_into_string!(BaseOptionKey);
 impl_into_string!(SecurityProtocol);
 impl_into_string!(SaslMechanism);
 
-#[async_trait]
 impl Streamer for KafkaStreamer {
     type Error = KafkaErr;
     type Producer = KafkaProducer;

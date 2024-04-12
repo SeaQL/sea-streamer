@@ -5,10 +5,7 @@ pub use future::StreamFuture as FileMessageStream;
 
 use flume::{r#async::RecvFut, Receiver, Sender, TrySendError};
 use sea_streamer_types::{
-    export::{
-        async_trait,
-        futures::{Future, FutureExt},
-    },
+    export::futures::{Future, FutureExt},
     Consumer as ConsumerTrait, SeqPos, ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
 };
 
@@ -66,7 +63,6 @@ impl Drop for FileConsumer {
     }
 }
 
-#[async_trait]
 impl ConsumerTrait for FileConsumer {
     type Error = FileErr;
     type Message<'a> = SharedMessage;

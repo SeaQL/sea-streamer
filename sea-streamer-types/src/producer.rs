@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use futures::Future;
 
 use crate::{Buffer, MessageHeader, StreamKey, StreamResult};
@@ -9,7 +8,6 @@ pub trait ProducerOptions: Default + Clone + Send {}
 /// Delivery receipt.
 pub type Receipt = MessageHeader;
 
-#[async_trait]
 /// Common interface of producers, to be implemented by all backends.
 pub trait Producer: Clone + Send + Sync {
     type Error: std::error::Error;
@@ -32,10 +30,10 @@ pub trait Producer: Clone + Send + Sync {
     }
 
     /// End this producer, only after flushing all it's pending messages.
-    async fn end(self) -> StreamResult<(), Self::Error>;
+    fn end(self) -> impl Future<Output = StreamResult<(), Self::Error>> + Send;
 
     /// Flush all pending messages.
-    async fn flush(&mut self) -> StreamResult<(), Self::Error>;
+    fn flush(&mut self) -> impl Future<Output = StreamResult<(), Self::Error>> + Send;
 
     /// Lock this producer to a particular stream. This function can only be called once.
     /// Subsequent calls should return `StreamErr::AlreadyAnchored` error.

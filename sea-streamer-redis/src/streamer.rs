@@ -5,7 +5,7 @@ use crate::{
     RedisProducer, RedisProducerOptions, RedisResult, REDIS_PORT,
 };
 use sea_streamer_types::{
-    export::async_trait, ConnectOptions, StreamErr, StreamKey, StreamUrlErr, Streamer, StreamerUri,
+    ConnectOptions, StreamErr, StreamKey, StreamUrlErr, Streamer, StreamerUri,
 };
 
 #[derive(Debug, Clone)]
@@ -26,7 +26,6 @@ pub struct RedisConnectOptions {
     disable_hostname_verification: bool,
 }
 
-#[async_trait]
 impl Streamer for RedisStreamer {
     type Error = RedisErr;
     type Producer = RedisProducer;

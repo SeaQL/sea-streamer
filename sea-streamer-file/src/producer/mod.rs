@@ -5,9 +5,8 @@ use std::{fmt::Debug, future::Future};
 
 use crate::{Bytes, FileErr, FileId, FileResult};
 use sea_streamer_types::{
-    export::{async_trait, futures::FutureExt},
-    Buffer, MessageHeader, Producer as ProducerTrait, ShardId, StreamErr, StreamKey, StreamResult,
-    Timestamp,
+    export::futures::FutureExt, Buffer, MessageHeader, Producer as ProducerTrait, ShardId,
+    StreamErr, StreamKey, StreamResult, Timestamp,
 };
 
 pub(crate) use backend::{end_producer, new_producer};
@@ -75,7 +74,6 @@ impl Debug for SendFuture {
     }
 }
 
-#[async_trait]
 impl ProducerTrait for FileProducer {
     type Error = FileErr;
     type SendFuture = SendFuture;

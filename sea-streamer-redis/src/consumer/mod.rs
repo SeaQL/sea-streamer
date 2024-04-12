@@ -20,10 +20,9 @@ use crate::{
 };
 use sea_streamer_runtime::{spawn_task, timeout};
 use sea_streamer_types::{
-    export::{async_trait, futures::FutureExt},
-    Buffer, ConnectOptions, Consumer, ConsumerGroup, ConsumerId, ConsumerMode, ConsumerOptions,
-    Message, MessageHeader, SeqNo, SeqPos, ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
-    SEA_STREAMER_INTERNAL,
+    export::futures::FutureExt, Buffer, ConnectOptions, Consumer, ConsumerGroup, ConsumerId,
+    ConsumerMode, ConsumerOptions, Message, MessageHeader, SeqNo, SeqPos, ShardId, SharedMessage,
+    StreamErr, StreamKey, Timestamp, SEA_STREAMER_INTERNAL,
 };
 
 #[derive(Debug)]
@@ -77,7 +76,6 @@ pub mod constants {
     pub const HEARTBEAT: Duration = Duration::from_secs(10);
 }
 
-#[async_trait]
 impl Consumer for RedisConsumer {
     type Error = RedisErr;
     type Message<'a> = SharedMessage;

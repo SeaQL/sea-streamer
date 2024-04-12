@@ -11,9 +11,8 @@ use rdkafka::{
 pub use rdkafka::{consumer::ConsumerGroupMetadata, producer::FutureRecord, TopicPartitionList};
 use sea_streamer_runtime::spawn_blocking;
 use sea_streamer_types::{
-    export::{async_trait, futures::FutureExt},
-    runtime_error, Buffer, MessageHeader, Producer, ProducerOptions, ShardId, StreamErr, StreamKey,
-    StreamResult, StreamerUri, Timestamp,
+    export::futures::FutureExt, runtime_error, Buffer, MessageHeader, Producer, ProducerOptions,
+    ShardId, StreamErr, StreamKey, StreamResult, StreamerUri, Timestamp,
 };
 
 #[derive(Clone)]
@@ -80,7 +79,6 @@ impl Default for CompressionType {
     }
 }
 
-#[async_trait]
 impl Producer for KafkaProducer {
     type Error = KafkaErr;
     type SendFuture = SendFuture;

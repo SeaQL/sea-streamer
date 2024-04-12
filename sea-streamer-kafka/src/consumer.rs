@@ -8,13 +8,10 @@ use sea_streamer_runtime::spawn_blocking;
 use std::{collections::HashSet, fmt::Debug, time::Duration};
 
 use sea_streamer_types::{
-    export::{
-        async_trait,
-        futures::{
-            future::Map,
-            stream::{Map as StreamMap, StreamFuture},
-            FutureExt, StreamExt,
-        },
+    export::futures::{
+        future::Map,
+        stream::{Map as StreamMap, StreamFuture},
+        FutureExt, StreamExt,
     },
     runtime_error, Consumer as ConsumerTrait, ConsumerGroup, ConsumerMode, ConsumerOptions,
     Message, Payload, SeqNo, SeqPos, ShardId, StreamErr, StreamKey, StreamerUri, Timestamp,
@@ -251,7 +248,6 @@ impl std::fmt::Debug for KafkaConsumer {
     }
 }
 
-#[async_trait]
 impl ConsumerTrait for KafkaConsumer {
     type Error = KafkaErr;
     type Message<'a> = KafkaMessage<'a>;

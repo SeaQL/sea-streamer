@@ -7,7 +7,7 @@ use crate::{
     DEFAULT_PREFETCH_MESSAGE,
 };
 use sea_streamer_types::{
-    export::async_trait, ConnectOptions as ConnectOptionsTrait, ConsumerGroup, ConsumerMode,
+    ConnectOptions as ConnectOptionsTrait, ConsumerGroup, ConsumerMode,
     ConsumerOptions as ConsumerOptionsTrait, ProducerOptions as ProducerOptionsTrait, StreamErr,
     StreamKey, StreamUrlErr, Streamer as StreamerTrait, StreamerUri,
 };
@@ -74,7 +74,6 @@ pub enum ConfigErr {
     InvalidBeaconInterval,
 }
 
-#[async_trait]
 impl StreamerTrait for FileStreamer {
     type Error = FileErr;
     type Producer = FileProducer;
