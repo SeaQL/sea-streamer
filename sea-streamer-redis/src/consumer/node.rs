@@ -365,7 +365,10 @@ impl Node {
             && Timestamp::now_utc() - *self.options.auto_commit_interval() > self.group.last_commit
     }
 
-    async fn commit_ack(&mut self, conn: &mut redis::aio::Connection) -> RedisResult<()> {
+    async fn commit_ack(
+        &mut self,
+        conn: &mut redis::aio::MultiplexedConnection,
+    ) -> RedisResult<()> {
         for shard in self.shards.iter_mut() {
             if !shard.pending_ack.is_empty() {
                 match self.options.auto_commit() {
@@ -438,7 +441,10 @@ impl Node {
         }
     }
 
-    async fn read_next(&mut self, conn: &mut redis::aio::Connection) -> RedisResult<ReadResult> {
+    async fn read_next(
+        &mut self,
+        conn: &mut redis::aio::MultiplexedConnection,
+    ) -> RedisResult<ReadResult> {
         let mode = self.running_mode();
         if matches!(mode, ConsumerMode::Resumable | ConsumerMode::LoadBalanced)
             && self.group.first_read
@@ -601,7 +607,10 @@ impl Node {
         }
     }
 
-    async fn auto_claim(&mut self, conn: &mut redis::aio::Connection) -> RedisResult<ReadResult> {
+    async fn auto_claim(
+        &mut self,
+        conn: &mut redis::aio::MultiplexedConnection,
+    ) -> RedisResult<ReadResult> {
         self.group.last_check = Timestamp::now_utc();
         let change = self.group.claiming.is_none();
         if self.group.claiming.is_none() {
@@ -695,7 +704,10 @@ impl Node {
         }
     }
 
-    async fn move_shards(&mut self, conn: &mut redis::aio::Connection) -> Vec<StatusMsg> {
+    async fn move_shards(
+        &mut self,
+        conn: &mut redis::aio::MultiplexedConnection,
+    ) -> Vec<StatusMsg> {
         let mut events = Vec::new();
         let shards = std::mem::take(&mut self.shards);
         for shard in shards {

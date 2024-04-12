@@ -8,7 +8,7 @@ use sea_streamer_runtime::{sleep, timeout};
 use sea_streamer_types::{ConnectOptions, StreamErr};
 
 #[derive(Debug)]
-/// A wrapped [`redis::aio::Connection`] that can auto-reconnect.
+/// A wrapped [`redis::aio::MultiplexedConnection`] that can auto-reconnect.
 pub struct Connection {
     node: NodeId,
     options: Arc<RedisConnectOptions>,
@@ -16,7 +16,7 @@ pub struct Connection {
 }
 
 enum State {
-    Alive(redis::aio::Connection),
+    Alive(redis::aio::MultiplexedConnection),
     Reconnecting { delay: u32 },
     Dead,
 }
@@ -69,7 +69,7 @@ impl Connection {
     }
 
     /// Get a mutable connection, will wait and retry a few times until dead.
-    pub async fn get(&mut self) -> RedisResult<&mut redis::aio::Connection> {
+    pub async fn get(&mut self) -> RedisResult<&mut redis::aio::MultiplexedConnection> {
         match &mut self.state {
             State::Alive(_) | State::Dead => (),
             State::Reconnecting { delay } => {
@@ -93,7 +93,7 @@ impl Connection {
     }
 
     /// Get a mutable connection, only if it is alive.
-    pub fn try_get(&mut self) -> RedisResult<&mut redis::aio::Connection> {
+    pub fn try_get(&mut self) -> RedisResult<&mut redis::aio::MultiplexedConnection> {
         match &mut self.state {
             State::Alive(conn) => Ok(conn),
             State::Dead => Err(StreamErr::Connect(format!(
@@ -119,7 +119,7 @@ impl Connection {
 async fn create_connection(
     url: NodeId,
     options: Arc<RedisConnectOptions>,
-) -> RedisResult<redis::aio::Connection> {
+) -> RedisResult<redis::aio::MultiplexedConnection> {
     let host = if let Some(host) = url.host_str() {
         host.to_owned()
     } else {
@@ -132,6 +132,7 @@ async fn create_connection(
             "rediss" => ConnectionAddr::TcpTls {
                 host,
                 port,
+                tls_params: None,
                 insecure: options.disable_hostname_verification(),
             },
             "" => return Err(StreamErr::Connect("protocol not set".to_owned())),
@@ -147,7 +148,7 @@ async fn create_connection(
     // I wish we could do `.await_timeout(d)` some day
     match timeout(
         options.timeout().unwrap_or(DEFAULT_TIMEOUT),
-        client.get_async_connection(),
+        client.get_multiplexed_async_connection(),
     )
     .await
     {
