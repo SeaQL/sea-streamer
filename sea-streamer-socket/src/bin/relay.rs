@@ -4,23 +4,23 @@ use sea_streamer_types::{
     Consumer, ConsumerMode, ConsumerOptions, Message, Producer, StreamUrl, Streamer,
 };
 use std::str::FromStr;
-use structopt::StructOpt;
+use clap::Parser;
 
 #[cfg(feature = "backend-kafka")]
 use sea_streamer_kafka::AutoOffsetReset;
 #[cfg(feature = "backend-redis")]
 use sea_streamer_redis::AutoStreamReset;
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 struct Args {
-    #[structopt(
+    #[clap(
         long,
         help = "Streamer Source Uri, i.e. try `kafka://localhost:9092/stream_key`"
     )]
     input: StreamUrl,
-    #[structopt(long, help = "Streamer Sink Uri, i.e. try `stdio:///stream_key`")]
+    #[clap(long, help = "Streamer Sink Uri, i.e. try `stdio:///stream_key`")]
     output: StreamUrl,
-    #[structopt(long, help = "Stream from `start` or `end`", default_value = "end")]
+    #[clap(long, help = "Stream from `start` or `end`", default_value = "end")]
     offset: Offset,
 }
 
@@ -50,7 +50,7 @@ async fn main() -> Result<()> {
         input,
         output,
         offset,
-    } = Args::from_args();
+    } = Args::parse();
 
     if input == output && input.streamer().protocol() != Some("stdio") {
         bail!("input == output !!!");

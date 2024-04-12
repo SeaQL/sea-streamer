@@ -1,11 +1,11 @@
 use anyhow::Result;
 use sea_streamer_kafka::KafkaStreamer;
 use sea_streamer_types::{Producer, StreamUrl, Streamer};
-use structopt::StructOpt;
+use clap::Parser;
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 struct Args {
-    #[structopt(
+    #[clap(
         long,
         help = "Streamer URI with stream key, i.e. try `kafka://localhost:9092/hello`",
         env = "STREAM_URL"
@@ -17,7 +17,7 @@ struct Args {
 async fn main() -> Result<()> {
     env_logger::init();
 
-    let Args { stream } = Args::from_args();
+    let Args { stream } = Args::parse();
 
     let streamer = KafkaStreamer::connect(stream.streamer(), Default::default()).await?;
     let producer = streamer

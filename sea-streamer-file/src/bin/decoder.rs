@@ -21,15 +21,15 @@ use sea_streamer_file::{
 };
 use sea_streamer_types::{Buffer, Message, TIMESTAMP_FORMAT};
 use std::str::FromStr;
-use structopt::StructOpt;
+use clap::Parser;
 
-#[derive(StructOpt)]
+#[derive(Parser)]
 struct Args {
-    #[structopt(long, help = "Decode this file")]
+    #[clap(long, help = "Decode this file")]
     file: FileId,
-    #[structopt(long, help = "If set, skip printing the payload")]
+    #[clap(long, help = "If set, skip printing the payload")]
     header_only: bool,
-    #[structopt(long, help = "The output format", default_value = "log")]
+    #[clap(long, help = "The output format", default_value = "log")]
     format: Format,
 }
 
@@ -46,7 +46,7 @@ async fn main() -> Result<()> {
         file,
         header_only,
         format,
-    } = Args::from_args();
+    } = Args::parse();
 
     let mut source = MessageSource::new(file, StreamMode::Replay).await?;
 

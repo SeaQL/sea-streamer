@@ -7,18 +7,18 @@ use sea_streamer::{
     Streamer,
 };
 use std::time::Duration;
-use structopt::StructOpt;
+use clap::Parser;
 
 const TRANSACTION: bool = true;
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 struct Args {
-    #[structopt(
+    #[clap(
         long,
         help = "Streamer URI with stream key(s), i.e. try `kafka://localhost:9092/my_topic`"
     )]
     input: StreamUrl,
-    #[structopt(
+    #[clap(
         long,
         help = "Streamer URI with stream key, i.e. try `stdio:///my_stream`"
     )]
@@ -30,7 +30,7 @@ struct Args {
 async fn main() -> Result<()> {
     env_logger::init();
 
-    let Args { input, output } = Args::from_args();
+    let Args { input, output } = Args::parse();
 
     let streamer = SeaStreamer::connect(input.streamer(), Default::default()).await?;
     let mut options = SeaConsumerOptions::new(ConsumerMode::Resumable);

@@ -2,13 +2,13 @@ use anyhow::{anyhow, Result};
 use sea_streamer_stdio::StdioStreamer;
 use sea_streamer_types::{Producer, StreamKey, Streamer, StreamerUri};
 use std::time::Duration;
-use structopt::StructOpt;
+use clap::Parser;
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 struct Args {
-    #[structopt(long, help = "Stream key")]
+    #[clap(long, help = "Stream key")]
     stream: StreamKey,
-    #[structopt(long, parse(try_from_str = parse_duration), help = "Period of the clock. e.g. 1s, 100ms")]
+    #[clap(long, parse(try_from_str = parse_duration), help = "Period of the clock. e.g. 1s, 100ms")]
     interval: Duration,
 }
 
@@ -32,7 +32,7 @@ fn parse_duration(src: &str) -> Result<Duration> {
 async fn main() -> Result<()> {
     env_logger::init();
 
-    let Args { stream, interval } = Args::from_args();
+    let Args { stream, interval } = Args::parse();
 
     let streamer = StdioStreamer::connect(StreamerUri::zero(), Default::default()).await?;
     let producer = streamer.create_producer(stream, Default::default()).await?;
