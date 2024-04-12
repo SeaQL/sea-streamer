@@ -1,6 +1,6 @@
 use rdkafka::{
     config::ClientConfig,
-    consumer::{CommitMode, Consumer, MessageStream as RawMessageStream},
+    consumer::{CommitMode, Consumer, DefaultConsumerContext, MessageStream as RawMessageStream},
     message::BorrowedMessage as RawMessage,
     Message as KafkaMessageTrait, Offset, TopicPartitionList,
 };
@@ -78,18 +78,18 @@ pub enum AutoOffsetReset {
 
 /// Concrete type of Future that will yield the next message.
 pub type NextFuture<'a> = Map<
-    StreamFuture<RawMessageStream<'a>>,
+    StreamFuture<RawMessageStream<'a, DefaultConsumerContext>>,
     fn(
         (
             Option<Result<RawMessage<'a>, KafkaErr>>,
-            RawMessageStream<'a>,
+            RawMessageStream<'a, DefaultConsumerContext>,
         ),
     ) -> KafkaResult<KafkaMessage<'a>>,
 >;
 
 /// Concrete type of Stream that will yield the next messages.
 pub type KafkaMessageStream<'a> = StreamMap<
-    RawMessageStream<'a>,
+    RawMessageStream<'a, DefaultConsumerContext>,
     fn(Result<RawMessage<'a>, KafkaErr>) -> KafkaResult<KafkaMessage<'a>>,
 >;
 
