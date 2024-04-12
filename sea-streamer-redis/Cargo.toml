@@ -38,7 +38,7 @@ test = ["anyhow", "async-std?/attributes", "tokio?/full", "env_logger"]
 executables = ["anyhow", "env_logger", "structopt", "runtime-tokio", "tokio/full"]
 runtime-async-std = ["async-std", "redis/async-std-comp", "sea-streamer-runtime/runtime-async-std"]
 runtime-tokio = ["tokio", "redis/tokio-comp", "sea-streamer-runtime/runtime-tokio"]
-runtime-async-std-native-tls = ["runtime-async-std", "redis/async-std-tls-comp"]
+runtime-async-std-native-tls = ["runtime-async-std", "redis/async-std-native-tls-comp"]
 runtime-tokio-native-tls = ["runtime-tokio", "redis/tokio-native-tls-comp"]
 
 [[bin]]
