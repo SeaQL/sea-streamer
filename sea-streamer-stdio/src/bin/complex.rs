@@ -6,13 +6,13 @@ use sea_streamer_types::{
     Consumer, ConsumerGroup, ConsumerMode, ConsumerOptions, Message, Producer, StreamKey, Streamer,
     StreamerUri,
 };
-use structopt::StructOpt;
+use clap::Parser;
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 struct Args {
-    #[structopt(long, help = "Stream key of input")]
+    #[clap(long, help = "Stream key of input")]
     input: StreamKey,
-    #[structopt(long, help = "Stream key of output")]
+    #[clap(long, help = "Stream key of output")]
     output: StreamKey,
 }
 
@@ -20,7 +20,7 @@ struct Args {
 async fn main() -> Result<()> {
     env_logger::init();
 
-    let Args { input, output } = Args::from_args();
+    let Args { input, output } = Args::parse();
 
     let streamer = StdioStreamer::connect(StreamerUri::zero(), Default::default()).await?;
     let mut consumer_opt = StdioConsumerOptions::new(ConsumerMode::LoadBalanced);

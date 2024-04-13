@@ -51,7 +51,7 @@ Here is a basic [stream consumer](https://github.com/SeaQL/sea-streamer/tree/mai
 async fn main() -> Result<()> {
     env_logger::init();
 
-    let Args { stream } = Args::from_args();
+    let Args { stream } = Args::parse();
 
     let streamer = SeaStreamer::connect(stream.streamer(), Default::default()).await?;
 
@@ -76,7 +76,7 @@ Here is a basic [stream producer](https://github.com/SeaQL/sea-streamer/tree/mai
 async fn main() -> Result<()> {
     env_logger::init();
 
-    let Args { stream } = Args::from_args();
+    let Args { stream } = Args::parse();
 
     let streamer = SeaStreamer::connect(stream.streamer(), Default::default()).await?;
 
@@ -105,7 +105,7 @@ See also other [advanced stream processors](https://github.com/SeaQL/sea-streame
 async fn main() -> Result<()> {
     env_logger::init();
 
-    let Args { input, output } = Args::from_args();
+    let Args { input, output } = Args::parse();
 
     let streamer = SeaStreamer::connect(input.streamer(), Default::default()).await?;
     let options = SeaConsumerOptions::new(ConsumerMode::RealTime);

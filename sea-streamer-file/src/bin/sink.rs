@@ -2,13 +2,13 @@ use anyhow::{anyhow, Result};
 use sea_streamer_file::{FileId, MessageSink, DEFAULT_BEACON_INTERVAL, DEFAULT_FILE_SIZE_LIMIT};
 use sea_streamer_types::{MessageHeader, OwnedMessage, ShardId, StreamKey, Timestamp};
 use std::time::Duration;
-use structopt::StructOpt;
+use clap::Parser;
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 struct Args {
-    #[structopt(long, help = "Stream to this file")]
+    #[clap(long, help = "Stream to this file")]
     file: FileId,
-    #[structopt(long, parse(try_from_str = parse_duration), help = "Period of the clock. e.g. 1s, 100ms")]
+    #[clap(long, parse(try_from_str = parse_duration), help = "Period of the clock. e.g. 1s, 100ms")]
     interval: Duration,
 }
 
@@ -28,7 +28,7 @@ fn parse_duration(src: &str) -> Result<Duration> {
 async fn main() -> Result<()> {
     env_logger::init();
 
-    let Args { file, interval } = Args::from_args();
+    let Args { file, interval } = Args::parse();
     let mut sink = MessageSink::new(
         file.clone(),
         DEFAULT_BEACON_INTERVAL,

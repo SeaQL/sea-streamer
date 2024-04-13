@@ -6,21 +6,21 @@ use sea_streamer_types::{
     TIMESTAMP_FORMAT,
 };
 use std::time::Duration;
-use structopt::StructOpt;
+use clap::Parser;
 use time::PrimitiveDateTime;
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 struct Args {
-    #[structopt(
+    #[clap(
         long,
         help = "Streamer URI with stream key, i.e. try `redis://localhost/hello`"
     )]
     stream: StreamUrl,
-    #[structopt(long, help = "Output file. Overwrites if exist")]
+    #[clap(long, help = "Output file. Overwrites if exist")]
     output: FileId,
-    #[structopt(long, help = "Timestamp start of range")]
+    #[clap(long, help = "Timestamp start of range")]
     since: Option<String>,
-    #[structopt(long, help = "Timestamp end of range")]
+    #[clap(long, help = "Timestamp end of range")]
     until: Option<String>,
 }
 
@@ -33,7 +33,7 @@ async fn main() -> Result<()> {
         output,
         since,
         until,
-    } = Args::from_args();
+    } = Args::parse();
 
     let since = since.map(|s| parse_timestamp(&s).unwrap());
     let until = until.map(|s| parse_timestamp(&s).unwrap());

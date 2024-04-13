@@ -3,11 +3,11 @@ use sea_streamer_redis::{AutoStreamReset, RedisConsumerOptions, RedisStreamer};
 use sea_streamer_types::{
     Buffer, Consumer, ConsumerMode, ConsumerOptions, Message, StreamUrl, Streamer,
 };
-use structopt::StructOpt;
+use clap::Parser;
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 struct Args {
-    #[structopt(
+    #[clap(
         long,
         help = "Streamer URI with stream key, i.e. try `redis://localhost/hello`",
         env = "STREAM_URL"
@@ -19,7 +19,7 @@ struct Args {
 async fn main() -> Result<()> {
     env_logger::init();
 
-    let Args { stream } = Args::from_args();
+    let Args { stream } = Args::parse();
 
     let streamer = RedisStreamer::connect(stream.streamer(), Default::default()).await?;
     let mut options = RedisConsumerOptions::new(ConsumerMode::RealTime);

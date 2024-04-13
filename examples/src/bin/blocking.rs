@@ -1,7 +1,7 @@
 use anyhow::Result;
 use flume::bounded;
 use std::time::Duration;
-use structopt::StructOpt;
+use clap::Parser;
 
 use sea_streamer::{
     runtime::{sleep, spawn_task},
@@ -9,14 +9,14 @@ use sea_streamer::{
     SeaConsumerOptions, SeaMessage, SeaProducer, SeaStreamer, SharedMessage, StreamUrl, Streamer,
 };
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 struct Args {
-    #[structopt(
+    #[clap(
         long,
         help = "Streamer URI with stream key(s), i.e. try `kafka://localhost:9092/my_topic`"
     )]
     input: StreamUrl,
-    #[structopt(
+    #[clap(
         long,
         help = "Streamer URI with stream key, i.e. try `stdio:///my_stream`"
     )]
@@ -30,7 +30,7 @@ const NUM_THREADS: usize = 4; // Every one has at least 2 cores with 2 hyperthre
 async fn main() -> Result<()> {
     env_logger::init();
 
-    let Args { input, output } = Args::from_args();
+    let Args { input, output } = Args::parse();
 
     // The queue
     let (sender, receiver) = bounded(1024);

@@ -1,11 +1,11 @@
 use anyhow::Result;
 use sea_streamer::{runtime::sleep, StreamUrl};
 use std::time::Duration;
-use structopt::StructOpt;
+use clap::Parser;
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 struct Args {
-    #[structopt(
+    #[clap(
         long,
         help = "Streamer URI with stream key, i.e. try `kafka://localhost:9092/my_topic`",
         env = "STREAM_URL"
@@ -18,7 +18,7 @@ struct Args {
 async fn main() -> Result<()> {
     env_logger::init();
 
-    let Args { stream } = Args::from_args();
+    let Args { stream } = Args::parse();
     std::hint::black_box(stream);
 
     for i in 0..100_000 {
