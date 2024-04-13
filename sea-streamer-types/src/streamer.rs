@@ -4,7 +4,7 @@ use crate::{
     ConnectOptions, Consumer, ConsumerOptions, Producer, ProducerOptions, StreamKey, StreamResult,
     StreamUrlErr,
 };
-use futures::{Future, FutureExt, TryFutureExt};
+use futures::{Future, FutureExt};
 use url::Url;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
