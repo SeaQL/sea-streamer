@@ -1,7 +1,7 @@
 use anyhow::Result;
+use clap::Parser;
 use sea_streamer_redis::RedisStreamer;
 use sea_streamer_types::{Producer, StreamUrl, Streamer};
-use clap::Parser;
 
 #[derive(Debug, Parser)]
 struct Args {

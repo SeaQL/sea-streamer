@@ -1,9 +1,9 @@
 use anyhow::Result;
+use clap::Parser;
 use sea_streamer::{
     Buffer, Consumer, ConsumerMode, ConsumerOptions, Message, Producer, SeaConsumer,
     SeaConsumerOptions, SeaMessage, SeaProducer, SeaStreamer, StreamUrl, Streamer,
 };
-use clap::Parser;
 
 #[derive(Debug, Parser)]
 struct Args {

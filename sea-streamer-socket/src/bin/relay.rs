@@ -1,10 +1,10 @@
 use anyhow::{bail, Result};
+use clap::Parser;
 use sea_streamer_socket::{SeaConsumerOptions, SeaStreamer};
 use sea_streamer_types::{
     Consumer, ConsumerMode, ConsumerOptions, Message, Producer, StreamUrl, Streamer,
 };
 use std::str::FromStr;
-use clap::Parser;
 
 #[cfg(feature = "backend-kafka")]
 use sea_streamer_kafka::AutoOffsetReset;

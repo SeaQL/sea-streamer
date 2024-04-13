@@ -1,8 +1,8 @@
 use anyhow::{anyhow, Result};
+use clap::Parser;
 use sea_streamer_stdio::StdioStreamer;
 use sea_streamer_types::{Producer, StreamKey, Streamer, StreamerUri};
 use std::time::Duration;
-use clap::Parser;
 
 #[derive(Debug, Parser)]
 struct Args {

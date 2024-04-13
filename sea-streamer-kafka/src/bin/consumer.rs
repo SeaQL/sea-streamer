@@ -1,9 +1,9 @@
 use anyhow::Result;
+use clap::Parser;
 use sea_streamer_kafka::{AutoOffsetReset, KafkaConsumerOptions, KafkaStreamer};
 use sea_streamer_types::{
     Buffer, Consumer, ConsumerMode, ConsumerOptions, Message, StreamUrl, Streamer,
 };
-use clap::Parser;
 
 #[derive(Debug, Parser)]
 struct Args {

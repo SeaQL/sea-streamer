@@ -1,7 +1,7 @@
 use anyhow::Result;
+use clap::Parser;
 use flume::bounded;
 use std::time::Duration;
-use clap::Parser;
 
 use sea_streamer::{
     runtime::{sleep, spawn_task},

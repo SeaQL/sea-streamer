@@ -1,4 +1,5 @@
 use anyhow::Result;
+use clap::Parser;
 use sea_streamer::{
     kafka::AutoOffsetReset,
     redis::{AutoCommit, AutoStreamReset},
@@ -7,7 +8,6 @@ use sea_streamer::{
     Streamer,
 };
 use std::time::Duration;
-use clap::Parser;
 
 const TRANSACTION: bool = true;
 

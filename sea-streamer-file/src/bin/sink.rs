@@ -1,8 +1,8 @@
 use anyhow::{anyhow, Result};
+use clap::Parser;
 use sea_streamer_file::{FileId, MessageSink, DEFAULT_BEACON_INTERVAL, DEFAULT_FILE_SIZE_LIMIT};
 use sea_streamer_types::{MessageHeader, OwnedMessage, ShardId, StreamKey, Timestamp};
 use std::time::Duration;
-use clap::Parser;
 
 #[derive(Debug, Parser)]
 struct Args {

@@ -1,12 +1,12 @@
 //! This is just to demonstrate the more complex behaviour of the streamer.
 //! Should later put this under a test framework that can manage subprocesses.
 use anyhow::Result;
+use clap::Parser;
 use sea_streamer_stdio::{StdioConsumerOptions, StdioStreamer};
 use sea_streamer_types::{
     Consumer, ConsumerGroup, ConsumerMode, ConsumerOptions, Message, Producer, StreamKey, Streamer,
     StreamerUri,
 };
-use clap::Parser;
 
 #[derive(Debug, Parser)]
 struct Args {

@@ -1,4 +1,5 @@
 use anyhow::Result;
+use clap::Parser;
 use sea_streamer_file::{FileId, MessageSink, DEFAULT_BEACON_INTERVAL, DEFAULT_FILE_SIZE_LIMIT};
 use sea_streamer_redis::{AutoStreamReset, RedisConsumerOptions, RedisStreamer};
 use sea_streamer_types::{
@@ -6,7 +7,6 @@ use sea_streamer_types::{
     TIMESTAMP_FORMAT,
 };
 use std::time::Duration;
-use clap::Parser;
 use time::PrimitiveDateTime;
 
 #[derive(Debug, Parser)]

@@ -1,7 +1,7 @@
 use anyhow::Result;
+use clap::Parser;
 use sea_streamer::{Producer, SeaProducer, SeaStreamer, StreamUrl, Streamer};
 use std::time::Duration;
-use clap::Parser;
 
 #[derive(Debug, Parser)]
 struct Args {
