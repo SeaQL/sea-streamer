@@ -4,7 +4,7 @@ use crate::{
     ConnectOptions, Consumer, ConsumerOptions, Producer, ProducerOptions, StreamKey, StreamResult,
     StreamUrlErr,
 };
-use async_trait::async_trait;
+use futures::{Future, FutureExt, TryFutureExt};
 use url::Url;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -38,7 +38,6 @@ pub struct StreamUrl {
     streams: Vec<StreamKey>,
 }
 
-#[async_trait]
 /// Common interface of streamer clients.
 pub trait Streamer: Sized {
     type Error: std::error::Error;
@@ -49,37 +48,41 @@ pub trait Streamer: Sized {
     type ProducerOptions: ProducerOptions;
 
     /// Establish a connection to the streaming server.
-    async fn connect(
+    fn connect(
         streamer: StreamerUri,
         options: Self::ConnectOptions,
-    ) -> StreamResult<Self, Self::Error>;
+    ) -> impl Future<Output = StreamResult<Self, Self::Error>> + Send;
 
     /// Flush and disconnect from the streaming server.
-    async fn disconnect(self) -> StreamResult<(), Self::Error>;
+    fn disconnect(self) -> impl Future<Output = StreamResult<(), Self::Error>> + Send;
 
     /// Create a producer that can stream to any stream key.
-    async fn create_generic_producer(
+    fn create_generic_producer(
         &self,
         options: Self::ProducerOptions,
-    ) -> StreamResult<Self::Producer, Self::Error>;
+    ) -> impl Future<Output = StreamResult<Self::Producer, Self::Error>> + Send;
 
     /// Create a producer that streams to the specified stream.
-    async fn create_producer(
+    fn create_producer(
         &self,
         stream: StreamKey,
         options: Self::ProducerOptions,
-    ) -> StreamResult<Self::Producer, Self::Error> {
-        let mut producer = self.create_generic_producer(options).await?;
-        producer.anchor(stream)?;
-        Ok(producer)
+    ) -> impl Future<Output = StreamResult<Self::Producer, Self::Error>> + Send {
+        self.create_generic_producer(options).map(|res| {
+            res.and_then(|mut producer| {
+                producer.anchor(stream)?;
+
+                Ok(producer)
+            })
+        })
     }
 
     /// Create a consumer subscribing to the specified streams.
-    async fn create_consumer(
+    fn create_consumer(
         &self,
         streams: &[StreamKey],
         options: Self::ConsumerOptions,
-    ) -> StreamResult<Self::Consumer, Self::Error>;
+    ) -> impl Future<Output = StreamResult<Self::Consumer, Self::Error>> + Send;
 }
 
 impl Display for StreamerUri {

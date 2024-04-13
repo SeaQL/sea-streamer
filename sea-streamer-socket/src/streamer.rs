@@ -7,7 +7,7 @@ use sea_streamer_redis::RedisStreamer;
 #[cfg(feature = "backend-stdio")]
 use sea_streamer_stdio::StdioStreamer;
 
-use sea_streamer_types::{export::async_trait, StreamErr, StreamKey, Streamer, StreamerUri};
+use sea_streamer_types::{StreamErr, StreamKey, Streamer, StreamerUri};
 
 use crate::{
     map_err, Backend, BackendErr, SeaConnectOptions, SeaConsumer, SeaConsumerBackend,
@@ -145,7 +145,6 @@ impl SeaStreamerBackend for SeaStreamer {
     }
 }
 
-#[async_trait]
 impl Streamer for SeaStreamer {
     type Error = BackendErr;
     type Producer = SeaProducer;

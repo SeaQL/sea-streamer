@@ -9,8 +9,7 @@ use sea_streamer_stdio::StdioProducer;
 
 use crate::{map_err, Backend, BackendErr, SeaResult, SeaStreamerBackend};
 use sea_streamer_types::{
-    export::{async_trait, futures::FutureExt},
-    Buffer, Producer, Receipt, StreamKey, StreamResult,
+    export::futures::FutureExt, Buffer, Producer, Receipt, StreamKey, StreamResult,
 };
 use std::{future::Future, pin::Pin, task::Poll};
 
@@ -157,7 +156,6 @@ pub enum SendFuture {
     File(sea_streamer_file::SendFuture),
 }
 
-#[async_trait]
 impl Producer for SeaProducer {
     type Error = BackendErr;
 

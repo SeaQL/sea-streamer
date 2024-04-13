@@ -16,7 +16,6 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-async-trait = { version = "0.1" }
 futures = { version = "0.3", default-features = false, features = ["std", "alloc", "async-await"] }
 thiserror = { version = "1", default-features = false }
 time = { version = "0.3", default-features = false, features = ["std", "macros", "formatting"] }

@@ -8,9 +8,8 @@ use crate::{
 };
 use sea_streamer_runtime::{sleep, spawn_task};
 use sea_streamer_types::{
-    export::{async_trait, futures::FutureExt},
-    Buffer, MessageHeader, Producer, ProducerOptions, ShardId, StreamErr, StreamKey, Timestamp,
-    SEA_STREAMER_INTERNAL,
+    export::futures::FutureExt, Buffer, MessageHeader, Producer, ProducerOptions, ShardId,
+    StreamErr, StreamKey, Timestamp, SEA_STREAMER_INTERNAL,
 };
 
 const MAX_RETRY: usize = 100;
@@ -87,7 +86,6 @@ pub struct RoundRobinSharder {
     state: u32,
 }
 
-#[async_trait]
 impl Producer for RedisProducer {
     type Error = RedisErr;
     type SendFuture = SendFuture;

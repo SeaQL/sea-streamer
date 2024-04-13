@@ -2,9 +2,8 @@ use flume::{bounded, r#async::RecvFut, unbounded, Sender};
 use std::{collections::HashMap, fmt::Debug, future::Future, sync::Mutex};
 
 use sea_streamer_types::{
-    export::{async_trait, futures::FutureExt},
-    Buffer, Message, MessageHeader, Producer as ProducerTrait, Receipt, SeqNo, ShardId,
-    SharedMessage, StreamErr, StreamKey, StreamResult, Timestamp,
+    export::futures::FutureExt, Buffer, Message, MessageHeader, Producer as ProducerTrait, Receipt,
+    SeqNo, ShardId, SharedMessage, StreamErr, StreamKey, StreamResult, Timestamp,
 };
 
 use crate::{PartialHeader, StdioErr, StdioResult, BROADCAST, TIMESTAMP_FORMAT};
@@ -174,7 +173,6 @@ impl Debug for SendFuture {
     }
 }
 
-#[async_trait]
 impl ProducerTrait for StdioProducer {
     type Error = StdioErr;
     type SendFuture = SendFuture;

@@ -5,10 +5,7 @@ use flume::{
 use std::sync::Mutex;
 
 use sea_streamer_types::{
-    export::{
-        async_trait,
-        futures::{future::MapErr, stream::Map as StreamMap, StreamExt, TryFutureExt},
-    },
+    export::futures::{future::MapErr, stream::Map as StreamMap, StreamExt, TryFutureExt},
     Consumer as ConsumerTrait, ConsumerGroup, SeqPos, ShardId, SharedMessage, StreamErr, StreamKey,
     Timestamp,
 };
@@ -118,7 +115,6 @@ impl Drop for StdioConsumer {
     }
 }
 
-#[async_trait]
 impl ConsumerTrait for StdioConsumer {
     type Error = StdioErr;
     type Message<'a> = SharedMessage;

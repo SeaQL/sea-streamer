@@ -9,10 +9,7 @@ use sea_streamer_stdio::StdioConsumer;
 
 use crate::{map_err, Backend, BackendErr, SeaMessage, SeaResult, SeaStreamerBackend};
 use sea_streamer_types::{
-    export::{
-        async_trait,
-        futures::{FutureExt, Stream},
-    },
+    export::futures::{FutureExt, Stream},
     Consumer, SeqPos, ShardId, StreamKey, StreamResult, Timestamp,
 };
 use std::{fmt::Debug, future::Future, pin::Pin, task::Poll};
@@ -201,7 +198,6 @@ impl SeaStreamerBackend for SeaConsumer {
     }
 }
 
-#[async_trait]
 impl Consumer for SeaConsumer {
     type Error = BackendErr;
     type Message<'a> = SeaMessage<'a>;

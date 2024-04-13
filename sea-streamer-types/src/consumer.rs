@@ -1,5 +1,4 @@
 use crate::{Message, SeqPos, ShardId, StreamKey, StreamResult, Timestamp};
-use async_trait::async_trait;
 use futures::{Future, Stream};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -50,7 +49,6 @@ pub trait ConsumerOptions: Default + Clone + Send {
     ) -> StreamResult<&mut Self, Self::Error>;
 }
 
-#[async_trait]
 /// Common interface of consumers, to be implemented by all backends.
 pub trait Consumer: Sized + Send + Sync {
     type Error: std::error::Error;
@@ -69,12 +67,16 @@ pub trait Consumer: Sized + Send + Sync {
     /// with a timestamp later than `to`.
     ///
     /// If the consumer is not already assigned, shard ZERO will be used.
-    async fn seek(&mut self, to: Timestamp) -> StreamResult<(), Self::Error>;
+    fn seek(&mut self, to: Timestamp)
+        -> impl Future<Output = StreamResult<(), Self::Error>> + Send;
 
     /// Rewind all streams to a particular sequence number.
     ///
     /// If the consumer is not already assigned, shard ZERO will be used.
-    async fn rewind(&mut self, offset: SeqPos) -> StreamResult<(), Self::Error>;
+    fn rewind(
+        &mut self,
+        offset: SeqPos,
+    ) -> impl Future<Output = StreamResult<(), Self::Error>> + Send;
 
     /// Assign this consumer to a particular shard. Can be called multiple times to assign
     /// to multiple shards. Returns error `StreamKeyNotFound` if the stream is not currently subscribed.

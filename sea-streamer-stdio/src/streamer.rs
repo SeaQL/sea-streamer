@@ -4,7 +4,7 @@ use crate::{
     consumer, create_consumer, producer, StdioConsumer, StdioErr, StdioProducer, StdioResult,
 };
 use sea_streamer_types::{
-    export::async_trait, ConnectOptions as ConnectOptionsTrait, ConsumerGroup, ConsumerMode,
+    ConnectOptions as ConnectOptionsTrait, ConsumerGroup, ConsumerMode,
     ConsumerOptions as ConsumerOptionsTrait, ProducerOptions as ProducerOptionsTrait, StreamErr,
     StreamKey, Streamer as StreamerTrait, StreamerUri,
 };
@@ -28,7 +28,6 @@ pub struct StdioConsumerOptions {
 #[derive(Debug, Default, Clone)]
 pub struct StdioProducerOptions {}
 
-#[async_trait]
 impl StreamerTrait for StdioStreamer {
     type Error = StdioErr;
     type Producer = StdioProducer;
