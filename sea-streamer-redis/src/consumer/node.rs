@@ -177,6 +177,8 @@ impl Node {
         let mut ack_failure = 0;
         let mut ready = false;
         let mut read: i64 = 0;
+        // this read counter here is a flow control device. when no consumer is reading,
+        // which probably means they are all busy, we will not attempt to fetch more.
 
         'outer: loop {
             loop {
@@ -190,6 +192,7 @@ impl Node {
                         Err(TryRecvError::Empty) => break,
                     }
                 } else {
+                    // here we sleep
                     match receiver.recv_async().await {
                         Ok(ctrl) => ctrl,
                         Err(RecvError::Disconnected) => {
@@ -204,6 +207,7 @@ impl Node {
                         read += 1;
                     }
                     CtrlMsg::Unread => {
+                        // the next future has been canceled
                         read -= 1;
                     }
                     CtrlMsg::AddShard(state) => {
