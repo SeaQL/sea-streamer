@@ -1,6 +1,6 @@
 # SeaStreamer Examples
 
-This crate serves as a demo of SeaStreamer and also can be a starting point for you to develop your stream processors.
+This crate serves as a demo of SeaStreamer and also can be a starting point for you to develop your stream processors, while demonstrating various stream processing techniques.
 
 This crate works for both `tokio` and `async-std`, and streams to `kafka` and `stdio`.
 
@@ -10,6 +10,9 @@ This crate works for both `tokio` and `async-std`, and streams to `kafka` and `s
 + `resumable`: A resumable stream processor that continues from where it left off
 + `buffered`: An advanced stream processor with internal buffering and batch processing
 + `blocking`: An advanced stream processor for handling blocking / CPU-bound tasks
+
++ `price-feed`: A websocket to Redis / Kafka stream producer
++ `sea-orm-sink`: A Redis / Kafka to SQLite data sink
 
 ## Running the basic processor example
 
