@@ -300,10 +300,8 @@ impl Streamer for KafkaStreamer {
             }
         }
 
-        Ok(
-            create_consumer(&self.uri, &self.options, &options, streams.to_vec())
-                .map_err(StreamErr::Backend)?,
-        )
+        create_consumer(&self.uri, &self.options, &options, streams.to_vec())
+            .map_err(StreamErr::Backend)
     }
 }
 

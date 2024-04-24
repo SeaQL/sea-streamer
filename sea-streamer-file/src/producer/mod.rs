@@ -103,7 +103,7 @@ impl ProducerTrait for FileProducer {
         })
     }
 
-    async fn end(mut self) -> FileResult<()> {
+    async fn end(self) -> FileResult<()> {
         let err = || Err(StreamErr::Backend(FileErr::ProducerEnded));
         let (s, r) = unbounded();
         if self
