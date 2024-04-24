@@ -95,7 +95,7 @@ impl Writers {
         options: &FileConnectOptions,
         _pro_options: &FileProducerOptions,
     ) -> Result<FileProducer, FileErr> {
-        if self.writers.get(&file_id).is_none() {
+        if !self.writers.contains_key(&file_id) {
             self.writers.insert(
                 file_id.clone(),
                 Writer::new(file_id.clone(), options).await?,

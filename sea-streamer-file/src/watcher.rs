@@ -76,7 +76,7 @@ impl Watchers {
     /// `Sender` should be unbounded, and never blocks.
     fn add(&mut self, file_id: FileId, sender: Sender<FileEvent>) -> Result<Watcher, FileErr> {
         assert!(sender.capacity().is_none());
-        if self.watchers.get(&file_id).is_none() {
+        if !self.watchers.contains_key(&file_id) {
             let watcher = Self::new_watcher(file_id.clone(), self.sender.clone())?;
             self.watchers.insert(file_id.clone(), watcher);
         }

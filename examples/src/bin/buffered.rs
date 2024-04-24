@@ -54,7 +54,7 @@ async fn main() -> Result<()> {
         .create_producer(output.stream_key()?, Default::default())
         .await?;
 
-    for batch in 0..std::usize::MAX {
+    for batch in 0..usize::MAX {
         // Take all messages currently buffered in the queue, but do not wait
         let mut messages: Vec<SharedMessage> = receiver.drain().collect();
         if messages.is_empty() {

@@ -106,7 +106,7 @@ impl Streamers {
         let (sender, receiver) = unbounded();
         self.max_sid += 1;
         let sid = self.max_sid;
-        if self.streamers.get(&file_id).is_none() {
+        if !self.streamers.contains_key(&file_id) {
             self.streamers.insert(file_id.clone(), Vec::new());
         }
         let handles = self.streamers.get_mut(&file_id).unwrap();

@@ -182,7 +182,7 @@ impl KafkaProducer {
     ) -> KafkaResult<()> {
         self.get();
         let client = self.inner.take().unwrap();
-        match spawn_blocking(move || {
+        let producer = spawn_blocking(move || {
             let s = client;
             match func(&s) {
                 Ok(()) => Ok(s),
@@ -190,8 +190,9 @@ impl KafkaProducer {
             }
         })
         .await
-        .map_err(runtime_error)?
-        {
+        .map_err(runtime_error)?;
+
+        match producer {
             Ok(inner) => {
                 self.inner = Some(inner);
                 Ok(())
