@@ -82,7 +82,7 @@ impl RedisCluster {
     }
 
     /// Get any available connection to the cluster
-    pub fn get_any(&mut self) -> RedisResult<(&NodeId, &mut redis::aio::Connection)> {
+    pub fn get_any(&mut self) -> RedisResult<(&NodeId, &mut redis::aio::MultiplexedConnection)> {
         for (node, inner) in self.conn.iter_mut() {
             if let Ok(conn) = inner.try_get() {
                 return Ok((node, conn));
@@ -93,7 +93,10 @@ impl RedisCluster {
 
     #[inline]
     /// Get a connection to the specific node, will wait and retry a few times until dead.
-    pub async fn get(&mut self, node: &NodeId) -> RedisResult<&mut redis::aio::Connection> {
+    pub async fn get(
+        &mut self,
+        node: &NodeId,
+    ) -> RedisResult<&mut redis::aio::MultiplexedConnection> {
         Self::get_connection(&mut self.conn, &self.options, node).await
     }
 
@@ -103,7 +106,7 @@ impl RedisCluster {
     pub async fn get_connection_for(
         &mut self,
         key: &str,
-    ) -> RedisResult<(&NodeId, &mut redis::aio::Connection)> {
+    ) -> RedisResult<(&NodeId, &mut redis::aio::MultiplexedConnection)> {
         let node = Self::get_node_for(&self.keys, &self.cluster, key);
         Ok((
             node,
@@ -115,7 +118,7 @@ impl RedisCluster {
         conn: &'a mut HashMap<NodeId, Connection>,
         options: &Arc<RedisConnectOptions>,
         node: &NodeId,
-    ) -> RedisResult<&'a mut redis::aio::Connection> {
+    ) -> RedisResult<&'a mut redis::aio::MultiplexedConnection> {
         assert!(!node.scheme().is_empty(), "Must have protocol");
         assert!(node.host_str().is_some(), "Must have host");
         assert!(node.port().is_some(), "Must have port");

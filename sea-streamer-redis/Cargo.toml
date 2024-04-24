@@ -23,7 +23,7 @@ flume = { version = "0.11", default-features = false, features = ["async"] }
 lazy_static = { version = "1.4" }
 log = { version = "0.4", default-features = false }
 mac_address = { version = "1" }
-redis = { version = "0.22", default-features = false, features = ["acl", "streams"] }
+redis = { version = "0.25", default-features = false, features = ["acl", "streams"] }
 sea-streamer-types = { version = "0.3", path = "../sea-streamer-types" }
 sea-streamer-runtime = { version = "0.3", path = "../sea-streamer-runtime" }
 clap = { version = "4.5", features = ["derive", "env"], optional = true }
@@ -38,7 +38,7 @@ test = ["anyhow", "async-std?/attributes", "tokio?/full", "env_logger"]
 executables = ["anyhow", "env_logger", "clap", "runtime-tokio", "tokio/full"]
 runtime-async-std = ["async-std", "redis/async-std-comp", "sea-streamer-runtime/runtime-async-std"]
 runtime-tokio = ["tokio", "redis/tokio-comp", "sea-streamer-runtime/runtime-tokio"]
-runtime-async-std-native-tls = ["runtime-async-std", "redis/async-std-tls-comp"]
+runtime-async-std-native-tls = ["runtime-async-std", "redis/async-std-native-tls-comp"]
 runtime-tokio-native-tls = ["runtime-tokio", "redis/tokio-native-tls-comp"]
 
 [[bin]]
