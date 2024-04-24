@@ -33,6 +33,7 @@ struct Args {
     format: Format,
 }
 
+#[derive(Copy, Clone)]
 enum Format {
     Log,
     Ndjson,

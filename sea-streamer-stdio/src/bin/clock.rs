@@ -8,7 +8,7 @@ use std::time::Duration;
 struct Args {
     #[clap(long, help = "Stream key")]
     stream: StreamKey,
-    #[clap(long, parse(try_from_str = parse_duration), help = "Period of the clock. e.g. 1s, 100ms")]
+    #[clap(long, value_parser = parse_duration, help = "Period of the clock. e.g. 1s, 100ms")]
     interval: Duration,
 }
 

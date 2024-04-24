@@ -9,7 +9,7 @@ use sea_streamer_types::{
 use std::time::Duration;
 use time::PrimitiveDateTime;
 
-#[derive(Debug, Parser)]
+#[derive(Parser)]
 struct Args {
     #[clap(
         long,
