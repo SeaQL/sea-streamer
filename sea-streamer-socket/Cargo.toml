@@ -1,6 +1,6 @@
 [package]
 name = "sea-streamer-socket"
-version = "0.3.0"
+version = "0.5.0"
 authors = ["Chris Tsang <chris.2y3@outlook.com>"]
 edition = "2021"
 description = "🌊 SeaStreamer backend-agnostic Socket API"
@@ -18,11 +18,11 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 anyhow = { version = "1", optional = true }
 env_logger = { version = "0.9", optional = true }
-sea-streamer-kafka = { version = "0.3", path = "../sea-streamer-kafka", optional = true }
-sea-streamer-redis = { version = "0.3", path = "../sea-streamer-redis", optional = true }
-sea-streamer-stdio = { version = "0.3", path = "../sea-streamer-stdio", optional = true }
-sea-streamer-file = { version = "0.3", path = "../sea-streamer-file", optional = true }
-sea-streamer-types = { version = "0.3", path = "../sea-streamer-types" }
+sea-streamer-kafka = { version = "0.5", path = "../sea-streamer-kafka", optional = true }
+sea-streamer-redis = { version = "0.5", path = "../sea-streamer-redis", optional = true }
+sea-streamer-stdio = { version = "0.5", path = "../sea-streamer-stdio", optional = true }
+sea-streamer-file = { version = "0.5", path = "../sea-streamer-file", optional = true }
+sea-streamer-types = { version = "0.5", path = "../sea-streamer-types" }
 clap = { version = "4.5", features = ["derive"], optional = true }
 thiserror = { version = "1", default-features = false }
 tokio = { version = "1.10.0", optional = true }
