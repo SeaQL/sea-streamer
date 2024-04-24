@@ -19,7 +19,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 anyhow = { version = "1", optional = true }
 async-std = { version = "1", optional = true }
 env_logger = { version = "0.9", optional = true }
-flume = { version = "0.10", default-features = false, features = ["async"] }
+flume = { version = "0.11", default-features = false, features = ["async"] }
 lazy_static = { version = "1.4" }
 log = { version = "0.4", default-features = false }
 mac_address = { version = "1" }

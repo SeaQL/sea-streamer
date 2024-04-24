@@ -14,7 +14,7 @@ rust-version = "1.60"
 anyhow = { version = "1" }
 async-std = { version = "1", features = ["attributes"], optional = true }
 env_logger = { version = "0.9" }
-flume = { version = "0.10", default-features = false, features = ["async"] }
+flume = { version = "0.11", default-features = false, features = ["async"] }
 clap = { version = "4.5", features = ["derive", "env"] }
 tokio = { version = "1.10", features = ["full"], optional = true }
 
