@@ -21,7 +21,7 @@ async-std = { version = "1", optional = true }
 env_logger = { version = "0.9", optional = true }
 lazy_static = { version = "1.4" }
 mac_address = { version = "1" }
-rdkafka = { version = "0.29", default-features = false, features = ["libz"] }
+rdkafka = { version = "0.36", default-features = false, features = ["libz"] }
 sea-streamer-types = { version = "0.3", path = "../sea-streamer-types" }
 sea-streamer-runtime = { version = "0.3", path = "../sea-streamer-runtime" }
 clap = { version = "4.5", features = ["derive", "env"], optional = true }
