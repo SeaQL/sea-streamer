@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 0.5.0 - 2024-04-24
+
+### Upgrades
+
+* Migrate to `clap` https://github.com/SeaQL/sea-streamer/pull/19
+* Upgrade `flume` to `0.11`
+* Upgrade `rdkafka` to `0.36` https://github.com/SeaQL/sea-streamer/pull/22
+* Upgrade `redis` to `0.25` https://github.com/SeaQL/sea-streamer/pull/21
+
+### Enhancements
+
+* Use impl Future instead of async-trait https://github.com/SeaQL/sea-streamer/pull/20
+
+### House keeping
+
+* Fix clippy warnings https://github.com/SeaQL/sea-streamer/pull/23
+
+## 0.3.x
+
 ### `sea-streamer-file` 0.3.9 - 2023-12-04
 
 * Rename utility to `ss-decode`

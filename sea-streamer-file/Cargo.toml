@@ -47,7 +47,7 @@ path = "src/bin/clock.rs"
 required-features = ["executables"]
 
 [[bin]]
-name = "ssdecode"
+name = "ss-decode"
 path = "src/bin/decoder.rs"
 required-features = ["executables"]
 
