@@ -1,6 +1,6 @@
 [package]
 name = "sea-streamer-file"
-version = "0.5.0"
+version = "0.5.1"
 authors = ["Chris Tsang <chris.2y3@outlook.com>"]
 edition = "2021"
 description = "🌊 SeaStreamer File Backend"
