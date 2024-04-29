@@ -42,8 +42,5 @@ Please ask us on
 
 ## Versions
 
-<!-- you can get this information from copy and pasting the output of `cargo tree | grep sea-` from the console. Also, please include the database and OS that you are running. -->
+<!-- Please provide the version of the streaming server, and the version of the crates you're running. You can get this information from copy and pasting the output of `cargo tree | grep sea-` from the console. Also, please include the database and OS that you are running. -->
 
-## Additional Information
-
-<!-- please provide a minimal reproducible example, if possible. Any other additional information that might be helpful. -->
