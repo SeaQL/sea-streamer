@@ -60,3 +60,8 @@ required-features = ["executables"]
 name = "tail"
 path = "src/bin/tail.rs"
 required-features = ["executables"]
+
+[[bin]]
+name = "stdin-to-file"
+path = "src/bin/stdin-to-file.rs"
+required-features = ["executables"]

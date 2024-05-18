@@ -66,6 +66,7 @@ mod consumer;
 mod crc;
 mod dyn_file;
 mod error;
+pub mod export;
 mod file;
 pub mod format;
 mod messages;
