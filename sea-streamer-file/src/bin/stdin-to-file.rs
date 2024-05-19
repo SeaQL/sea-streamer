@@ -15,7 +15,7 @@ fn main() -> Result<()> {
 
     let (sender, receiver) = unbounded();
 
-    std::thread::spawn(move || {
+    let handle = std::thread::spawn(move || {
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -23,7 +23,7 @@ fn main() -> Result<()> {
         rt.block_on(file_sink(receiver))
     });
 
-    loop {
+    for _ in 0..10 {
         let mut line = String::new();
         match std::io::stdin().read_line(&mut line) {
             Ok(0) => break, // this means stdin is closed
@@ -33,6 +33,8 @@ fn main() -> Result<()> {
         sender.send(line)?;
     }
 
+    std::mem::drop(sender);
+    handle.join().unwrap().unwrap();
     Ok(())
 }
 
