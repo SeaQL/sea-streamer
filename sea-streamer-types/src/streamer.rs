@@ -98,6 +98,18 @@ impl Display for StreamerUri {
     }
 }
 
+impl From<Url> for StreamerUri {
+    fn from(value: Url) -> Self {
+        Self { nodes: vec![value] }
+    }
+}
+
+impl FromIterator<Url> for StreamerUri {
+    fn from_iter<T: IntoIterator<Item = Url>>(iter: T) -> Self {
+        Self { nodes: iter.into_iter().collect() }
+    }
+}
+
 impl StreamerUri {
     pub fn zero() -> Self {
         Self { nodes: Vec::new() }
@@ -346,6 +358,21 @@ mod test {
         assert_eq!(uri.protocol(), Some("file"));
         assert_eq!(uri.nodes(), &["file:///path/to/hi".parse().unwrap()]);
     }
+
+    
+    #[test]
+    fn test_into_streamer_uri() {
+        let url: Url = "proto://sea-ql.org:1234".parse().unwrap();
+        let uri: StreamerUri = url.clone().into();
+        assert!(uri.nodes.len() == 1);
+        assert_eq!(url, uri.nodes.first().unwrap().clone());
+
+        let urls: [Url; 3] = ["proto://sea-ql.org:1".parse().unwrap() ,"proto://sea-ql.org:2".parse().unwrap(), "proto://sea-ql.org:3".parse().unwrap()];
+        let uri: StreamerUri = StreamerUri::from_iter(urls.clone().into_iter());
+        assert!(uri.nodes.len() == 3);
+        assert!(uri.nodes.iter().eq(urls.iter()));
+    }
+
 
     #[test]
     fn test_parse_stream_url_err() {
