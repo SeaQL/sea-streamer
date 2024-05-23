@@ -49,7 +49,7 @@ pub trait Streamer: Sized {
 
     /// Establish a connection to the streaming server.
     fn connect(
-        streamer: impl Into<StreamerUri>,
+        streamer: StreamerUri,
         options: Self::ConnectOptions,
     ) -> impl Future<Output = StreamResult<Self, Self::Error>> + Send;
 

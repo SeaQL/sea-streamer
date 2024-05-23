@@ -204,11 +204,7 @@ impl Streamer for KafkaStreamer {
     type ConsumerOptions = KafkaConsumerOptions;
     type ProducerOptions = KafkaProducerOptions;
 
-    async fn connect(
-        uri: impl Into<StreamerUri>,
-        options: Self::ConnectOptions,
-    ) -> KafkaResult<Self> {
-        let uri = uri.into();
+    async fn connect(uri: StreamerUri, options: Self::ConnectOptions) -> KafkaResult<Self> {
         let admin = create_admin(&uri, &options).map_err(StreamErr::Backend)?;
         let timeout = options.timeout().unwrap_or(Duration::from_secs(1));
         spawn_blocking(move || admin.inner().fetch_cluster_id(timeout))
