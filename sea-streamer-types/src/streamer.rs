@@ -49,7 +49,7 @@ pub trait Streamer: Sized {
 
     /// Establish a connection to the streaming server.
     fn connect(
-        streamer: StreamerUri,
+        streamer: impl Into<StreamerUri>,
         options: Self::ConnectOptions,
     ) -> impl Future<Output = StreamResult<Self, Self::Error>> + Send;
 
@@ -106,7 +106,9 @@ impl From<Url> for StreamerUri {
 
 impl FromIterator<Url> for StreamerUri {
     fn from_iter<T: IntoIterator<Item = Url>>(iter: T) -> Self {
-        Self { nodes: iter.into_iter().collect() }
+        Self {
+            nodes: iter.into_iter().collect(),
+        }
     }
 }
 
@@ -359,7 +361,6 @@ mod test {
         assert_eq!(uri.nodes(), &["file:///path/to/hi".parse().unwrap()]);
     }
 
-    
     #[test]
     fn test_into_streamer_uri() {
         let url: Url = "proto://sea-ql.org:1234".parse().unwrap();
@@ -367,12 +368,15 @@ mod test {
         assert!(uri.nodes.len() == 1);
         assert_eq!(url, uri.nodes.first().unwrap().clone());
 
-        let urls: [Url; 3] = ["proto://sea-ql.org:1".parse().unwrap() ,"proto://sea-ql.org:2".parse().unwrap(), "proto://sea-ql.org:3".parse().unwrap()];
+        let urls: [Url; 3] = [
+            "proto://sea-ql.org:1".parse().unwrap(),
+            "proto://sea-ql.org:2".parse().unwrap(),
+            "proto://sea-ql.org:3".parse().unwrap(),
+        ];
         let uri: StreamerUri = StreamerUri::from_iter(urls.clone().into_iter());
         assert!(uri.nodes.len() == 3);
         assert!(uri.nodes.iter().eq(urls.iter()));
     }
-
 
     #[test]
     fn test_parse_stream_url_err() {

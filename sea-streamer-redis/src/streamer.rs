@@ -34,7 +34,11 @@ impl Streamer for RedisStreamer {
     type ConsumerOptions = RedisConsumerOptions;
     type ProducerOptions = RedisProducerOptions;
 
-    async fn connect(uri: StreamerUri, options: Self::ConnectOptions) -> RedisResult<Self> {
+    async fn connect(
+        uri: impl Into<StreamerUri>,
+        options: Self::ConnectOptions,
+    ) -> RedisResult<Self> {
+        let uri = uri.into();
         if uri.protocol().is_none() {
             return Err(StreamErr::StreamUrlErr(StreamUrlErr::ProtocolRequired));
         }
