@@ -84,7 +84,11 @@ impl StreamerTrait for FileStreamer {
 
     /// First check whether the file exists.
     /// If not, depending on the options, either create it, or error.
-    async fn connect(uri: StreamerUri, options: Self::ConnectOptions) -> FileResult<Self> {
+    async fn connect<S>(streamer: S, options: Self::ConnectOptions) -> FileResult<Self>
+    where
+        S: Into<StreamerUri> + Send,
+    {
+        let uri = streamer.into();
         if uri.nodes().is_empty() {
             return Err(StreamErr::StreamUrlErr(StreamUrlErr::ZeroNode));
         }

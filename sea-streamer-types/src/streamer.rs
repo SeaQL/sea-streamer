@@ -48,10 +48,12 @@ pub trait Streamer: Sized {
     type ProducerOptions: ProducerOptions;
 
     /// Establish a connection to the streaming server.
-    fn connect(
-        streamer: StreamerUri,
+    fn connect<S>(
+        streamer: S,
         options: Self::ConnectOptions,
-    ) -> impl Future<Output = StreamResult<Self, Self::Error>> + Send;
+    ) -> impl Future<Output = StreamResult<Self, Self::Error>> + Send
+    where
+        S: Into<StreamerUri> + Send;
 
     /// Flush and disconnect from the streaming server.
     fn disconnect(self) -> impl Future<Output = StreamResult<(), Self::Error>> + Send;

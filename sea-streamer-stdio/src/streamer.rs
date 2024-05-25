@@ -37,7 +37,10 @@ impl StreamerTrait for StdioStreamer {
     type ProducerOptions = StdioProducerOptions;
 
     /// Nothing will happen until you create a producer/consumer
-    async fn connect(_: StreamerUri, options: Self::ConnectOptions) -> StdioResult<Self> {
+    async fn connect<S>(_: S, options: Self::ConnectOptions) -> StdioResult<Self>
+    where
+        S: Into<StreamerUri> + Send,
+    {
         let StdioConnectOptions { loopback } = options;
         Ok(StdioStreamer { loopback })
     }
