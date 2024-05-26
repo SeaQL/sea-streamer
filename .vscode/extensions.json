@@ -1,0 +1,12 @@
+{
+    "recommendations": [
+        "EditorConfig.EditorConfig",
+        "GitHub.vscode-github-actions",
+        "Gruntfuggly.todo-tree",
+        "rust-lang.rust-analyzer",
+        "serayuzgur.crates",
+        "tamasfe.even-better-toml",
+        "usernamehw.errorlens",
+        "vadimcn.vscode-lldb"
+    ]
+}
