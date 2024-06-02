@@ -6,7 +6,7 @@ use util::*;
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
-async fn main() -> anyhow::Result<()> {
+async fn realtime_1() -> anyhow::Result<()> {
     use sea_streamer_redis::{
         AutoStreamReset, RedisConnectOptions, RedisConsumerOptions, RedisStreamer,
     };
@@ -17,7 +17,7 @@ async fn main() -> anyhow::Result<()> {
     };
     use std::time::Duration;
 
-    const TEST: &str = "realtime";
+    const TEST: &str = "realtime_1";
     env_logger::init();
     test(false).await?;
     test(true).await?;
@@ -131,6 +131,123 @@ async fn main() -> anyhow::Result<()> {
 
         println!("End test case.");
         Ok(())
+    }
+
+    Ok(())
+}
+
+#[cfg(feature = "test")]
+#[cfg_attr(feature = "runtime-tokio", tokio::test)]
+#[cfg_attr(feature = "runtime-async-std", async_std::test)]
+async fn realtime_2() -> anyhow::Result<()> {
+    use sea_streamer_redis::{
+        AutoStreamReset, RedisConnectOptions, RedisConsumerOptions, RedisResult, RedisStreamer,
+    };
+    use sea_streamer_runtime::sleep;
+    use sea_streamer_types::{
+        export::futures::{Stream, StreamExt},
+        Buffer, ConsumerMode, ConsumerOptions, Message, Producer, ShardId, SharedMessage,
+        StreamKey, Streamer, StreamerUri, Timestamp,
+    };
+    use std::time::Duration;
+
+    const TEST: &str = "realtime_2";
+    env_logger::init();
+    test(false).await?;
+
+    async fn test(enable_cluster: bool) -> anyhow::Result<()> {
+        println!("Enable Cluster = {enable_cluster} ...");
+
+        let mut options = RedisConnectOptions::default();
+        options.set_enable_cluster(enable_cluster);
+        let streamer = RedisStreamer::connect(
+            std::env::var("BROKERS_URL")
+                .unwrap_or_else(|_| "redis://localhost".to_owned())
+                .parse::<StreamerUri>()
+                .unwrap(),
+            options,
+        )
+        .await?;
+        println!("Connect Streamer ... ok");
+
+        let now = Timestamp::now_utc();
+        let stream_key = StreamKey::new(format!(
+            "{}-{}a",
+            TEST,
+            now.unix_timestamp_nanos() / 1_000_000
+        ))?;
+        let zero = ShardId::new(0);
+
+        let mut producer = streamer.create_generic_producer(Default::default()).await?;
+
+        println!("Producing 0..5 ...");
+        let mut sequence = 0;
+        for i in 0..5 {
+            let message = format!("{i}");
+            let receipt = producer.send_to(&stream_key, message)?.await?;
+            assert_eq!(receipt.stream_key(), &stream_key);
+            // should always increase
+            assert!(receipt.sequence() > &sequence);
+            sequence = *receipt.sequence();
+            assert_eq!(receipt.shard_id(), &zero);
+        }
+
+        let mut options = RedisConsumerOptions::new(ConsumerMode::RealTime);
+        options.set_auto_stream_reset(AutoStreamReset::Latest);
+
+        let mut half = streamer
+            .create_consumer(&[stream_key.clone()], options.clone())
+            .await?
+            .into_stream();
+
+        // Why do we have to wait? We want consumer to have started reading
+        // before producing any messages. While after `create` returns the consumer
+        // is ready (connection opened), there is still a small delay to send an `XREAD`
+        // operation to the server.
+        sleep(Duration::from_millis(5)).await;
+
+        println!("Producing 5..10 ...");
+        for i in 5..10 {
+            let message = format!("{i}");
+            producer.send_to(&stream_key, message)?;
+        }
+
+        println!("Flush producer ...");
+        producer.flush().await?;
+
+        options.set_auto_stream_reset(AutoStreamReset::Earliest);
+        let mut full = streamer
+            .create_consumer(&[stream_key.clone()], options)
+            .await?
+            .into_stream();
+
+        let seq = stream_n(&mut half, 5).await?;
+        assert_eq!(seq, [5, 6, 7, 8, 9]);
+        println!("Stream latest ... ok");
+
+        let seq = stream_n(&mut full, 10).await?;
+        assert_eq!(seq, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        println!("Stream all ... ok");
+
+        println!("End test case.");
+        Ok(())
+    }
+
+    async fn stream_n<S: Stream<Item = RedisResult<SharedMessage>> + std::marker::Unpin>(
+        stream: &mut S,
+        num: usize,
+    ) -> anyhow::Result<Vec<usize>> {
+        let mut numbers = Vec::new();
+        for _ in 0..num {
+            match stream.next().await {
+                Some(mess) => {
+                    let mess = mess?;
+                    numbers.push(mess.message().as_str().unwrap().parse::<usize>().unwrap());
+                }
+                None => panic!("Stream ended?"),
+            }
+        }
+        Ok(numbers)
     }
 
     Ok(())

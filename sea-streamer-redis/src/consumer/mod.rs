@@ -3,6 +3,7 @@ mod future;
 mod node;
 mod options;
 mod shard;
+mod stream;
 
 use cluster::*;
 use future::StreamFuture;
@@ -10,6 +11,7 @@ pub use future::{NextFuture, StreamFuture as RedisMessageStream};
 use node::*;
 pub use options::*;
 use shard::*;
+pub use stream::*;
 
 use flume::{bounded, unbounded, Receiver, Sender};
 use std::{fmt::Debug, future::Future, sync::Arc, time::Duration};
@@ -209,10 +211,14 @@ impl RedisConsumer {
         }
     }
 
+    #[inline]
     fn auto_ack(&self, header: &MessageHeader) -> RedisResult<()> {
+        Self::auto_ack_static(&self.handle, header)
+    }
+
+    fn auto_ack_static(handle: &Sender<CtrlMsg>, header: &MessageHeader) -> RedisResult<()> {
         // unbounded, so never blocks
-        if self
-            .handle
+        if handle
             .try_send(CtrlMsg::Ack(
                 (header.stream_key().clone(), *header.shard_id()),
                 get_message_id(header),
@@ -267,6 +273,15 @@ impl RedisConsumer {
             notify.recv_async().await.ok();
         }
         Ok(())
+    }
+
+    pub fn into_stream<'a>(self) -> RedisMessStream<'a> {
+        RedisMessStream {
+            config: self.config,
+            stream: self.receiver.into_stream(),
+            handle: self.handle,
+            read: false,
+        }
     }
 }
 
