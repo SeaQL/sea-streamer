@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## Pending
+
+### Enhancements
+
+* Added `From<Url>` and `FromIterator<Url>` for `StreamerUri` https://github.com/SeaQL/sea-streamer/pull/28
+* `Streamer::connect` now accepts `S: Into<StreamerUri>`
+
 ## 0.5.0 - 2024-04-24
 
 ### Upgrades
@@ -16,7 +23,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Enhancements
 
-* Use impl Future instead of async-trait https://github.com/SeaQL/sea-streamer/pull/20
+* Use `impl Future` instead of `async-trait` https://github.com/SeaQL/sea-streamer/pull/20
 
 ### House keeping
 
