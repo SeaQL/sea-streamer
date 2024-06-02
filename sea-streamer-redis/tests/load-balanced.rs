@@ -23,7 +23,7 @@ async fn load_balance() -> anyhow::Result<()> {
     use sea_streamer_runtime::{sleep, spawn_task};
     use sea_streamer_types::{
         export::futures::stream::StreamExt, Buffer, Consumer, ConsumerMode, ConsumerOptions,
-        Message, Producer, StreamKey, Streamer, Timestamp,
+        Message, Producer, StreamKey, Streamer, StreamerUri, Timestamp,
     };
     use std::time::Duration;
 
@@ -39,7 +39,7 @@ async fn load_balance() -> anyhow::Result<()> {
         let streamer = RedisStreamer::connect(
             std::env::var("BROKERS_URL")
                 .unwrap_or_else(|_| "redis://localhost".to_owned())
-                .parse()
+                .parse::<StreamerUri>()
                 .unwrap(),
             options,
         )
@@ -176,7 +176,8 @@ async fn failover() -> anyhow::Result<()> {
         AutoCommit, AutoStreamReset, RedisConnectOptions, RedisConsumerOptions, RedisStreamer,
     };
     use sea_streamer_types::{
-        ConsumerGroup, ConsumerMode, ConsumerOptions, Producer, StreamKey, Streamer, Timestamp,
+        ConsumerGroup, ConsumerMode, ConsumerOptions, Producer, StreamKey, Streamer, StreamerUri,
+        Timestamp,
     };
     use std::time::Duration;
 
@@ -192,7 +193,7 @@ async fn failover() -> anyhow::Result<()> {
         let streamer = RedisStreamer::connect(
             std::env::var("BROKERS_URL")
                 .unwrap_or_else(|_| "redis://localhost".to_owned())
-                .parse()
+                .parse::<StreamerUri>()
                 .unwrap(),
             options,
         )

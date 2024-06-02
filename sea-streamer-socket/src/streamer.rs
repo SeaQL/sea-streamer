@@ -153,7 +153,11 @@ impl Streamer for SeaStreamer {
     type ConsumerOptions = SeaConsumerOptions;
     type ProducerOptions = SeaProducerOptions;
 
-    async fn connect(uri: StreamerUri, options: Self::ConnectOptions) -> SeaResult<Self> {
+    async fn connect<S>(streamer: S, options: Self::ConnectOptions) -> SeaResult<Self>
+    where
+        S: Into<StreamerUri> + Send,
+    {
+        let uri = streamer.into();
         let backend = match uri.protocol() {
             Some(protocol) => match protocol {
                 #[cfg(feature = "backend-kafka")]

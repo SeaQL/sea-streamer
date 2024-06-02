@@ -16,7 +16,7 @@ async fn immediate_and_delayed() -> anyhow::Result<()> {
     use sea_streamer_runtime::timeout;
     use sea_streamer_types::{
         Consumer, ConsumerGroup, ConsumerId, ConsumerMode, ConsumerOptions, Producer, ShardId,
-        StreamKey, Streamer, Timestamp,
+        StreamKey, Streamer, StreamerUri, Timestamp,
     };
     use std::time::Duration;
 
@@ -37,7 +37,7 @@ async fn immediate_and_delayed() -> anyhow::Result<()> {
         let streamer = RedisStreamer::connect(
             std::env::var("BROKERS_URL")
                 .unwrap_or_else(|_| "redis://localhost".to_owned())
-                .parse()
+                .parse::<StreamerUri>()
                 .unwrap(),
             options,
         )
@@ -126,7 +126,7 @@ async fn rolling_and_disabled() -> anyhow::Result<()> {
     };
     use sea_streamer_types::{
         export::futures::StreamExt, Buffer, Consumer, ConsumerGroup, ConsumerId, ConsumerMode,
-        ConsumerOptions, Message, Producer, StreamKey, Streamer, Timestamp,
+        ConsumerOptions, Message, Producer, StreamKey, Streamer, StreamerUri, Timestamp,
     };
     use std::time::Duration;
 
@@ -147,7 +147,7 @@ async fn rolling_and_disabled() -> anyhow::Result<()> {
         let streamer = RedisStreamer::connect(
             std::env::var("BROKERS_URL")
                 .unwrap_or_else(|_| "redis://localhost".to_owned())
-                .parse()
+                .parse::<StreamerUri>()
                 .unwrap(),
             options,
         )
