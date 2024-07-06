@@ -697,7 +697,7 @@ pub fn is_end_of_stream<M: HasMessageHeader>(mess: &M) -> bool {
 }
 
 /// This should never be written on file
-pub fn pulse_message() -> OwnedMessage {
+pub(crate) fn pulse_message() -> OwnedMessage {
     let header = MessageHeader::new(
         StreamKey::new(SEA_STREAMER_INTERNAL).unwrap(),
         ShardId::new(0),
@@ -707,15 +707,15 @@ pub fn pulse_message() -> OwnedMessage {
     OwnedMessage::new(header, PULSE_MESSAGE.into_bytes())
 }
 
-pub fn is_pulse(mess: &SharedMessage) -> bool {
+pub(crate) fn is_pulse(mess: &SharedMessage) -> bool {
     mess.header().stream_key().name() == SEA_STREAMER_INTERNAL
         && mess.message().as_bytes() == PULSE_MESSAGE.as_bytes()
 }
 
-pub fn is_internal(mess: &SharedMessage) -> bool {
+pub(crate) fn is_internal(mess: &SharedMessage) -> bool {
     mess.header().stream_key().name() == SEA_STREAMER_INTERNAL
 }
 
-pub fn is_wildcard(key: &StreamKey) -> bool {
+pub(crate) fn is_wildcard(key: &StreamKey) -> bool {
     key.name() == SEA_STREAMER_WILDCARD
 }
