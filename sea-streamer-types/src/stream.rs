@@ -16,7 +16,7 @@ pub const TIMESTAMP_FORMAT: &[time::format_description::FormatItem<'static>] =
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// Identifies a stream. Aka. topic.
 pub struct StreamKey {
-    name: Arc<String>,
+    name: Arc<str>,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -37,11 +37,11 @@ pub enum SeqPos {
 }
 
 impl StreamKey {
-    pub fn new<S: Into<String>>(key: S) -> Result<Self, StreamKeyErr> {
-        let key = key.into();
-        if is_valid_stream_key(key.as_str()) {
+    pub fn new<S: AsRef<str>>(key: S) -> Result<Self, StreamKeyErr> {
+        let key = key.as_ref();
+        if is_valid_stream_key(key) {
             Ok(Self {
-                name: Arc::new(key),
+                name: Arc::from(key),
             })
         } else {
             Err(StreamKeyErr::InvalidStreamKey)
