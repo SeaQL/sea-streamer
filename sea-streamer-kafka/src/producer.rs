@@ -138,7 +138,7 @@ impl KafkaProducer {
         K: rdkafka::message::ToBytes + ?Sized,
         P: rdkafka::message::ToBytes + ?Sized,
     {
-        let stream = StreamKey::new(record.topic.to_owned())?;
+        let stream = StreamKey::new(record.topic)?;
 
         let fut = self
             .get()
