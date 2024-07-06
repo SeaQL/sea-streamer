@@ -9,13 +9,13 @@ async fn main() -> anyhow::Result<()> {
     use sea_streamer_kafka::{AutoOffsetReset, KafkaConsumer, KafkaConsumerOptions, KafkaStreamer};
     use sea_streamer_types::{
         export::futures::StreamExt, Buffer, Consumer, ConsumerMode, ConsumerOptions, Message,
-        Producer, SeqPos, ShardId, StreamKey, Streamer, StreamerUri, Timestamp,
+        Producer, SeqPos, ShardId, StreamKey, Streamer, Timestamp,
     };
 
     let streamer = KafkaStreamer::connect(
         std::env::var("BROKERS_URL")
             .unwrap_or_else(|_| "localhost:9092".to_owned())
-            .parse::<StreamerUri>()
+            .parse()
             .unwrap(),
         Default::default(),
     )

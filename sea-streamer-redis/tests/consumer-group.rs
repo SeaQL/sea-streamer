@@ -13,8 +13,7 @@ async fn consumer_group() -> anyhow::Result<()> {
         AutoStreamReset, RedisConnectOptions, RedisConsumerOptions, RedisStreamer,
     };
     use sea_streamer_types::{
-        Consumer, ConsumerMode, ConsumerOptions, Producer, StreamKey, Streamer, StreamerUri,
-        Timestamp,
+        Consumer, ConsumerMode, ConsumerOptions, Producer, StreamKey, Streamer, Timestamp,
     };
 
     const TEST: &str = "group-1";
@@ -30,7 +29,7 @@ async fn consumer_group() -> anyhow::Result<()> {
         let streamer = RedisStreamer::connect(
             std::env::var("BROKERS_URL")
                 .unwrap_or_else(|_| "redis://localhost".to_owned())
-                .parse::<StreamerUri>()
+                .parse()
                 .unwrap(),
             options,
         )

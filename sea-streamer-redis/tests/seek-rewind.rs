@@ -12,8 +12,7 @@ async fn main() -> anyhow::Result<()> {
     };
     use sea_streamer_runtime::{sleep, timeout};
     use sea_streamer_types::{
-        Consumer, ConsumerMode, ConsumerOptions, Producer, SeqPos, StreamKey, Streamer,
-        StreamerUri, Timestamp,
+        Consumer, ConsumerMode, ConsumerOptions, Producer, SeqPos, StreamKey, Streamer, Timestamp,
     };
     use std::time::Duration;
 
@@ -35,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
         let streamer = RedisStreamer::connect(
             std::env::var("BROKERS_URL")
                 .unwrap_or_else(|_| "redis://localhost".to_owned())
-                .parse::<StreamerUri>()
+                .parse()
                 .unwrap(),
             options,
         )

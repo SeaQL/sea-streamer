@@ -48,12 +48,10 @@ pub trait Streamer: Sized {
     type ProducerOptions: ProducerOptions;
 
     /// Establish a connection to the streaming server.
-    fn connect<S>(
-        streamer: S,
+    fn connect(
+        streamer: StreamerUri,
         options: Self::ConnectOptions,
-    ) -> impl Future<Output = StreamResult<Self, Self::Error>> + Send
-    where
-        S: Into<StreamerUri> + Send;
+    ) -> impl Future<Output = StreamResult<Self, Self::Error>> + Send;
 
     /// Flush and disconnect from the streaming server.
     fn disconnect(self) -> impl Future<Output = StreamResult<(), Self::Error>> + Send;
@@ -97,20 +95,6 @@ impl Display for StreamerUri {
             write!(f, "{}", node)?;
         }
         write!(f, ")")
-    }
-}
-
-impl From<Url> for StreamerUri {
-    fn from(value: Url) -> Self {
-        Self { nodes: vec![value] }
-    }
-}
-
-impl FromIterator<Url> for StreamerUri {
-    fn from_iter<T: IntoIterator<Item = Url>>(iter: T) -> Self {
-        Self {
-            nodes: iter.into_iter().collect(),
-        }
     }
 }
 
@@ -361,23 +345,6 @@ mod test {
         let uri: StreamerUri = "file:///path/to/hi".parse().unwrap();
         assert_eq!(uri.protocol(), Some("file"));
         assert_eq!(uri.nodes(), &["file:///path/to/hi".parse().unwrap()]);
-    }
-
-    #[test]
-    fn test_into_streamer_uri() {
-        let url: Url = "proto://sea-ql.org:1234".parse().unwrap();
-        let uri: StreamerUri = url.clone().into();
-        assert!(uri.nodes.len() == 1);
-        assert_eq!(url, uri.nodes.first().unwrap().clone());
-
-        let urls: [Url; 3] = [
-            "proto://sea-ql.org:1".parse().unwrap(),
-            "proto://sea-ql.org:2".parse().unwrap(),
-            "proto://sea-ql.org:3".parse().unwrap(),
-        ];
-        let uri: StreamerUri = StreamerUri::from_iter(urls.clone().into_iter());
-        assert!(uri.nodes.len() == 3);
-        assert!(uri.nodes.iter().eq(urls.iter()));
     }
 
     #[test]
