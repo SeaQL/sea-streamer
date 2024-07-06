@@ -10,6 +10,7 @@ use crate::{
     format::{Beacon, Checksum, FormatErr, Header, Marker, Message, RunningChecksum},
     AsyncFile, BeaconReader, ByteBuffer, ByteSource, Bytes, DynFileSource, FileErr, FileId,
     FileReader, FileSink, FileSourceType, SeekErr, StreamMode, SurveyResult, Surveyor,
+    SEA_STREAMER_WILDCARD,
 };
 
 pub const END_OF_STREAM: &str = "EOS";
@@ -665,6 +666,20 @@ impl MessageSink {
     }
 }
 
+pub trait HasMessageHeader: MessageTrait {
+    fn header(&self) -> &MessageHeader;
+}
+impl HasMessageHeader for SharedMessage {
+    fn header(&self) -> &MessageHeader {
+        self.header()
+    }
+}
+impl HasMessageHeader for OwnedMessage {
+    fn header(&self) -> &MessageHeader {
+        self.header()
+    }
+}
+
 /// This can be written to a file to properly end the stream
 pub fn end_of_stream() -> OwnedMessage {
     let header = MessageHeader::new(
@@ -676,26 +691,12 @@ pub fn end_of_stream() -> OwnedMessage {
     OwnedMessage::new(header, END_OF_STREAM.into_bytes())
 }
 
-pub trait MessageWithHeader: MessageTrait {
-    fn header(&self) -> &MessageHeader;
-}
-impl MessageWithHeader for SharedMessage {
-    fn header(&self) -> &MessageHeader {
-        self.header()
-    }
-}
-impl MessageWithHeader for OwnedMessage {
-    fn header(&self) -> &MessageHeader {
-        self.header()
-    }
-}
-
-pub fn is_end_of_stream<M: MessageWithHeader>(mess: &M) -> bool {
+pub fn is_end_of_stream<M: HasMessageHeader>(mess: &M) -> bool {
     mess.header().stream_key().name() == SEA_STREAMER_INTERNAL
         && mess.message().as_bytes() == END_OF_STREAM.as_bytes()
 }
 
-/// This should not be written on file
+/// This should never be written on file
 pub fn pulse_message() -> OwnedMessage {
     let header = MessageHeader::new(
         StreamKey::new(SEA_STREAMER_INTERNAL).unwrap(),
@@ -709,4 +710,12 @@ pub fn pulse_message() -> OwnedMessage {
 pub fn is_pulse(mess: &SharedMessage) -> bool {
     mess.header().stream_key().name() == SEA_STREAMER_INTERNAL
         && mess.message().as_bytes() == PULSE_MESSAGE.as_bytes()
+}
+
+pub fn is_internal(mess: &SharedMessage) -> bool {
+    mess.header().stream_key().name() == SEA_STREAMER_INTERNAL
+}
+
+pub fn is_wildcard(key: &StreamKey) -> bool {
+    key.name() == SEA_STREAMER_WILDCARD
 }

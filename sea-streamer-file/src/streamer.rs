@@ -4,7 +4,7 @@ use thiserror::Error;
 use crate::{
     consumer::new_consumer, end_producer, format::Header, new_producer, AsyncFile, FileConsumer,
     FileErr, FileId, FileProducer, FileResult, DEFAULT_BEACON_INTERVAL, DEFAULT_FILE_SIZE_LIMIT,
-    DEFAULT_PREFETCH_MESSAGE,
+    DEFAULT_PREFETCH_MESSAGE, SEA_STREAMER_WILDCARD,
 };
 use sea_streamer_types::{
     ConnectOptions as ConnectOptionsTrait, ConsumerGroup, ConsumerMode,
@@ -72,6 +72,8 @@ pub enum ConfigErr {
     SameGroupSameMode,
     #[error("Please choose a 'better aligned' beacon interval")]
     InvalidBeaconInterval,
+    #[error("Wildcard stream can only be subscribed in ungrouped Consumer")]
+    NoWildcardInGroup,
 }
 
 impl StreamerTrait for FileStreamer {
@@ -126,6 +128,8 @@ impl StreamerTrait for FileStreamer {
             .map_err(StreamErr::Backend)
     }
 
+    /// To subscribe to all streams in a file, you can use the magic [`SEA_STREAMER_WILDCARD`] stream key.
+    /// For `RealTime` consumer only.
     async fn create_consumer(
         &self,
         streams: &[StreamKey],
@@ -139,7 +143,7 @@ impl StreamerTrait for FileStreamer {
             }
             ConsumerMode::Resumable => {
                 return Err(StreamErr::Unsupported(
-                    "File does not support Resumable".to_owned(),
+                    "File does not support Resumable yet".to_owned(),
                 ))
             }
             ConsumerMode::LoadBalanced => {
@@ -170,6 +174,12 @@ impl StreamerTrait for FileStreamer {
                 )))
             }
         };
+
+        if options.group.is_some() && streams.iter().any(|s| s.name() == SEA_STREAMER_WILDCARD) {
+            return Err(StreamErr::Backend(FileErr::ConfigErr(
+                ConfigErr::NoWildcardInGroup,
+            )));
+        }
 
         let consumer = new_consumer(
             self.file_id.clone(),

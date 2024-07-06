@@ -92,3 +92,6 @@ pub use surveyor::*;
 pub const DEFAULT_BEACON_INTERVAL: u32 = 1024 * 1024; // 1MB
 pub const DEFAULT_FILE_SIZE_LIMIT: u64 = 16 * 1024 * 1024 * 1024; // 16GB
 pub const DEFAULT_PREFETCH_MESSAGE: usize = 1000;
+
+/// Reserved by SeaStreamer. Avoid using this as StreamKey.
+pub const SEA_STREAMER_WILDCARD: &str = "SEA_STREAMER_WILDCARD";

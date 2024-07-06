@@ -11,7 +11,7 @@ static INIT: std::sync::Once = std::sync::Once::new();
 async fn consumer() -> anyhow::Result<()> {
     use sea_streamer_file::{
         AutoStreamReset, FileConsumerOptions, FileErr, FileStreamer, MessageSink,
-        DEFAULT_FILE_SIZE_LIMIT,
+        DEFAULT_FILE_SIZE_LIMIT, SEA_STREAMER_WILDCARD,
     };
     use sea_streamer_types::{
         export::futures::TryStreamExt, Buffer, Consumer, Message, MessageHeader, OwnedMessage,
@@ -21,78 +21,92 @@ async fn consumer() -> anyhow::Result<()> {
     const TEST: &str = "consumer";
     INIT.call_once(env_logger::init);
 
-    let now = Timestamp::now_utc();
-    let file_id = temp_file(format!("{}-{}", TEST, millis_of(&now)).as_str())?;
-    println!("{file_id}");
-    let stream_key = StreamKey::new("hello")?;
-    let shard = ShardId::new(1);
+    run("a", false).await?;
+    run("b", true).await?;
 
-    let message = |i: u64| -> OwnedMessage {
-        let header = MessageHeader::new(stream_key.clone(), shard, i, Timestamp::now_utc());
-        OwnedMessage::new(header, format!("{}-{}", stream_key.name(), i).into_bytes())
-    };
-    let check = |i: u64, mess: SharedMessage| {
-        assert_eq!(mess.header().stream_key(), &stream_key);
-        assert_eq!(mess.header().shard_id(), &shard);
-        assert_eq!(mess.header().sequence(), &i);
-        assert_eq!(
-            mess.message().as_str().unwrap(),
-            format!("{}-{}", stream_key.name(), i)
-        );
-    };
+    async fn run(suffix: &'static str, wildcard: bool) -> anyhow::Result<()> {
+        println!("wildcard = {wildcard:?}");
+        let now = Timestamp::now_utc();
+        let file_id = temp_file(format!("{}-{}-{}", TEST, millis_of(&now), suffix).as_str())?;
+        println!("{file_id}");
+        let stream_key = StreamKey::new("hello")?;
+        let shard = ShardId::new(1);
 
-    let streamer = FileStreamer::connect(file_id.to_streamer_uri()?, Default::default()).await?;
+        let message = |i: u64| -> OwnedMessage {
+            let header = MessageHeader::new(stream_key.clone(), shard, i, Timestamp::now_utc());
+            OwnedMessage::new(header, format!("{}-{}", stream_key.name(), i).into_bytes())
+        };
+        let check = |i: u64, mess: SharedMessage| {
+            assert_eq!(mess.header().stream_key(), &stream_key);
+            assert_eq!(mess.header().shard_id(), &shard);
+            assert_eq!(mess.header().sequence(), &i);
+            assert_eq!(
+                mess.message().as_str().unwrap(),
+                format!("{}-{}", stream_key.name(), i)
+            );
+        };
 
-    let mut sink = MessageSink::new(
-        file_id.clone(),
-        1024, // 1KB
-        DEFAULT_FILE_SIZE_LIMIT,
-    )
-    .await?;
+        let streamer =
+            FileStreamer::connect(file_id.to_streamer_uri()?, Default::default()).await?;
 
-    for i in 0..50 {
-        sink.write(message(i))?;
-    }
-    sink.flush().await?;
-
-    let mut options = FileConsumerOptions::default();
-    options.set_auto_stream_reset(AutoStreamReset::Earliest);
-    let mut earliest = streamer
-        .create_consumer(&[stream_key.clone()], options.clone())
+        let mut sink = MessageSink::new(
+            file_id.clone(),
+            1024, // 1KB
+            DEFAULT_FILE_SIZE_LIMIT,
+        )
         .await?;
 
-    for i in 0..25 {
-        check(i, earliest.next().await?);
-    }
-    {
-        let mut stream = earliest.stream();
-        for i in 25..50 {
-            check(i, stream.try_next().await?.unwrap());
+        for i in 0..50 {
+            sink.write(message(i))?;
         }
+        sink.flush().await?;
+
+        let stream_key_to_subscribe = [if wildcard {
+            StreamKey::new(SEA_STREAMER_WILDCARD)?
+        } else {
+            stream_key.clone()
+        }];
+
+        let mut options = FileConsumerOptions::default();
+        options.set_auto_stream_reset(AutoStreamReset::Earliest);
+        let mut earliest = streamer
+            .create_consumer(&stream_key_to_subscribe, options.clone())
+            .await?;
+
+        for i in 0..25 {
+            check(i, earliest.next().await?);
+        }
+        {
+            let mut stream = earliest.stream();
+            for i in 25..50 {
+                check(i, stream.try_next().await?.unwrap());
+            }
+        }
+        println!("Stream from earliest ... ok");
+
+        options.set_auto_stream_reset(AutoStreamReset::Latest);
+        let latest = streamer
+            .create_consumer(&stream_key_to_subscribe, options)
+            .await?;
+
+        for i in 50..100 {
+            sink.write(message(i))?;
+        }
+        sink.flush().await?;
+
+        for i in 50..100 {
+            check(i, earliest.next().await?);
+            check(i, latest.next().await?);
+        }
+        println!("Stream from latest ... ok");
+
+        sink.end(true).await?;
+        let ended = |e| matches!(e, Err(StreamErr::Backend(FileErr::StreamEnded)));
+        assert!(ended(earliest.next().await));
+        assert!(ended(latest.next().await));
+
+        Ok(())
     }
-    println!("Stream from earliest ... ok");
-
-    options.set_auto_stream_reset(AutoStreamReset::Latest);
-    let latest = streamer
-        .create_consumer(&[stream_key.clone()], options)
-        .await?;
-
-    for i in 50..100 {
-        sink.write(message(i))?;
-    }
-    sink.flush().await?;
-
-    for i in 50..100 {
-        check(i, earliest.next().await?);
-        check(i, latest.next().await?);
-    }
-    println!("Stream from latest ... ok");
-
-    sink.end(true).await?;
-    let ended = |e| matches!(e, Err(StreamErr::Backend(FileErr::StreamEnded)));
-    assert!(ended(earliest.next().await));
-    assert!(ended(latest.next().await));
-
     Ok(())
 }
 

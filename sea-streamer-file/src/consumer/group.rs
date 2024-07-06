@@ -8,8 +8,8 @@ use std::{
 
 use super::{CtrlMsg, FileConsumer};
 use crate::{
-    is_end_of_stream, is_pulse, pulse_message, ConfigErr, FileErr, FileId, MessageSource,
-    StreamMode,
+    is_end_of_stream, is_internal, is_pulse, is_wildcard, pulse_message, ConfigErr, FileErr,
+    FileId, MessageSource, StreamMode,
 };
 use sea_streamer_types::{
     export::futures::{select, FutureExt},
@@ -497,7 +497,10 @@ impl Subscribers {
                 }
 
                 for (stream_key, sid) in map.ungrouped.iter() {
-                    if is_pulse(&message) || stream_key == message.header().stream_key() {
+                    if is_pulse(&message)
+                        || stream_key == message.header().stream_key()
+                        || is_wildcard(stream_key) && !is_internal(&message)
+                    {
                         let sender = map.senders.get(sid).unwrap();
                         sender.send(Ok(message.clone())).ok();
                     }
