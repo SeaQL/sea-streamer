@@ -93,6 +93,7 @@ pub trait Message: Send {
         )
     }
 
+    /// tuple to uniquely identify a message
     fn identifier(&self) -> (StreamKey, ShardId, SeqNo) {
         (self.stream_key(), self.shard_id(), self.sequence())
     }

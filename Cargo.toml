@@ -5,6 +5,7 @@ members = [
     "examples/price-feed",
     "benchmark",
     "sea-streamer-file",
+    "sea-streamer-fuse",
     "sea-streamer-kafka",
     "sea-streamer-redis",
     "sea-streamer-redis/redis-streams-dump",

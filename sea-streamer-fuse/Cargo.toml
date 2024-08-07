@@ -1,0 +1,26 @@
+[package]
+name = "sea-streamer-fuse"
+version = "0.5.0"
+authors = ["Chris Tsang <chris.2y3@outlook.com>"]
+edition = "2021"
+description = "Stream processing toolbox"
+license = "MIT OR Apache-2.0"
+documentation = "https://docs.rs/sea-streamer-fuse"
+repository = "https://github.com/SeaQL/sea-streamer"
+categories = ["concurrency"]
+keywords = ["async", "stream", "stream-processing"]
+rust-version = "1.60"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[dependencies]
+thiserror = { version = "1", default-features = false }
+pin-project = { version = "1.1" }
+
+sea-streamer-types = { version = "0.5", path = "../sea-streamer-types" }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
+sea-streamer-socket = { version = "0.5", path = "../sea-streamer-socket" }
