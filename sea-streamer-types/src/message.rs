@@ -336,6 +336,12 @@ impl<'a> Payload<'a> {
     }
 }
 
+impl<'a> Default for Payload<'a> {
+    fn default() -> Self {
+        Self::new("")
+    }
+}
+
 impl<'a> BytesOrStr<'a> {
     pub fn len(&self) -> usize {
         match self {
