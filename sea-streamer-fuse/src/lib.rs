@@ -107,6 +107,11 @@ where
                 Poll::Ready(Some(Ok(mes))) => {
                     let key = mes.stream_key();
                     this.keys.entry(key).or_default().push_back(mes);
+                    if !this.keys.values().any(|ms| ms.is_empty()) {
+                        // if none of the streams are empty
+                        break;
+                    }
+                    // keep polling
                 }
                 Poll::Ready(Some(Err(err))) => {
                     *this.ended = true;
@@ -116,14 +121,17 @@ where
                     *this.ended = true;
                     break;
                 }
-                Poll::Pending => return Poll::Pending,
-            }
-            if !this.keys.values().any(|ms| ms.is_empty()) {
-                // if none of the streams are empty
-                break;
+                Poll::Pending => {
+                    // take a break
+                    break;
+                }
             }
         }
-        Poll::Ready(Self::next(this.keys).map(Ok))
+        if *this.ended || !this.keys.values().any(|ms| ms.is_empty()) {
+            return Poll::Ready(Self::next(this.keys).map(Ok));
+        } else {
+            Poll::Pending
+        }
     }
 }
 
