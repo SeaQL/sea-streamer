@@ -8,13 +8,15 @@ use std::{
 
 type Keys<M> = BTreeMap<StreamKey, VecDeque<M>>;
 
-/// Join two streams, but reorder messages by timestamp.
-/// Since a stream can potentially infinite and the streams in the Stream cannot be known priori,
+/// Join multiple streams, but reorder messages by timestamp.
+/// Since a stream can potentially infinite and the keys in the stream cannot be known priori,
 /// the internal buffer can potentially grow infinite.
 ///
-/// `align()` must be called manually to specify which streams to be aligned.
+/// `align()` must be called manually to specify which streams to be aligned. Otherwise messages will be out
+/// of order until the first message of each key arrives. Imagine a really stuck stream sending the first message
+/// one day later, it will invalidate everything before it. But itself is the problem, not the others.
 ///
-/// Messages within each stream are assumed to be causal.
+/// Messages within each stream key are assumed to be causal.
 ///
 /// A typical use would be to join two streams from different sources, each with a different update frequency.
 /// Messages from the fast stream will be buffered, until a message from the slow stream arrives.
@@ -27,7 +29,7 @@ type Keys<M> = BTreeMap<StreamKey, VecDeque<M>>;
 /// In the example above, messages 1, 2 from fast will be buffered, until 2 from the slow stream arrives.
 /// Likewise, messages 3, 4, 5 will be buffered until 6 arrives.
 ///
-/// If two messages has the same timestamp, the order will be determined by the alphabetic order of the stream keys.
+/// If two messages have the same timestamp, the order will be determined by the alphabetic order of the stream keys.
 #[pin_project]
 pub struct StreamJoin<S, M, E>
 where
@@ -36,7 +38,7 @@ where
     E: std::error::Error,
 {
     #[pin]
-    fused: S,
+    muxed: S,
     keys: Keys<M>,
     ended: bool,
 }
@@ -47,16 +49,16 @@ where
     M: Message,
     E: std::error::Error,
 {
-    /// Takes an already multiplexed stream
-    pub fn fused(fused: S) -> Self {
+    /// Takes an already multiplexed stream. This can typically be achieved by `futures_concurrency::stream::Merge`.
+    pub fn muxed(muxed: S) -> Self {
         Self {
-            fused,
+            muxed,
             keys: Default::default(),
             ended: false,
         }
     }
 
-    /// Add a stream key that needs to be joined. You can call this multiple times
+    /// Add a stream key that needs to be joined. You can call this multiple times.
     pub fn align(&mut self, stream_key: StreamKey) {
         self.keys.insert(stream_key, Default::default());
     }
@@ -101,7 +103,7 @@ where
     ) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
         while !*this.ended {
-            match this.fused.as_mut().poll_next(cx) {
+            match this.muxed.as_mut().poll_next(cx) {
                 Poll::Ready(Some(Ok(mes))) => {
                     let key = mes.stream_key();
                     this.keys.entry(key).or_default().push_back(mes);
@@ -139,7 +141,7 @@ mod test {
     fn wrap<'a>(
         s: SeaMessageStream<'a>,
     ) -> StreamJoin<SeaMessageStream<'a>, SeaMessage<'a>, StreamErr<BackendErr>> {
-        StreamJoin::fused(s)
+        StreamJoin::muxed(s)
     }
 
     fn make_seq(key: StreamKey, items: &[u64]) -> Vec<Result<OwnedMessage, BackendErr>> {
@@ -177,7 +179,7 @@ mod test {
                 .into_iter()
                 .chain(make_seq(b.clone(), &[2, 4, 6, 8, 10]).into_iter()),
         );
-        let mut join = StreamJoin::fused(stream);
+        let mut join = StreamJoin::muxed(stream);
         join.align(a);
         join.align(b);
         let messages: Vec<_> = join.try_collect().await.unwrap();
@@ -207,7 +209,7 @@ mod test {
                 .into_iter()
                 .chain(make_seq(b.clone(), &[3, 4, 6, 7, 10]).into_iter()),
         );
-        let mut join = StreamJoin::fused(stream);
+        let mut join = StreamJoin::muxed(stream);
         join.align(a);
         join.align(b);
         let messages: Vec<_> = join.try_collect().await.unwrap();
@@ -239,7 +241,7 @@ mod test {
                 .chain(make_seq(c.clone(), &[5]).into_iter())
                 .chain(make_seq(b.clone(), &[2, 4, 6, 8, 10]).into_iter()),
         );
-        let mut join = StreamJoin::fused(stream);
+        let mut join = StreamJoin::muxed(stream);
         join.align(a);
         join.align(b);
         join.align(c);
@@ -275,7 +277,7 @@ mod test {
                 .chain(make_seq(b.clone(), &[2, 4]).into_iter())
                 .chain(make_seq(c.clone(), &[3]).into_iter()),
         );
-        let mut join = StreamJoin::fused(stream);
+        let mut join = StreamJoin::muxed(stream);
         join.align(a);
         join.align(b);
         join.align(c);
