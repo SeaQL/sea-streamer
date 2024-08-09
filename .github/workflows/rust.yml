@@ -27,7 +27,7 @@ jobs:
     name: Unit Test, Clippy & Fmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
@@ -71,7 +71,7 @@ jobs:
           KAFKA_CFG_ZOOKEEPER_CONNECT: zookeeper:2181
           ALLOW_PLAINTEXT_LISTENER: yes
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test --package sea-streamer-kafka --features test,runtime-${{ matrix.runtime }} -- --nocapture
 
@@ -87,7 +87,7 @@ jobs:
         redpanda_version: [latest]
         runtime: [async-std, tokio]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - run: docker run -d -p 9092:9092 -p 9644:9644 redpandadata/redpanda:${{ matrix.redpanda_version }} redpanda start --overprovisioned --smp 1 --memory 1G --reserve-memory 0M --node-id 0 --check=false
       - run: cargo test --package sea-streamer-kafka --features test,runtime-${{ matrix.runtime }} -- --nocapture
@@ -108,6 +108,6 @@ jobs:
         ports:
           - 6379:6379
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test --package sea-streamer-redis --no-default-features --features test,runtime-${{ matrix.runtime }} -- --nocapture
