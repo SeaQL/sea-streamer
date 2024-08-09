@@ -40,7 +40,9 @@ where
     #[pin]
     muxed: S,
     keys: Keys<M>,
+    key_keys: Vec<StreamKey>,
     ended: bool,
+    err: Option<E>,
 }
 
 impl<S, M, E> StreamJoin<S, M, E>
@@ -54,13 +56,16 @@ where
         Self {
             muxed,
             keys: Default::default(),
+            key_keys: Default::default(),
             ended: false,
+            err: None,
         }
     }
 
     /// Add a stream key that needs to be joined. You can call this multiple times.
     pub fn align(&mut self, stream_key: StreamKey) {
-        self.keys.insert(stream_key, Default::default());
+        self.keys.insert(stream_key.clone(), Default::default());
+        self.key_keys.push(stream_key);
     }
 
     fn next(keys: &mut Keys<M>) -> Option<M> {
@@ -87,6 +92,17 @@ where
             None
         }
     }
+
+    fn check(keys: &Keys<M>, key_keys: &[StreamKey]) -> bool {
+        // if none of the key streams are empty
+        for kk in key_keys {
+            if keys.get(kk).expect("Already inserted").is_empty() {
+                return false;
+            }
+        }
+        // if anyone got anything
+        keys.values().any(|ms| !ms.is_empty())
+    }
 }
 
 impl<S, M, E> Stream for StreamJoin<S, M, E>
@@ -107,15 +123,16 @@ where
                 Poll::Ready(Some(Ok(mes))) => {
                     let key = mes.stream_key();
                     this.keys.entry(key).or_default().push_back(mes);
-                    if !this.keys.values().any(|ms| ms.is_empty()) {
-                        // if none of the streams are empty
+                    if Self::check(&this.keys, &this.key_keys) {
+                        // if we can yield
                         break;
                     }
                     // keep polling
                 }
                 Poll::Ready(Some(Err(err))) => {
                     *this.ended = true;
-                    return Poll::Ready(Some(Err(err)));
+                    *this.err = Some(err);
+                    break;
                 }
                 Poll::Ready(None) => {
                     *this.ended = true;
@@ -127,8 +144,11 @@ where
                 }
             }
         }
-        if *this.ended || !this.keys.values().any(|ms| ms.is_empty()) {
-            return Poll::Ready(Self::next(this.keys).map(Ok));
+        if *this.ended || Self::check(&this.keys, &this.key_keys) {
+            Poll::Ready(match Self::next(this.keys) {
+                Some(item) => Some(Ok(item)),
+                None => this.err.take().map(Err),
+            })
         } else {
             Poll::Pending
         }
