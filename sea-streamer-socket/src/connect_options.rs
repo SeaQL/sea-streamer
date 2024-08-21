@@ -74,7 +74,14 @@ impl ConnectOptions for SeaConnectOptions {
     type Error = BackendErr;
 
     fn timeout(&self) -> SeaResult<Duration> {
-        self.stdio.timeout().map_err(map_err)
+        #[cfg(feature = "backend-kafka")]
+        return self.kafka.timeout().map_err(map_err);
+        #[cfg(feature = "backend-redis")]
+        return self.redis.timeout().map_err(map_err);
+        #[cfg(feature = "backend-stdio")]
+        return self.stdio.timeout().map_err(map_err);
+        #[cfg(feature = "backend-file")]
+        return self.file.timeout().map_err(map_err);
     }
 
     fn set_timeout(&mut self, d: Duration) -> SeaResult<&mut Self> {

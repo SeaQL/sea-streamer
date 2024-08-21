@@ -117,12 +117,26 @@ impl ConsumerOptions for SeaConsumerOptions {
 
     /// Get currently set ConsumerMode
     fn mode(&self) -> SeaResult<&ConsumerMode> {
-        self.stdio.mode().map_err(map_err)
+        #[cfg(feature = "backend-kafka")]
+        return self.kafka.mode().map_err(map_err);
+        #[cfg(feature = "backend-redis")]
+        return self.redis.mode().map_err(map_err);
+        #[cfg(feature = "backend-stdio")]
+        return self.stdio.mode().map_err(map_err);
+        #[cfg(feature = "backend-file")]
+        return self.file.mode().map_err(map_err);
     }
 
     /// Get currently set consumer group; may return `StreamErr::ConsumerGroupNotSet`.
     fn consumer_group(&self) -> SeaResult<&ConsumerGroup> {
-        self.stdio.consumer_group().map_err(map_err)
+        #[cfg(feature = "backend-kafka")]
+        return self.kafka.consumer_group().map_err(map_err);
+        #[cfg(feature = "backend-redis")]
+        return self.redis.consumer_group().map_err(map_err);
+        #[cfg(feature = "backend-stdio")]
+        return self.stdio.consumer_group().map_err(map_err);
+        #[cfg(feature = "backend-file")]
+        return self.file.consumer_group().map_err(map_err);
     }
 
     /// Set consumer group for this consumer. Note the semantic is implementation-specific.
