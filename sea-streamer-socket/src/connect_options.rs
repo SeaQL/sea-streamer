@@ -74,6 +74,8 @@ impl ConnectOptions for SeaConnectOptions {
     type Error = BackendErr;
 
     fn timeout(&self) -> SeaResult<Duration> {
+        #![allow(unreachable_code)]
+
         #[cfg(feature = "backend-kafka")]
         return self.kafka.timeout().map_err(map_err);
         #[cfg(feature = "backend-redis")]

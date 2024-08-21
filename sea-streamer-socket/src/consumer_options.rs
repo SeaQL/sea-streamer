@@ -117,6 +117,8 @@ impl ConsumerOptions for SeaConsumerOptions {
 
     /// Get currently set ConsumerMode
     fn mode(&self) -> SeaResult<&ConsumerMode> {
+        #![allow(unreachable_code)]
+
         #[cfg(feature = "backend-kafka")]
         return self.kafka.mode().map_err(map_err);
         #[cfg(feature = "backend-redis")]
@@ -129,6 +131,8 @@ impl ConsumerOptions for SeaConsumerOptions {
 
     /// Get currently set consumer group; may return `StreamErr::ConsumerGroupNotSet`.
     fn consumer_group(&self) -> SeaResult<&ConsumerGroup> {
+        #![allow(unreachable_code)]
+
         #[cfg(feature = "backend-kafka")]
         return self.kafka.consumer_group().map_err(map_err);
         #[cfg(feature = "backend-redis")]
