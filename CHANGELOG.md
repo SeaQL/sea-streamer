@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## Pending
 
+### `sea-streamer-socket` 0.5.1 - 2024-09-02
+
+* Compile socket without stdio backend https://github.com/SeaQL/sea-streamer/pull/35
+
 ### Enhancements
 
 * Added `From<Url>` and `FromIterator<Url>` for `StreamerUri` https://github.com/SeaQL/sea-streamer/pull/28
