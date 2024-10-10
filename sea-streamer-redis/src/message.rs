@@ -1,4 +1,4 @@
-use crate::{RedisErr, RedisResult, MSG, ZERO};
+use crate::{RedisErr, RedisResult, TimestampFormat as TsFmt, MSG, ZERO};
 use redis::Value;
 use sea_streamer_types::{
     MessageHeader, SeqNo, ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
@@ -24,8 +24,12 @@ pub(crate) struct AutoClaimReply(pub(crate) Vec<RedisMessage>);
 /// we only allocate 48 bit to the timestamp, and the remaining 16 bit to the sub-sequence number.
 ///
 /// This limits the number of messages per millisecond to 65536,
-/// and the maximum timestamp to 10889-08-02T05:31:50.
-pub fn parse_message_id(id: &str) -> RedisResult<(Timestamp, SeqNo)> {
+/// and the maximum timestamp to `10889-08-02T05:31:50`.
+///
+/// This limit can be lifted with the `nanosecond-timestamp` feature flag, which widens
+/// SeaStreamer's SeqNo to be u128. But squeezing nanosecond timestamps into Redis still
+/// limit it to `2554-07-21T23:34:33`.
+pub fn parse_message_id(ts_fmt: TsFmt, id: &str) -> RedisResult<(Timestamp, SeqNo)> {
     if let Some((timestamp, seq_no)) = id.split_once('-') {
         if let Ok(timestamp) = timestamp.parse::<u64>() {
             if let Ok(seq_no) = seq_no.parse::<u64>() {
@@ -34,14 +38,20 @@ pub fn parse_message_id(id: &str) -> RedisResult<(Timestamp, SeqNo)> {
                         "Sequence number out of range: {seq_no}"
                     ))));
                 }
+                #[cfg(not(feature = "nanosecond-timestamp"))]
                 if timestamp > 0xFFFFFFFFFFFF {
                     return Err(StreamErr::Backend(RedisErr::MessageId(format!(
                         "Timestamp out of range: {timestamp}"
                     ))));
                 }
+                let nano = match ts_fmt {
+                    TsFmt::UnixTimestampMillis => timestamp as i128 * 1_000_000,
+                    #[cfg(feature = "nanosecond-timestamp")]
+                    TsFmt::UnixTimestampNanos => timestamp as i128,
+                };
                 return Ok((
-                    Timestamp::from_unix_timestamp_nanos(timestamp as i128 * 1_000_000).unwrap(),
-                    timestamp << 16 | seq_no,
+                    Timestamp::from_unix_timestamp_nanos(nano).unwrap(),
+                    (timestamp as SeqNo) << 16 | seq_no as SeqNo,
                 ));
             }
         }
@@ -49,22 +59,14 @@ pub fn parse_message_id(id: &str) -> RedisResult<(Timestamp, SeqNo)> {
     Err(StreamErr::Backend(RedisErr::MessageId(id.to_owned())))
 }
 
+#[inline]
 pub(crate) fn get_message_id(header: &MessageHeader) -> MessageId {
-    (
-        (header.timestamp().unix_timestamp_nanos() / 1_000_000)
-            .try_into()
-            .expect("RedisConsumer: timestamp out of range"),
-        (header.sequence() & 0xFFFF)
-            .try_into()
-            .expect("Never fails"),
-    )
+    from_seq_no(*header.sequence())
 }
 
+#[inline]
 pub(crate) fn from_seq_no(seq_no: SeqNo) -> MessageId {
-    (
-        (seq_no >> 16),
-        (seq_no & 0xFFFF).try_into().expect("Never fails"),
-    )
+    ((seq_no >> 16) as u64, (seq_no & 0xFFFF) as u16)
 }
 
 /// A trait that adds some methods to [`RedisMessage`].
@@ -83,7 +85,7 @@ impl RedisMessageId for RedisMessage {
 // LOL such nesting. This is still undesirable, as there are 5 layers of nested Vec. But at least we don't have to copy the bytes again.
 impl StreamReadReply {
     /// Like [`redis::FromRedisValue`], but taking ownership instead of copying.
-    pub(crate) fn from_redis_value(value: Value) -> RedisResult<Self> {
+    pub(crate) fn from_redis_value(value: Value, ts_fmt: TsFmt) -> RedisResult<Self> {
         let mut messages = Vec::new();
 
         if let Value::Bulk(values) = value {
@@ -111,7 +113,7 @@ impl StreamReadReply {
                         };
                     let stream_key = StreamKey::new(stream_key)?;
                     if let Value::Bulk(values) = value_1 {
-                        parse_messages(values, stream_key, shard, &mut messages)?;
+                        parse_messages(values, stream_key, shard, &mut messages, ts_fmt)?;
                     }
                 }
             }
@@ -126,6 +128,7 @@ impl AutoClaimReply {
         value: Value,
         stream_key: StreamKey,
         shard: ShardId,
+        ts_fmt: TsFmt,
     ) -> RedisResult<Self> {
         let mut messages = Vec::new();
         if let Value::Bulk(values) = value {
@@ -136,7 +139,7 @@ impl AutoClaimReply {
             _ = values.next().unwrap();
             let value = values.next().unwrap();
             if let Value::Bulk(values) = value {
-                parse_messages(values, stream_key, shard, &mut messages)?;
+                parse_messages(values, stream_key, shard, &mut messages, ts_fmt)?;
             } else {
                 return Err(err(value));
             }
@@ -150,6 +153,7 @@ fn parse_messages(
     stream: StreamKey,
     shard: ShardId,
     messages: &mut Vec<RedisMessage>,
+    ts_fmt: TsFmt,
 ) -> RedisResult<()> {
     for value in values {
         if let Value::Bulk(values) = value {
@@ -160,7 +164,7 @@ fn parse_messages(
             let value_0 = values.next().unwrap();
             let value_1 = values.next().unwrap();
             let id = string_from_redis_value(value_0)?;
-            let (timestamp, sequence) = parse_message_id(&id)?;
+            let (timestamp, sequence) = parse_message_id(ts_fmt, &id)?;
             if let Value::Bulk(values) = value_1 {
                 assert!(values.len() % 2 == 0);
                 let pairs = values.len() / 2;

@@ -188,7 +188,7 @@ impl ProducerTrait for StdioProducer {
                     MessageHeader::new(
                         stream.to_owned(),
                         ShardId::new(ZERO),
-                        ZERO,
+                        ZERO as SeqNo,
                         Timestamp::now_utc(),
                     ),
                     payload.into_bytes(),

@@ -544,20 +544,22 @@ impl Node {
         log::trace!("XREAD ...");
         assert!(self.buffer.is_empty());
         match conn.req_packed_command(&cmd).await {
-            Ok(value) => match StreamReadReply::from_redis_value(value) {
-                Ok(StreamReadReply(mut mess)) => {
-                    log::trace!("Read {} messages", mess.len());
-                    if mess.is_empty() {
-                        // If we receive an empty reply, it means if we were reading the pending list
-                        // then the list is now empty
-                        self.group.pending_state = false;
+            Ok(value) => {
+                match StreamReadReply::from_redis_value(value, self.options.timestamp_format) {
+                    Ok(StreamReadReply(mut mess)) => {
+                        log::trace!("Read {} messages", mess.len());
+                        if mess.is_empty() {
+                            // If we receive an empty reply, it means if we were reading the pending list
+                            // then the list is now empty
+                            self.group.pending_state = false;
+                        }
+                        mess.reverse();
+                        self.buffer = mess;
+                        Ok(ReadResult::Msg(self.buffer.len()))
                     }
-                    mess.reverse();
-                    self.buffer = mess;
-                    Ok(ReadResult::Msg(self.buffer.len()))
+                    Err(err) => self.send_error(err).await,
                 }
-                Err(err) => self.send_error(err).await,
-            },
+            }
             Err(err) => {
                 let kind = err.kind();
                 if kind == ErrorKind::Moved {
@@ -675,6 +677,7 @@ impl Node {
                 value,
                 claiming.stream.0.clone(),
                 claiming.stream.1,
+                self.options.timestamp_format,
             ) {
                 Ok(AutoClaimReply(mut mess)) => {
                     log::trace!(

@@ -40,6 +40,7 @@ runtime-async-std = ["async-std", "redis/async-std-comp", "sea-streamer-runtime/
 runtime-tokio = ["tokio", "redis/tokio-comp", "sea-streamer-runtime/runtime-tokio"]
 runtime-async-std-native-tls = ["runtime-async-std", "redis/async-std-native-tls-comp"]
 runtime-tokio-native-tls = ["runtime-tokio", "redis/tokio-native-tls-comp"]
+nanosecond-timestamp = ["sea-streamer-types/wide-seq-no"]
 
 [[bin]]
 name = "consumer"

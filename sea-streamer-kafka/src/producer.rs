@@ -12,7 +12,7 @@ pub use rdkafka::{consumer::ConsumerGroupMetadata, producer::FutureRecord, Topic
 use sea_streamer_runtime::spawn_blocking;
 use sea_streamer_types::{
     export::futures::FutureExt, runtime_error, Buffer, MessageHeader, Producer, ProducerOptions,
-    ShardId, StreamErr, StreamKey, StreamResult, StreamerUri, Timestamp,
+    SeqNo, ShardId, StreamErr, StreamKey, StreamResult, StreamerUri, Timestamp,
 };
 
 #[derive(Clone)]
@@ -373,7 +373,7 @@ impl Future for SendFuture {
                     Ok((part, offset)) => Ok(MessageHeader::new(
                         self.stream_key.take().expect("Must have stream_key"),
                         ShardId::new(part as u64),
-                        offset as u64,
+                        offset as SeqNo,
                         Timestamp::now_utc(),
                     )),
                     Err((err, _)) => Err(stream_err(err)),

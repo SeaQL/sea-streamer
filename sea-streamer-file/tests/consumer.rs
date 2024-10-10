@@ -15,7 +15,7 @@ async fn consumer() -> anyhow::Result<()> {
     };
     use sea_streamer_types::{
         export::futures::TryStreamExt, Buffer, Consumer, Message, MessageHeader, OwnedMessage,
-        ShardId, SharedMessage, StreamErr, StreamKey, Streamer, Timestamp,
+        SeqNo, ShardId, SharedMessage, StreamErr, StreamKey, Streamer, Timestamp,
     };
 
     const TEST: &str = "consumer";
@@ -33,13 +33,14 @@ async fn consumer() -> anyhow::Result<()> {
         let shard = ShardId::new(1);
 
         let message = |i: u64| -> OwnedMessage {
-            let header = MessageHeader::new(stream_key.clone(), shard, i, Timestamp::now_utc());
+            let header =
+                MessageHeader::new(stream_key.clone(), shard, i as SeqNo, Timestamp::now_utc());
             OwnedMessage::new(header, format!("{}-{}", stream_key.name(), i).into_bytes())
         };
         let check = |i: u64, mess: SharedMessage| {
             assert_eq!(mess.header().stream_key(), &stream_key);
             assert_eq!(mess.header().shard_id(), &shard);
-            assert_eq!(mess.header().sequence(), &i);
+            assert_eq!(*mess.header().sequence() as u64, i);
             assert_eq!(
                 mess.message().as_str().unwrap(),
                 format!("{}-{}", stream_key.name(), i)
@@ -119,8 +120,8 @@ async fn demux() -> anyhow::Result<()> {
         DEFAULT_FILE_SIZE_LIMIT,
     };
     use sea_streamer_types::{
-        Buffer, Consumer, Message, MessageHeader, OwnedMessage, ShardId, SharedMessage, StreamKey,
-        Streamer, Timestamp,
+        Buffer, Consumer, Message, MessageHeader, OwnedMessage, SeqNo, ShardId, SharedMessage,
+        StreamKey, Streamer, Timestamp,
     };
 
     const TEST: &str = "demux";
@@ -139,16 +140,18 @@ async fn demux() -> anyhow::Result<()> {
         let shard = ShardId::new(1);
 
         let cat = |i: u64| -> OwnedMessage {
-            let header = MessageHeader::new(cat_key.clone(), shard, i, Timestamp::now_utc());
+            let header =
+                MessageHeader::new(cat_key.clone(), shard, i as SeqNo, Timestamp::now_utc());
             OwnedMessage::new(header, format!("{}", i).into_bytes())
         };
         let dog = |i: u64| -> OwnedMessage {
-            let header = MessageHeader::new(dog_key.clone(), shard, i, Timestamp::now_utc());
+            let header =
+                MessageHeader::new(dog_key.clone(), shard, i as SeqNo, Timestamp::now_utc());
             OwnedMessage::new(header, format!("{}", i).into_bytes())
         };
         let check = |i: u64, mess: &SharedMessage| {
             assert_eq!(mess.header().shard_id(), &shard);
-            assert_eq!(mess.header().sequence(), &i);
+            assert_eq!(*mess.header().sequence() as u64, i);
             assert_eq!(mess.message().as_str().unwrap(), format!("{}", i));
         };
         let is_cat = |i: u64, m: SharedMessage| {
@@ -217,7 +220,7 @@ async fn group() -> anyhow::Result<()> {
     };
     use sea_streamer_types::{
         Buffer, Consumer, ConsumerGroup, ConsumerMode, ConsumerOptions, Message, MessageHeader,
-        OwnedMessage, ShardId, SharedMessage, StreamKey, Streamer, Timestamp,
+        OwnedMessage, SeqNo, ShardId, SharedMessage, StreamKey, Streamer, Timestamp,
     };
 
     const TEST: &str = "group";
@@ -236,13 +239,14 @@ async fn group() -> anyhow::Result<()> {
         let group = ConsumerGroup::new("friends");
 
         let message = |i: u64| -> OwnedMessage {
-            let header = MessageHeader::new(stream_key.clone(), shard, i, Timestamp::now_utc());
+            let header =
+                MessageHeader::new(stream_key.clone(), shard, i as SeqNo, Timestamp::now_utc());
             OwnedMessage::new(header, format!("{}-{}", stream_key.name(), i).into_bytes())
         };
         let check = |i: u64, mess: SharedMessage| {
             assert_eq!(mess.header().stream_key(), &stream_key);
             assert_eq!(mess.header().shard_id(), &shard);
-            assert_eq!(mess.header().sequence(), &i);
+            assert_eq!(*mess.header().sequence() as u64, i);
             assert_eq!(
                 mess.message().as_str().unwrap(),
                 format!("{}-{}", stream_key.name(), i)
@@ -325,7 +329,7 @@ async fn seek() -> anyhow::Result<()> {
     };
     use sea_streamer_types::{
         Buffer, Consumer, ConsumerGroup, ConsumerMode, ConsumerOptions, Message, MessageHeader,
-        OwnedMessage, SeqPos, ShardId, SharedMessage, StreamKey, Streamer, Timestamp,
+        OwnedMessage, SeqNo, SeqPos, ShardId, SharedMessage, StreamKey, Streamer, Timestamp,
     };
 
     const TEST: &str = "seek";
@@ -344,13 +348,14 @@ async fn seek() -> anyhow::Result<()> {
         let group = ConsumerGroup::new("group");
 
         let message = |i: u64| -> OwnedMessage {
-            let header = MessageHeader::new(stream_key.clone(), shard, i, Timestamp::now_utc());
+            let header =
+                MessageHeader::new(stream_key.clone(), shard, i as SeqNo, Timestamp::now_utc());
             OwnedMessage::new(header, format!("{}-{}", stream_key.name(), i).into_bytes())
         };
         let check = |i: u64, mess: SharedMessage| {
             assert_eq!(mess.header().stream_key(), &stream_key);
             assert_eq!(mess.header().shard_id(), &shard);
-            assert_eq!(mess.header().sequence(), &i);
+            assert_eq!(*mess.header().sequence() as u64, i);
             assert_eq!(
                 mess.message().as_str().unwrap(),
                 format!("{}-{}", stream_key.name(), i)

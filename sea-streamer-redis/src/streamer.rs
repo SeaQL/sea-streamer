@@ -24,6 +24,15 @@ pub struct RedisConnectOptions {
     timeout: Option<Duration>,
     enable_cluster: bool,
     disable_hostname_verification: bool,
+    timestamp_format: TimestampFormat,
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+pub enum TimestampFormat {
+    #[default]
+    UnixTimestampMillis,
+    #[cfg(feature = "nanosecond-timestamp")]
+    UnixTimestampNanos,
 }
 
 impl Streamer for RedisStreamer {
@@ -63,8 +72,9 @@ impl Streamer for RedisStreamer {
 
     async fn create_generic_producer(
         &self,
-        options: Self::ProducerOptions,
+        mut options: Self::ProducerOptions,
     ) -> RedisResult<Self::Producer> {
+        options.timestamp_format = self.options.timestamp_format;
         let cluster = RedisCluster::new(self.uri.clone(), self.options.clone())?;
         create_producer(cluster, options).await
     }
@@ -72,8 +82,9 @@ impl Streamer for RedisStreamer {
     async fn create_consumer(
         &self,
         streams: &[StreamKey],
-        options: Self::ConsumerOptions,
+        mut options: Self::ConsumerOptions,
     ) -> RedisResult<Self::Consumer> {
+        options.timestamp_format = self.options.timestamp_format;
         let cluster = RedisCluster::new(self.uri.clone(), self.options.clone())?;
         create_consumer(cluster, options, streams.to_vec()).await
     }
@@ -137,6 +148,16 @@ impl RedisConnectOptions {
     /// Trust self-signed certificates. This is insecure. Do not use in production.
     pub fn set_disable_hostname_verification(&mut self, bool: bool) -> &mut Self {
         self.disable_hostname_verification = bool;
+        self
+    }
+
+    pub fn timestamp_format(&self) -> TimestampFormat {
+        self.timestamp_format
+    }
+    /// Set timestamp format. i.e. the default timestamp format is milliseconds,
+    /// which is recommended by Redis.
+    pub fn set_timestamp_format(&mut self, fmt: TimestampFormat) -> &mut Self {
+        self.timestamp_format = fmt;
         self
     }
 }

@@ -3,8 +3,8 @@ use redis::{aio::ConnectionLike, cmd as command, ErrorKind, Pipeline};
 use std::{fmt::Debug, future::Future, sync::Arc, time::Duration};
 
 use crate::{
-    map_err, parse_message_id, string_from_redis_value, RedisCluster, RedisErr, RedisResult, MSG,
-    ZERO,
+    map_err, parse_message_id, string_from_redis_value, RedisCluster, RedisErr, RedisResult,
+    TimestampFormat, MSG, ZERO,
 };
 use sea_streamer_runtime::{sleep, spawn_task};
 use sea_streamer_types::{
@@ -25,6 +25,7 @@ pub struct RedisProducer {
 /// Options for Producers, including sharding.
 pub struct RedisProducerOptions {
     sharder: Option<Arc<dyn SharderConfig>>,
+    pub(crate) timestamp_format: TimestampFormat,
 }
 
 impl Debug for RedisProducerOptions {
@@ -188,6 +189,7 @@ pub(crate) async fn create_producer(
     cluster.reconnect_all().await?; // init connections
     let (sender, receiver) = unbounded();
     let mut sharder = options.sharder.take().map(|a| a.init());
+    let timestamp_format = options.timestamp_format;
 
     // Redis commands are exclusive (`&mut self`), so we need a producer task
     spawn_task(async move {
@@ -227,7 +229,15 @@ pub(crate) async fn create_producer(
                         };
                         let mut cmd = command("XADD");
                         cmd.arg(redis_key);
-                        cmd.arg("*");
+                        match timestamp_format {
+                            TimestampFormat::UnixTimestampMillis => cmd.arg("*"),
+                            #[cfg(feature = "nanosecond-timestamp")]
+                            TimestampFormat::UnixTimestampNanos => {
+                                let ts =
+                                    format!("{}-*", Timestamp::now_utc().unix_timestamp_nanos());
+                                cmd.arg(&ts)
+                            }
+                        };
                         let msg = [(MSG, bytes)];
                         cmd.arg(&msg);
                         let command = (redis_key.to_owned(), stream_key, shard, receipt);
@@ -275,7 +285,8 @@ pub(crate) async fn create_producer(
                                     .zip(batch.0.iter())
                                     .map(|(id, (_, stream_key, shard, _))| {
                                         match string_from_redis_value(id) {
-                                            Ok(id) => match parse_message_id(&id) {
+                                            Ok(id) => match parse_message_id(timestamp_format, &id)
+                                            {
                                                 Ok((timestamp, sequence)) => {
                                                     Ok(MessageHeader::new(
                                                         stream_key.clone(),

@@ -16,7 +16,7 @@ use std::{fmt::Debug, future::Future, sync::Arc, time::Duration};
 
 use crate::{
     from_seq_no, get_message_id, host_id, MessageId, RedisCluster, RedisErr, RedisResult,
-    DEFAULT_TIMEOUT, MAX_MSG_ID,
+    TimestampFormat, DEFAULT_TIMEOUT, MAX_MSG_ID,
 };
 use sea_streamer_runtime::{spawn_task, timeout};
 use sea_streamer_types::{
@@ -50,6 +50,7 @@ pub struct RedisConsumerOptions {
     batch_size: usize,
     shard_ownership: ShardOwnership,
     mkstream: bool,
+    pub(crate) timestamp_format: TimestampFormat,
 }
 
 #[derive(Debug)]

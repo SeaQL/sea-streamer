@@ -63,7 +63,8 @@ use crate::{
     ByteSink, ByteSource, Bytes, FileErr,
 };
 use sea_streamer_types::{
-    Buffer, Message as MessageTrait, OwnedMessage, ShardId, StreamKey, StreamKeyErr, Timestamp,
+    Buffer, Message as MessageTrait, OwnedMessage, SeqNo, ShardId, StreamKey, StreamKeyErr,
+    Timestamp,
 };
 #[cfg(feature = "serde")]
 use serde::Serialize;
@@ -353,7 +354,7 @@ impl MessageHeader {
         use sea_streamer_types::MessageHeader as Header;
         let stream_key = StreamKey::new(ShortString::read_from(file).await?.string())?;
         let shard_id = ShardId::new(U64::read_from(file).await?.0);
-        let sequence = U64::read_from(file).await?.0;
+        let sequence = U64::read_from(file).await?.0 as SeqNo;
         let timestamp = UnixTimestamp::read_from(file).await?.0;
         Ok(Self(Header::new(stream_key, shard_id, sequence, timestamp)))
     }
@@ -363,7 +364,8 @@ impl MessageHeader {
         let h = self.0;
         sum += ShortString::new(h.stream_key().name().to_owned())?.write_to(sink)?;
         sum += U64(h.shard_id().id()).write_to(sink)?;
-        sum += U64(*h.sequence()).write_to(sink)?;
+        sum += U64(TryInto::<u64>::try_into(*h.sequence()).expect("SeqNo out of range"))
+            .write_to(sink)?;
         sum += UnixTimestamp(*h.timestamp()).write_to(sink)?;
         Ok(sum)
     }

@@ -109,12 +109,12 @@ impl MessageSource {
     /// Warning: This future must not be canceled.
     pub async fn rewind(&mut self, target: SeqPos) -> Result<u32, FileErr> {
         let pos = match target {
-            SeqPos::Beginning | SeqPos::At(0) => SeqPos::At(Header::size() as u64),
+            SeqPos::Beginning | SeqPos::At(0) => SeqPos::At(Header::size() as SeqNo),
             SeqPos::End => SeqPos::End,
             SeqPos::At(nth) => {
-                let at = nth * self.beacon_interval();
+                let at = nth as u64 * self.beacon_interval();
                 if at < self.known_size() {
-                    SeqPos::At(at)
+                    SeqPos::At(at as SeqNo)
                 } else {
                     SeqPos::End
                 }
@@ -130,7 +130,7 @@ impl MessageSource {
                 SeqPos::Beginning | SeqPos::At(0) => unreachable!(),
                 SeqPos::End => max,
                 SeqPos::At(nth) => {
-                    let at = nth * self.beacon_interval();
+                    let at = nth as u64 * self.beacon_interval();
                     if at < self.known_size() {
                         at
                     } else {
@@ -139,7 +139,7 @@ impl MessageSource {
                 }
             };
             if self.offset != pos {
-                self.offset = self.source.seek(SeqPos::At(pos)).await?;
+                self.offset = self.source.seek(SeqPos::At(pos as SeqNo)).await?;
             }
         }
 
@@ -175,7 +175,7 @@ impl MessageSource {
             while let Ok(message) = Message::read_from(&mut buffer).await {
                 next += message.size() as u64;
             }
-            self.offset = self.source.seek(SeqPos::At(next)).await?;
+            self.offset = self.source.seek(SeqPos::At(next as SeqNo)).await?;
         }
 
         Ok((self.offset / self.beacon_interval()) as u32)
@@ -226,7 +226,7 @@ impl MessageSource {
                 }
             };
             // now we know roughly where's the message
-            match self.rewind(SeqPos::At(pos as u64)).await {
+            match self.rewind(SeqPos::At(pos as SeqNo)).await {
                 Ok(_) => (),
                 Err(e) => {
                     break 'outer match e {
@@ -260,7 +260,7 @@ impl MessageSource {
         self.source = source.switch_to(source_type).await?;
 
         if res.is_err() {
-            self.source.seek(SeqPos::At(savepoint)).await?;
+            self.source.seek(SeqPos::At(savepoint as SeqNo)).await?;
             self.buffer.clear();
             self.pending.take();
         }
@@ -399,7 +399,7 @@ impl BeaconReader for MessageSource {
     fn survey(&mut self, at: NonZeroU32) -> Self::Future<'_> {
         async move {
             let at = at.get() as u64 * self.beacon_interval();
-            let offset = self.source.seek(SeqPos::At(at)).await?;
+            let offset = self.source.seek(SeqPos::At(at as SeqNo)).await?;
             if at == offset {
                 let beacon = Beacon::read_from(&mut self.source).await?;
                 Ok(beacon)
@@ -462,7 +462,7 @@ impl MessageSink {
                                     if nth > 0 {
                                         // we need to rewind further backwards
                                         nth -= 1;
-                                        source.rewind(SeqPos::At(nth as u64)).await?;
+                                        source.rewind(SeqPos::At(nth as SeqNo)).await?;
                                     } else {
                                         // we reached the start now
                                         break;
@@ -492,7 +492,7 @@ impl MessageSink {
             let has_beacon = source.has_beacon(offset).is_some();
             if let DynFileSource::FileReader(reader) = source.source {
                 let (mut file, _, _) = reader.end();
-                assert_eq!(offset, file.seek(SeqPos::At(offset)).await?);
+                assert_eq!(offset, file.seek(SeqPos::At(offset as SeqNo)).await?);
                 let mut sink = FileSink::new(file, limit)?;
 
                 if has_beacon {

@@ -26,6 +26,8 @@ async fn main() -> anyhow::Result<()> {
 
         let mut options = RedisConnectOptions::default();
         options.set_enable_cluster(enable_cluster);
+        #[cfg(feature = "nanosecond-timestamp")]
+        options.set_timestamp_format(sea_streamer_redis::TimestampFormat::UnixTimestampNanos);
         let streamer = RedisStreamer::connect(
             std::env::var("BROKERS_URL")
                 .unwrap_or_else(|_| "redis://localhost".to_owned())

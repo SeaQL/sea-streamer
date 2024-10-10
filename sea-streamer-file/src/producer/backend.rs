@@ -204,7 +204,7 @@ impl Writer {
                                 n -= 1;
                             }
                             // 2. go forward from there and read all messages up to started_from, recording the latest messages
-                            source.rewind(SeqPos::At(n as u64)).await?;
+                            source.rewind(SeqPos::At(n as SeqNo)).await?;
                             while source.offset() < sink.started_from() {
                                 match source.next().await {
                                     Ok(msg) => {
@@ -234,7 +234,7 @@ impl Writer {
                                 _ => panic!("Must be FileReader"),
                             };
                             let (mut file, _, _) = reader.end();
-                            file.seek(SeqPos::At(sink.offset())).await?; // restore offset
+                            file.seek(SeqPos::At(sink.offset() as SeqNo)).await?; // restore offset
                             sink.use_file(FileSink::new(file, file_size_limit)?);
                             // now we've gone through the stream, we can safely assume the stream state
                             let entry = streams.entry(key.clone()).or_default();

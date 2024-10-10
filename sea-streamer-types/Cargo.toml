@@ -25,3 +25,4 @@ serde_json = { version = "1", optional = true }
 
 [features]
 json = ["serde", "serde_json"]
+wide-seq-no = []
