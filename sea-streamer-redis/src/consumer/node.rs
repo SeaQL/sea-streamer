@@ -545,7 +545,11 @@ impl Node {
         assert!(self.buffer.is_empty());
         match conn.req_packed_command(&cmd).await {
             Ok(value) => {
-                match StreamReadReply::from_redis_value(value, self.options.timestamp_format) {
+                match StreamReadReply::from_redis_value(
+                    value,
+                    self.options.timestamp_format,
+                    self.options.message_field,
+                ) {
                     Ok(StreamReadReply(mut mess)) => {
                         log::trace!("Read {} messages", mess.len());
                         if mess.is_empty() {
@@ -678,6 +682,7 @@ impl Node {
                 claiming.stream.0.clone(),
                 claiming.stream.1,
                 self.options.timestamp_format,
+                self.options.message_field,
             ) {
                 Ok(AutoClaimReply(mut mess)) => {
                     log::trace!(

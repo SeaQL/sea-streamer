@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use crate::{
     create_consumer, create_producer, RedisCluster, RedisConsumer, RedisConsumerOptions, RedisErr,
-    RedisProducer, RedisProducerOptions, RedisResult, REDIS_PORT,
+    RedisProducer, RedisProducerOptions, RedisResult, MSG, REDIS_PORT,
 };
 use sea_streamer_types::{
     ConnectOptions, StreamErr, StreamKey, StreamUrlErr, Streamer, StreamerUri,
@@ -25,6 +25,16 @@ pub struct RedisConnectOptions {
     enable_cluster: bool,
     disable_hostname_verification: bool,
     timestamp_format: TimestampFormat,
+    message_field: MessageField,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub(crate) struct MessageField(pub &'static str);
+
+impl Default for MessageField {
+    fn default() -> Self {
+        Self(MSG)
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -75,6 +85,7 @@ impl Streamer for RedisStreamer {
         mut options: Self::ProducerOptions,
     ) -> RedisResult<Self::Producer> {
         options.timestamp_format = self.options.timestamp_format;
+        options.message_field = self.options.message_field;
         let cluster = RedisCluster::new(self.uri.clone(), self.options.clone())?;
         create_producer(cluster, options).await
     }
@@ -85,6 +96,7 @@ impl Streamer for RedisStreamer {
         mut options: Self::ConsumerOptions,
     ) -> RedisResult<Self::Consumer> {
         options.timestamp_format = self.options.timestamp_format;
+        options.message_field = self.options.message_field;
         let cluster = RedisCluster::new(self.uri.clone(), self.options.clone())?;
         create_consumer(cluster, options, streams.to_vec()).await
     }
@@ -158,6 +170,15 @@ impl RedisConnectOptions {
     /// which is recommended by Redis.
     pub fn set_timestamp_format(&mut self, fmt: TimestampFormat) -> &mut Self {
         self.timestamp_format = fmt;
+        self
+    }
+
+    pub fn message_field(&self) -> &'static str {
+        self.message_field.0
+    }
+    /// The field used to hold the message. Defaults to [`crate::MSG`].
+    pub fn set_message_field(&mut self, field: &'static str) -> &mut Self {
+        self.message_field = MessageField(field);
         self
     }
 }

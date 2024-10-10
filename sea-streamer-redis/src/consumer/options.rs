@@ -1,5 +1,5 @@
 use super::{constants::*, ConsumerConfig, RedisConsumerOptions};
-use crate::{RedisErr, RedisResult, TimestampFormat};
+use crate::{MessageField, RedisErr, RedisResult, TimestampFormat};
 use sea_streamer_types::{ConsumerGroup, ConsumerId, ConsumerMode, ConsumerOptions, StreamErr};
 use std::time::Duration;
 
@@ -84,6 +84,7 @@ impl ConsumerOptions for RedisConsumerOptions {
             shard_ownership: ShardOwnership::Shared,
             mkstream: false,
             timestamp_format: TimestampFormat::default(),
+            message_field: MessageField::default(),
         }
     }
 

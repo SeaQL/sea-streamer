@@ -1,4 +1,4 @@
-use crate::{RedisErr, RedisResult, TimestampFormat as TsFmt, MSG, ZERO};
+use crate::{MessageField as MsgF, RedisErr, RedisResult, TimestampFormat as TsFmt, ZERO};
 use redis::Value;
 use sea_streamer_types::{
     MessageHeader, SeqNo, ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
@@ -66,6 +66,7 @@ pub(crate) fn get_message_id(header: &MessageHeader) -> MessageId {
 
 #[inline]
 pub(crate) fn from_seq_no(seq_no: SeqNo) -> MessageId {
+    #[allow(clippy::unnecessary_cast)]
     ((seq_no >> 16) as u64, (seq_no & 0xFFFF) as u16)
 }
 
@@ -85,7 +86,7 @@ impl RedisMessageId for RedisMessage {
 // LOL such nesting. This is still undesirable, as there are 5 layers of nested Vec. But at least we don't have to copy the bytes again.
 impl StreamReadReply {
     /// Like [`redis::FromRedisValue`], but taking ownership instead of copying.
-    pub(crate) fn from_redis_value(value: Value, ts_fmt: TsFmt) -> RedisResult<Self> {
+    pub(crate) fn from_redis_value(value: Value, ts_fmt: TsFmt, msg: MsgF) -> RedisResult<Self> {
         let mut messages = Vec::new();
 
         if let Value::Bulk(values) = value {
@@ -113,7 +114,7 @@ impl StreamReadReply {
                         };
                     let stream_key = StreamKey::new(stream_key)?;
                     if let Value::Bulk(values) = value_1 {
-                        parse_messages(values, stream_key, shard, &mut messages, ts_fmt)?;
+                        parse_messages(values, stream_key, shard, &mut messages, ts_fmt, msg)?;
                     }
                 }
             }
@@ -129,6 +130,7 @@ impl AutoClaimReply {
         stream_key: StreamKey,
         shard: ShardId,
         ts_fmt: TsFmt,
+        msg: MsgF,
     ) -> RedisResult<Self> {
         let mut messages = Vec::new();
         if let Value::Bulk(values) = value {
@@ -139,7 +141,7 @@ impl AutoClaimReply {
             _ = values.next().unwrap();
             let value = values.next().unwrap();
             if let Value::Bulk(values) = value {
-                parse_messages(values, stream_key, shard, &mut messages, ts_fmt)?;
+                parse_messages(values, stream_key, shard, &mut messages, ts_fmt, msg)?;
             } else {
                 return Err(err(value));
             }
@@ -154,6 +156,7 @@ fn parse_messages(
     shard: ShardId,
     messages: &mut Vec<RedisMessage>,
     ts_fmt: TsFmt,
+    msg: MsgF,
 ) -> RedisResult<()> {
     for value in values {
         if let Value::Bulk(values) = value {
@@ -173,7 +176,7 @@ fn parse_messages(
                     let field = values.next().unwrap();
                     let field = string_from_redis_value(field)?;
                     let value = values.next().unwrap();
-                    if field == MSG {
+                    if field == msg.0 {
                         let bytes = bytes_from_redis_value(value)?;
                         let length = bytes.len();
                         messages.push(RedisMessage::new(

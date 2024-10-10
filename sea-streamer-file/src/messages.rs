@@ -112,6 +112,7 @@ impl MessageSource {
             SeqPos::Beginning | SeqPos::At(0) => SeqPos::At(Header::size() as SeqNo),
             SeqPos::End => SeqPos::End,
             SeqPos::At(nth) => {
+                #[allow(clippy::unnecessary_cast)]
                 let at = nth as u64 * self.beacon_interval();
                 if at < self.known_size() {
                     SeqPos::At(at as SeqNo)
@@ -130,6 +131,7 @@ impl MessageSource {
                 SeqPos::Beginning | SeqPos::At(0) => unreachable!(),
                 SeqPos::End => max,
                 SeqPos::At(nth) => {
+                    #[allow(clippy::unnecessary_cast)]
                     let at = nth as u64 * self.beacon_interval();
                     if at < self.known_size() {
                         at

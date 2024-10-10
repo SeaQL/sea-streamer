@@ -224,6 +224,7 @@ impl AsyncFile {
             .seek(match to {
                 SeqPos::Beginning => SeekFrom::Start(0),
                 SeqPos::End => SeekFrom::End(0),
+                #[allow(clippy::useless_conversion)]
                 SeqPos::At(to) => SeekFrom::Start(to.try_into().expect("SeqNo out of range")),
             })
             .await

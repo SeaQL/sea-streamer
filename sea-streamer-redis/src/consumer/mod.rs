@@ -15,8 +15,8 @@ use flume::{bounded, unbounded, Receiver, Sender};
 use std::{fmt::Debug, future::Future, sync::Arc, time::Duration};
 
 use crate::{
-    from_seq_no, get_message_id, host_id, MessageId, RedisCluster, RedisErr, RedisResult,
-    TimestampFormat, DEFAULT_TIMEOUT, MAX_MSG_ID,
+    from_seq_no, get_message_id, host_id, MessageField, MessageId, RedisCluster, RedisErr,
+    RedisResult, TimestampFormat, DEFAULT_TIMEOUT, MAX_MSG_ID,
 };
 use sea_streamer_runtime::{spawn_task, timeout};
 use sea_streamer_types::{
@@ -51,6 +51,7 @@ pub struct RedisConsumerOptions {
     shard_ownership: ShardOwnership,
     mkstream: bool,
     pub(crate) timestamp_format: TimestampFormat,
+    pub(crate) message_field: MessageField,
 }
 
 #[derive(Debug)]

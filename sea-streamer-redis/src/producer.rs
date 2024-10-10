@@ -3,8 +3,8 @@ use redis::{aio::ConnectionLike, cmd as command, ErrorKind, Pipeline};
 use std::{fmt::Debug, future::Future, sync::Arc, time::Duration};
 
 use crate::{
-    map_err, parse_message_id, string_from_redis_value, RedisCluster, RedisErr, RedisResult,
-    TimestampFormat, MSG, ZERO,
+    map_err, parse_message_id, string_from_redis_value, MessageField, RedisCluster, RedisErr,
+    RedisResult, TimestampFormat, ZERO,
 };
 use sea_streamer_runtime::{sleep, spawn_task};
 use sea_streamer_types::{
@@ -26,6 +26,7 @@ pub struct RedisProducer {
 pub struct RedisProducerOptions {
     sharder: Option<Arc<dyn SharderConfig>>,
     pub(crate) timestamp_format: TimestampFormat,
+    pub(crate) message_field: MessageField,
 }
 
 impl Debug for RedisProducerOptions {
@@ -190,6 +191,7 @@ pub(crate) async fn create_producer(
     let (sender, receiver) = unbounded();
     let mut sharder = options.sharder.take().map(|a| a.init());
     let timestamp_format = options.timestamp_format;
+    let message_field = options.message_field;
 
     // Redis commands are exclusive (`&mut self`), so we need a producer task
     spawn_task(async move {
@@ -238,7 +240,7 @@ pub(crate) async fn create_producer(
                                 cmd.arg(&ts)
                             }
                         };
-                        let msg = [(MSG, bytes)];
+                        let msg = [(message_field.0, bytes)];
                         cmd.arg(&msg);
                         let command = (redis_key.to_owned(), stream_key, shard, receipt);
                         if batch.0.is_empty() || batch.0.last().unwrap().0 == command.0 {
