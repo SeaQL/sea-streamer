@@ -116,12 +116,7 @@ impl Producer for RedisProducer {
 
     #[inline]
     async fn flush(&mut self) -> RedisResult<()> {
-        // The trick here is to send a signal message and wait for the receipt.
-        // By the time it returns a receipt, everything before should have already been sent.
-        let null = [];
-        self.send_to(&StreamKey::new(SEA_STREAMER_INTERNAL)?, null.as_slice())?
-            .await?;
-        Ok(())
+        self.flush_immut().await
     }
 
     fn anchor(&mut self, stream: StreamKey) -> RedisResult<()> {
@@ -139,6 +134,20 @@ impl Producer for RedisProducer {
         } else {
             Err(StreamErr::NotAnchored)
         }
+    }
+}
+
+impl RedisProducer {
+    /// Same as [`RedisProducer::flush`], but not require `&mut self`.
+    /// Technically the implementation here permits concurrent calls,
+    /// but you are advised against it.
+    pub async fn flush_immut(&self) -> RedisResult<()> {
+        // The trick here is to send a signal message and wait for the receipt.
+        // By the time it returns a receipt, everything before should have already been sent.
+        let null = [];
+        self.send_to(&StreamKey::new(SEA_STREAMER_INTERNAL)?, null.as_slice())?
+            .await?;
+        Ok(())
     }
 }
 
