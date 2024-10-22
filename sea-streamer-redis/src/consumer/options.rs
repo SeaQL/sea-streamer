@@ -57,6 +57,7 @@ impl From<&RedisConsumerOptions> for ConsumerConfig {
             consumer_id: options.consumer_id().cloned(),
             auto_ack: options.auto_commit() == &AutoCommit::Delayed,
             pre_fetch: options.pre_fetch(),
+            timestamp_format: options.timestamp_format,
         }
     }
 }

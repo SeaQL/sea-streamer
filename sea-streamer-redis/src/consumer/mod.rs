@@ -60,6 +60,7 @@ struct ConsumerConfig {
     consumer_id: Option<ConsumerId>,
     auto_ack: bool,
     pre_fetch: bool,
+    timestamp_format: TimestampFormat,
 }
 
 /// More constants used throughout SeaStreamer Redis.
@@ -86,8 +87,15 @@ impl Consumer for RedisConsumer {
 
     #[inline]
     async fn seek(&mut self, ts: Timestamp) -> RedisResult<()> {
-        self.seek_to(((ts.unix_timestamp_nanos() / 1_000_000) as u64, u16::MAX))
-            .await
+        self.seek_to((
+            (match self.config.timestamp_format {
+                TimestampFormat::UnixTimestampMillis => ts.unix_timestamp_nanos() / 1_000_000,
+                #[cfg(feature = "nanosecond-timestamp")]
+                TimestampFormat::UnixTimestampNanos => ts.unix_timestamp_nanos(),
+            }) as u64,
+            u16::MAX,
+        ))
+        .await
     }
 
     #[inline]

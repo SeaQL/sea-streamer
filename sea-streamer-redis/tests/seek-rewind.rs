@@ -30,7 +30,9 @@ async fn main() -> anyhow::Result<()> {
     async fn test(consumer_mode: ConsumerMode, batch_size: usize) -> anyhow::Result<()> {
         println!("ConsumerMode = {consumer_mode:?}; batch_size = {batch_size} ...");
 
-        let options = RedisConnectOptions::default();
+        let mut options = RedisConnectOptions::default();
+        #[cfg(feature = "nanosecond-timestamp")]
+        options.set_timestamp_format(sea_streamer_redis::TimestampFormat::UnixTimestampNanos);
         let streamer = RedisStreamer::connect(
             std::env::var("BROKERS_URL")
                 .unwrap_or_else(|_| "redis://localhost".to_owned())
