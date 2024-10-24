@@ -95,3 +95,27 @@ pub fn is_valid_stream_key_char(c: char) -> bool {
     // https://stackoverflow.com/questions/37062904/what-are-apache-kafka-topic-name-limitations
     c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-')
 }
+
+#[cfg(feature = "json")]
+mod impl_serde {
+    use super::StreamKey;
+
+    impl<'de> serde::Deserialize<'de> for StreamKey {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            let s = <&str>::deserialize(deserializer)?;
+            s.parse().map_err(serde::de::Error::custom)
+        }
+    }
+
+    impl serde::Serialize for StreamKey {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            serializer.serialize_str(self.name())
+        }
+    }
+}

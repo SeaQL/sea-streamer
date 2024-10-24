@@ -47,15 +47,6 @@ pub struct MessageHeader {
     timestamp: Timestamp,
 }
 
-#[cfg(feature = "serde")]
-#[derive(serde::Serialize)]
-struct HeaderJson<'a> {
-    stream_key: &'a str,
-    shard_id: u64,
-    sequence: u64,
-    timestamp: String,
-}
-
 /// Common interface of byte containers.
 pub trait Buffer {
     fn size(&self) -> usize;
@@ -367,12 +358,20 @@ impl<'a> IntoBytesOrStr<'a> for &'a [u8] {
     }
 }
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "json")]
 impl serde::Serialize for MessageHeader {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
+        #[derive(serde::Serialize)]
+        struct HeaderJson<'a> {
+            stream_key: &'a str,
+            shard_id: u64,
+            sequence: SeqNo,
+            timestamp: String,
+        }
+
         HeaderJson {
             timestamp: self
                 .timestamp
