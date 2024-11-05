@@ -439,7 +439,7 @@ pub(crate) async fn create_producer(
                                 .send_async(Ok(MessageHeader::new(
                                     StreamKey::new(SEA_STREAMER_INTERNAL).unwrap(),
                                     Default::default(),
-                                    deleted as u64,
+                                    deleted.try_into().unwrap(),
                                     Timestamp::now_utc(),
                                 )))
                                 .await
