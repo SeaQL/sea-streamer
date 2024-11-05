@@ -51,3 +51,8 @@ required-features = ["executables"]
 name = "producer"
 path = "src/bin/producer.rs"
 required-features = ["executables"]
+
+[[bin]]
+name = "trim-stream"
+path = "src/bin/trim-stream.rs"
+required-features = ["executables"]
