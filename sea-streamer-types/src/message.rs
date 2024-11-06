@@ -358,7 +358,7 @@ impl<'a> IntoBytesOrStr<'a> for &'a [u8] {
     }
 }
 
-#[cfg(feature = "json")]
+#[cfg(feature = "serde")]
 impl serde::Serialize for MessageHeader {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

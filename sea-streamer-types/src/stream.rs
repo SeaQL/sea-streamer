@@ -96,7 +96,7 @@ pub fn is_valid_stream_key_char(c: char) -> bool {
     c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-')
 }
 
-#[cfg(feature = "json")]
+#[cfg(feature = "serde")]
 mod impl_serde {
     use super::StreamKey;
 

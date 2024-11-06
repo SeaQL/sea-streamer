@@ -20,9 +20,9 @@ futures = { version = "0.3", default-features = false, features = ["std", "alloc
 thiserror = { version = "1", default-features = false }
 time = { version = "0.3", default-features = false, features = ["std", "macros", "formatting"] }
 url = { version = "2.2", default-features = false }
-serde = { version = "1", default-features = false, optional = true }
+serde = { version = "1", default-features = false, optional = true, features = ["derive"] }
 serde_json = { version = "1", optional = true }
 
 [features]
-json = ["serde/derive", "serde_json"]
+json = ["serde", "serde_json"]
 wide-seq-no = []
