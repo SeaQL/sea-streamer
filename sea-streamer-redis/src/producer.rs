@@ -43,6 +43,7 @@ struct SendRequest {
     stream_key: StreamKey,
     bytes: Vec<u8>,
     receipt: Receipt,
+    timestamp: Timestamp,
 }
 
 /// A future that returns a Send Receipt. This future is cancel safe.
@@ -101,6 +102,7 @@ impl Producer for RedisProducer {
                 stream_key: stream.to_owned(),
                 bytes: payload.into_bytes(),
                 receipt: sender,
+                timestamp: Timestamp::UNIX_EPOCH,
             })
             .map_err(|_| StreamErr::Backend(RedisErr::ProducerDied))?;
 
@@ -138,6 +140,31 @@ impl Producer for RedisProducer {
 }
 
 impl RedisProducer {
+    /// Send a message to a particular stream with a specific timestamp.
+    /// This function is non-blocking. You don't have to await the future if you are not interested in the Receipt.
+    pub fn send_with_ts<S: Buffer>(
+        &self,
+        stream: &StreamKey,
+        timestamp: Timestamp,
+        payload: S,
+    ) -> RedisResult<SendFuture> {
+        // one shot channel
+        let (sender, receiver) = bounded(1);
+        // unbounded, so never blocks
+        self.sender
+            .send(SendRequest {
+                stream_key: stream.to_owned(),
+                bytes: payload.into_bytes(),
+                receipt: sender,
+                timestamp,
+            })
+            .map_err(|_| StreamErr::Backend(RedisErr::ProducerDied))?;
+
+        Ok(SendFuture {
+            fut: receiver.into_recv_async(),
+        })
+    }
+
     /// Performs `XTRIM <stream_key> MAXLEN ~ <maxlen>`, returning number of items trimmed.
     ///
     /// This method is not yet considered stable.
@@ -149,6 +176,7 @@ impl RedisProducer {
                 stream_key: StreamKey::new(SEA_STREAMER_INTERNAL)?,
                 bytes: format!("XTRIM,{},{}", stream_key.name(), maxlen).into_bytes(),
                 receipt,
+                timestamp: Timestamp::UNIX_EPOCH,
             })
             .map_err(|_| StreamErr::Backend(RedisErr::ProducerDied))?;
 
@@ -242,6 +270,7 @@ pub(crate) async fn create_producer(
                     stream_key,
                     bytes,
                     receipt,
+                    timestamp,
                 } in requests.by_ref()
                 {
                     if stream_key.name() == SEA_STREAMER_INTERNAL {
@@ -290,11 +319,28 @@ pub(crate) async fn create_producer(
                         let mut cmd = command("XADD");
                         cmd.arg(redis_key);
                         match timestamp_format {
-                            TimestampFormat::UnixTimestampMillis => cmd.arg("*"),
+                            TimestampFormat::UnixTimestampMillis => {
+                                if timestamp == Timestamp::UNIX_EPOCH {
+                                    cmd.arg("*")
+                                } else {
+                                    let ts = format!(
+                                        "{}-*",
+                                        Timestamp::now_utc().unix_timestamp_nanos() / 1_000_000
+                                    );
+                                    cmd.arg(&ts)
+                                }
+                            }
                             #[cfg(feature = "nanosecond-timestamp")]
                             TimestampFormat::UnixTimestampNanos => {
-                                let ts =
-                                    format!("{}-*", Timestamp::now_utc().unix_timestamp_nanos());
+                                let ts = format!(
+                                    "{}-*",
+                                    if timestamp == Timestamp::UNIX_EPOCH {
+                                        Timestamp::now_utc()
+                                    } else {
+                                        timestamp
+                                    }
+                                    .unix_timestamp_nanos()
+                                );
                                 cmd.arg(&ts)
                             }
                         };
