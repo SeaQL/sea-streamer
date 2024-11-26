@@ -446,6 +446,7 @@ pub(crate) async fn create_producer(
                                     break std::iter::repeat_with(|| {
                                         Err(StreamErr::Backend(err.clone()))
                                     })
+                                    .take(batch.0.len())
                                     .collect();
                                 }
                             }
