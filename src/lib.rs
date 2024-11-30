@@ -20,16 +20,16 @@
 //!
 //! 1. Async
 //!
-//! SeaStreamer provides an async API, and it supports both `tokio` and `async-std`. In tandem with other async Rust libraries,
+//! SeaStreamer provides an async and non-blocking API with no locks on the hot path. Supporting both `tokio` and `async-std`,
 //! you can build highly concurrent stream processors.
 //!
 //! 2. Generic
 //!
-//! We provide integration for Redis & Kafka / Redpanda behind a generic trait interface, so your program can be backend-agnostic.
+//! We provide integration for Redis & Kafka behind a generic trait interface, so your program can be backend-agnostic.
 //!
 //! 3. Testable
 //!
-//! SeaStreamer also provides a set of tools to work with streams via unix pipes, so it is testable without setting up a cluster,
+//! SeaStreamer also provides a set of tools to work with streams via unix files / pipes, so it is testable without setting up a cluster,
 //! and extremely handy when working locally.
 //!
 //! 4. Micro-service Oriented
@@ -145,6 +145,20 @@
 //! kill %1 %2
 //! ```
 //!
+//! With File:
+//!
+//! ```shell
+//! # Create the file
+//! file=/tmp/sea-streamer-$(date +%s)
+//! touch $file && echo "File created at $file"
+//! # Produce some input
+//! cargo run --bin producer -- --stream file://$file/hello &
+//! # Replay the input
+//! cargo run --bin consumer -- --stream file://$file/hello
+//! # Start the processor, producing some output
+//! cargo run --bin processor -- --input file://$file/hello --output stdio:///hello
+//! ```
+//!
 //! With Stdio:
 //!
 //! ```shell
@@ -152,6 +166,11 @@
 //! cargo run --bin producer -- --stream stdio:///hello1 | \
 //! cargo run --bin processor -- --input stdio:///hello1 --output stdio:///hello2
 //! ```
+//!
+//! ## Production
+//!
+//! SeaStreamer File powers the event stream of [FireDBG](https://firedbg.sea-ql.org/).
+//! We use SeaStreamer Redis heavily ourselves in production.
 //!
 //! ## Architecture
 //!

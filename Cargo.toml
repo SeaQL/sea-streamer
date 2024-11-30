@@ -17,7 +17,7 @@ members = [
 
 [package]
 name = "sea-streamer"
-version = "0.5.0"
+version = "0.5.2"
 authors = ["Chris Tsang <chris.2y3@outlook.com>"]
 edition = "2021"
 description = "🌊 The stream processing toolkit for Rust"

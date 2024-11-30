@@ -5,16 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## Pending
+## 0.5.2 - 2024-11-30
 
-### `sea-streamer-socket` 0.5.1 - 2024-09-02
+### `sea-streamer-types`
+
+* Added `From<Url>` and `FromIterator<Url>` for `StreamerUri` https://github.com/SeaQL/sea-streamer/pull/28
+* Impl `Default` for `Payload`
+* Impl serde `Serialize` & `Deserialize` for `StreamKey`
+
+### `sea-streamer-socket`
 
 * Compile socket without stdio backend https://github.com/SeaQL/sea-streamer/pull/35
 
-### Enhancements
+### `sea-streamer-redis`
 
-* Added `From<Url>` and `FromIterator<Url>` for `StreamerUri` https://github.com/SeaQL/sea-streamer/pull/28
-* `Streamer::connect` now accepts `S: Into<StreamerUri>`
+* Support nanosecond timestamp in Redis (under feature flag `nanosecond-timestamp`)
+* Support custom message field
+* Added `RedisProducer::send_with_ts` to specify custom timestamp
+* Added `RedisProducer::flush_immut` 
+* Added `RedisProducer::trim` to perform `XTRIM MAXLEN`
+* Fixed `capacity overflow` error in some cases
+
+### `sea-streamer-file`
+
+* Added a special `SEA_STREAMER_WILDCARD` stream key to subscribe to all streams in a file
+
+### `sea-streamer-fuse`
+
+* Added a `StreamJoin` component for joining multiple streams by timestamp
 
 ## 0.5.0 - 2024-04-24
 
