@@ -64,6 +64,9 @@ impl RedisManager {
         }
     }
 
+    /// XRANGE
+    ///
+    /// Ref: https://redis.io/docs/latest/commands/xrange/
     pub async fn range(
         &mut self,
         key: StreamKey,
@@ -81,6 +84,7 @@ impl RedisManager {
             .arg(start.format(ts_fmt))
             .arg(end.format(ts_fmt));
         if let Some(count) = count {
+            cmd.arg("COUNT");
             cmd.arg(count);
         }
 

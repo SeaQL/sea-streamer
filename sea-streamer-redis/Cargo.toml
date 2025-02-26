@@ -58,6 +58,6 @@ path = "src/bin/trim-stream.rs"
 required-features = ["executables"]
 
 [[bin]]
-name = "test-manager"
-path = "src/bin/test-manager.rs"
+name = "manager-test"
+path = "src/bin/manager-test.rs"
 required-features = ["executables"]
