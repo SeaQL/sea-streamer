@@ -1,8 +1,9 @@
 use std::{sync::Arc, time::Duration};
 
 use crate::{
-    create_consumer, create_producer, RedisCluster, RedisConsumer, RedisConsumerOptions, RedisErr,
-    RedisProducer, RedisProducerOptions, RedisResult, MSG, REDIS_PORT,
+    create_consumer, create_manager, create_producer, RedisCluster, RedisConsumer,
+    RedisConsumerOptions, RedisErr, RedisManager, RedisManagerOptions, RedisProducer,
+    RedisProducerOptions, RedisResult, MSG, REDIS_PORT,
 };
 use sea_streamer_types::{
     ConnectOptions, StreamErr, StreamKey, StreamUrlErr, Streamer, StreamerUri,
@@ -99,6 +100,16 @@ impl Streamer for RedisStreamer {
         options.message_field = self.options.message_field;
         let cluster = RedisCluster::new(self.uri.clone(), self.options.clone())?;
         create_consumer(cluster, options, streams.to_vec()).await
+    }
+}
+
+impl RedisStreamer {
+    pub async fn create_manager(&self) -> RedisResult<RedisManager> {
+        let mut options = RedisManagerOptions::default();
+        options.timestamp_format = self.options.timestamp_format;
+        options.message_field = self.options.message_field;
+        let cluster = RedisCluster::new(self.uri.clone(), self.options.clone())?;
+        create_manager(cluster, options).await
     }
 }
 

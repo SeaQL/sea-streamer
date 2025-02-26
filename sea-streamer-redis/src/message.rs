@@ -18,6 +18,10 @@ pub(crate) struct StreamReadReply(pub(crate) Vec<RedisMessage>);
 
 #[derive(Debug)]
 #[repr(transparent)]
+pub(crate) struct StreamRangeReply(pub(crate) Vec<RedisMessage>);
+
+#[derive(Debug)]
+#[repr(transparent)]
 pub(crate) struct AutoClaimReply(pub(crate) Vec<RedisMessage>);
 
 /// The Redis message id comprises two 64 bit integers. In order to fit it into 64 bit,
@@ -124,6 +128,23 @@ impl StreamReadReply {
     }
 }
 
+impl StreamRangeReply {
+    pub(crate) fn from_redis_value(
+        values: Value,
+        stream_key: StreamKey,
+        ts_fmt: TsFmt,
+        msg: MsgF,
+    ) -> RedisResult<Self> {
+        let mut messages = Vec::new();
+
+        if let Value::Bulk(values) = values {
+            parse_messages(values, stream_key, ZERO, &mut messages, ts_fmt, msg)?;
+        }
+
+        Ok(Self(messages))
+    }
+}
+
 impl AutoClaimReply {
     pub(crate) fn from_redis_value(
         value: Value,
@@ -150,7 +171,7 @@ impl AutoClaimReply {
     }
 }
 
-fn parse_messages(
+pub(crate) fn parse_messages(
     values: Vec<Value>,
     stream: StreamKey,
     shard: ShardId,

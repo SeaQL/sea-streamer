@@ -56,3 +56,8 @@ required-features = ["executables"]
 name = "trim-stream"
 path = "src/bin/trim-stream.rs"
 required-features = ["executables"]
+
+[[bin]]
+name = "test-manager"
+path = "src/bin/test-manager.rs"
+required-features = ["executables"]
