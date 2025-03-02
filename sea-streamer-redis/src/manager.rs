@@ -88,7 +88,12 @@ impl RedisManager {
             cmd.arg(count);
         }
 
-        log::debug!("XRANGE");
+        log::debug!(
+            "XRANGE: {} {} {}",
+            key.name(),
+            start.format(ts_fmt),
+            end.format(ts_fmt)
+        );
         match conn.req_packed_command(&cmd).await {
             Ok(value) => {
                 let messages = StreamRangeReply::from_redis_value(value, key, ts_fmt, msg)?.0;
