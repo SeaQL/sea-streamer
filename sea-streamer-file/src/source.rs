@@ -308,7 +308,7 @@ pub struct FileSourceFuture<'a> {
 ///     self.receive().await?;
 /// }
 /// ```
-impl<'a> Future for FileSourceFuture<'a> {
+impl Future for FileSourceFuture<'_> {
     type Output = Result<Bytes, FileErr>;
 
     fn poll(

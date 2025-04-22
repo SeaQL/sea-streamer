@@ -78,7 +78,7 @@ impl FileSink {
                                 break Err(Err(QuotaFull));
                             }
                             if buffer.len() >= CHUNK_SIZE {
-                                break (Ok(None));
+                                break Ok(None);
                             }
                             // continue; delay write until 1) some other request 2) some error 3) queue is empty
                         }

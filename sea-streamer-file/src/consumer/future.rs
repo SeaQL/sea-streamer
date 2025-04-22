@@ -9,7 +9,7 @@ pub struct StreamFuture<'a> {
     fut: NextFuture<'a>,
 }
 
-impl<'a> Debug for StreamFuture<'a> {
+impl Debug for StreamFuture<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("StreamFuture").finish()
     }
@@ -22,7 +22,7 @@ impl<'a> StreamFuture<'a> {
     }
 }
 
-impl<'a> Stream for StreamFuture<'a> {
+impl Stream for StreamFuture<'_> {
     type Item = FileResult<SharedMessage>;
 
     fn poll_next(

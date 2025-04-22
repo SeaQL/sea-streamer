@@ -550,19 +550,19 @@ impl KafkaConsumer {
     }
 }
 
-impl<'a> KafkaMessage<'a> {
+impl KafkaMessage<'_> {
     fn mess(&self) -> &RawMessage {
         &self.0
     }
 }
 
-impl<'a> Debug for KafkaMessage<'a> {
+impl Debug for KafkaMessage<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.mess().fmt(f)
     }
 }
 
-impl<'a> Message for KafkaMessage<'a> {
+impl Message for KafkaMessage<'_> {
     fn stream_key(&self) -> StreamKey {
         StreamKey::new(self.mess().topic()).expect("A message should carry a valid stream key")
     }

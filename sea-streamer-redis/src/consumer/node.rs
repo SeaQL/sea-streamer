@@ -73,7 +73,7 @@ impl ToRedisArgs for PendingAck {
     }
 }
 
-impl<'a> Display for AckDisplay<'a> {
+impl Display for AckDisplay<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[")?;
         for (i, ack) in self.0.iter().enumerate() {
