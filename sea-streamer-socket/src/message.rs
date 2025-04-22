@@ -109,7 +109,7 @@ impl<'a> SeaStreamerBackend for SeaMessage<'a> {
     }
 }
 
-impl<'a> Message for SeaMessage<'a> {
+impl Message for SeaMessage<'_> {
     fn stream_key(&self) -> StreamKey {
         match self {
             #[cfg(feature = "backend-kafka")]

@@ -155,7 +155,7 @@ impl FileConsumer {
     }
 }
 
-impl<'a> Future for NextFuture<'a> {
+impl Future for NextFuture<'_> {
     type Output = FileResult<SharedMessage>;
 
     fn poll(

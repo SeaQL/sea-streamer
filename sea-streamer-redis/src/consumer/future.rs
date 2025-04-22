@@ -13,13 +13,13 @@ pub struct NextFuture<'a> {
     pub(super) read: bool,
 }
 
-impl<'a> Debug for NextFuture<'a> {
+impl Debug for NextFuture<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NextFuture").finish()
     }
 }
 
-impl<'a> Future for NextFuture<'a> {
+impl Future for NextFuture<'_> {
     type Output = RedisResult<SharedMessage>;
 
     fn poll(
@@ -48,7 +48,7 @@ impl<'a> Future for NextFuture<'a> {
     }
 }
 
-impl<'a> Drop for NextFuture<'a> {
+impl Drop for NextFuture<'_> {
     fn drop(&mut self) {
         if self.read {
             self.con.handle.try_send(CtrlMsg::Unread).ok();
@@ -61,7 +61,7 @@ pub struct StreamFuture<'a> {
     fut: NextFuture<'a>,
 }
 
-impl<'a> Debug for StreamFuture<'a> {
+impl Debug for StreamFuture<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("StreamFuture").finish()
     }
@@ -74,7 +74,7 @@ impl<'a> StreamFuture<'a> {
     }
 }
 
-impl<'a> Stream for StreamFuture<'a> {
+impl Stream for StreamFuture<'_> {
     type Item = RedisResult<SharedMessage>;
 
     fn poll_next(

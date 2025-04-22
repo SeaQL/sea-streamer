@@ -232,7 +232,7 @@ impl MessageHeader {
     }
 }
 
-impl<'a> Buffer for Payload<'a> {
+impl Buffer for Payload<'_> {
     fn size(&self) -> usize {
         self.data.len()
     }
@@ -259,7 +259,7 @@ impl<'a> Buffer for Payload<'a> {
     }
 }
 
-impl<'a> Buffer for &'a [u8] {
+impl Buffer for &'_ [u8] {
     fn size(&self) -> usize {
         self.len()
     }
@@ -277,7 +277,7 @@ impl<'a> Buffer for &'a [u8] {
     }
 }
 
-impl<'a> Buffer for &'a str {
+impl Buffer for &'_ str {
     fn size(&self) -> usize {
         self.len()
     }
@@ -327,13 +327,13 @@ impl<'a> Payload<'a> {
     }
 }
 
-impl<'a> Default for Payload<'a> {
+impl Default for Payload<'_> {
     fn default() -> Self {
         Self::new("")
     }
 }
 
-impl<'a> BytesOrStr<'a> {
+impl BytesOrStr<'_> {
     pub fn len(&self) -> usize {
         match self {
             BytesOrStr::Bytes(bytes) => bytes.len(),

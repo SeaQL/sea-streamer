@@ -133,7 +133,7 @@ impl ByteSource for DynFileSource {
     }
 }
 
-impl<'a> Future for DynReadFuture<'a> {
+impl Future for DynReadFuture<'_> {
     type Output = Result<Bytes, FileErr>;
 
     fn poll(
