@@ -2,13 +2,13 @@
 name = "sea-streamer-benchmark"
 version = "0.5.0"
 authors = ["Chris Tsang <chris.2y3@outlook.com>"]
-edition = "2021"
+edition = "2024"
 description = "🌊 The stream processing toolkit for Rust"
 license = "MIT OR Apache-2.0"
 documentation = "https://docs.rs/sea-streamer"
 repository = "https://github.com/SeaQL/sea-streamer"
 categories = ["concurrency"]
-rust-version = "1.60"
+rust-version = "1.85.0"
 
 [dependencies]
 anyhow = { version = "1" }
