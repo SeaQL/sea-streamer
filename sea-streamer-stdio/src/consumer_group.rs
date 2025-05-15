@@ -5,7 +5,7 @@ use sea_streamer_types::{
     ConsumerGroup, Message, MessageHeader, SeqNo, ShardId, SharedMessage, StreamKey, Timestamp,
 };
 
-use crate::{ConsumerMember, PartialHeader, BROADCAST};
+use crate::{BROADCAST, ConsumerMember, PartialHeader};
 
 pub type Cid = u64;
 

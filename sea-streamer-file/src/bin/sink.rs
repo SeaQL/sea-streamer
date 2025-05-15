@@ -1,6 +1,6 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use clap::Parser;
-use sea_streamer_file::{FileId, MessageSink, DEFAULT_BEACON_INTERVAL, DEFAULT_FILE_SIZE_LIMIT};
+use sea_streamer_file::{DEFAULT_BEACON_INTERVAL, DEFAULT_FILE_SIZE_LIMIT, FileId, MessageSink};
 use sea_streamer_types::{MessageHeader, OwnedMessage, ShardId, StreamKey, Timestamp};
 use std::time::Duration;
 

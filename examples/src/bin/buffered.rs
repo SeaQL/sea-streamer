@@ -4,9 +4,9 @@ use flume::bounded;
 use std::time::Duration;
 
 use sea_streamer::{
-    runtime::{sleep, spawn_task},
     Buffer, Consumer, ConsumerMode, ConsumerOptions, Message, Producer, SeaConsumer,
     SeaConsumerOptions, SeaMessage, SeaProducer, SeaStreamer, SharedMessage, StreamUrl, Streamer,
+    runtime::{sleep, spawn_task},
 };
 
 #[derive(Debug, Parser)]

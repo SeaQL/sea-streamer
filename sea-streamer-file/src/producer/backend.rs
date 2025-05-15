@@ -1,13 +1,13 @@
-use flume::{unbounded, Receiver, Sender};
-use sea_streamer_runtime::{spawn_task, AsyncMutex, TaskHandle};
+use flume::{Receiver, Sender, unbounded};
+use sea_streamer_runtime::{AsyncMutex, TaskHandle, spawn_task};
 use std::{collections::HashMap, num::NonZeroU32};
 
 use super::{Request, RequestTo};
 use crate::{
-    format::{Checksum, Header, RunningChecksum},
     BeaconReader, BeaconState, ByteBuffer, DynFileSource, FileConnectOptions, FileErr, FileId,
     FileProducer, FileProducerOptions, FileReader, FileSink, MessageSink, MessageSource,
     StreamMode,
+    format::{Checksum, Header, RunningChecksum},
 };
 use sea_streamer_types::{
     Message, MessageHeader, OwnedMessage, SeqNo, SeqPos, ShardId, StreamKey, Timestamp,

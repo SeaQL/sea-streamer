@@ -1,25 +1,26 @@
 use rdkafka::{
+    Message as KafkaMessageTrait, Offset, TopicPartitionList,
     config::ClientConfig,
     consumer::{CommitMode, Consumer, DefaultConsumerContext, MessageStream as RawMessageStream},
     message::BorrowedMessage as RawMessage,
-    Message as KafkaMessageTrait, Offset, TopicPartitionList,
 };
 use sea_streamer_runtime::spawn_blocking;
 use std::{collections::HashSet, fmt::Debug, time::Duration};
 
 use sea_streamer_types::{
+    Consumer as ConsumerTrait, ConsumerGroup, ConsumerMode, ConsumerOptions, Message, Payload,
+    SeqNo, SeqPos, ShardId, StreamErr, StreamKey, StreamerUri, Timestamp,
     export::futures::{
+        FutureExt, StreamExt,
         future::Map,
         stream::{Map as StreamMap, StreamFuture},
-        FutureExt, StreamExt,
     },
-    runtime_error, Consumer as ConsumerTrait, ConsumerGroup, ConsumerMode, ConsumerOptions,
-    Message, Payload, SeqNo, SeqPos, ShardId, StreamErr, StreamKey, StreamerUri, Timestamp,
+    runtime_error,
 };
 
 use crate::{
-    cluster_uri, impl_into_string, stream_err, BaseOptionKey, KafkaConnectOptions, KafkaErr,
-    KafkaResult, DEFAULT_TIMEOUT,
+    BaseOptionKey, DEFAULT_TIMEOUT, KafkaConnectOptions, KafkaErr, KafkaResult, cluster_uri,
+    impl_into_string, stream_err,
 };
 
 pub struct KafkaConsumer {

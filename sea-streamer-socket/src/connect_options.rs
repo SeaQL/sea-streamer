@@ -7,7 +7,7 @@ use sea_streamer_redis::RedisConnectOptions;
 #[cfg(feature = "backend-stdio")]
 use sea_streamer_stdio::StdioConnectOptions;
 
-use crate::{map_err, BackendErr, SeaResult};
+use crate::{BackendErr, SeaResult, map_err};
 use sea_streamer_types::ConnectOptions;
 use std::time::Duration;
 

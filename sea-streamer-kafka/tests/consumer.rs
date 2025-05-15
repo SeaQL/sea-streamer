@@ -8,8 +8,8 @@ async fn main() -> anyhow::Result<()> {
 
     use sea_streamer_kafka::{AutoOffsetReset, KafkaConsumer, KafkaConsumerOptions, KafkaStreamer};
     use sea_streamer_types::{
-        export::futures::StreamExt, Buffer, Consumer, ConsumerMode, ConsumerOptions, Message,
-        Producer, SeqPos, ShardId, StreamKey, Streamer, Timestamp,
+        Buffer, Consumer, ConsumerMode, ConsumerOptions, Message, Producer, SeqPos, ShardId,
+        StreamKey, Streamer, Timestamp, export::futures::StreamExt,
     };
 
     let streamer = KafkaStreamer::connect(

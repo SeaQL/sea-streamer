@@ -1,10 +1,10 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use async_tungstenite::tungstenite::Message;
 use clap::Parser;
 use rust_decimal::Decimal;
 use sea_streamer::{
+    Producer, SeaProducer, SeaStreamer, Streamer, StreamerUri, TIMESTAMP_FORMAT, Timestamp,
     export::futures::{SinkExt, StreamExt},
-    Producer, SeaProducer, SeaStreamer, Streamer, StreamerUri, Timestamp, TIMESTAMP_FORMAT,
 };
 use serde::{Deserialize, Serialize};
 

@@ -2,7 +2,7 @@ use crate::{ByteSink, ByteSource, FileErr};
 use std::{
     cmp::Ordering,
     collections::VecDeque,
-    future::{ready, Ready},
+    future::{Ready, ready},
 };
 
 pub trait Appendable: Default {

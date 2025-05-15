@@ -1,4 +1,4 @@
-use flume::{bounded, Receiver, Sender, TryRecvError};
+use flume::{Receiver, Sender, TryRecvError, bounded};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use super::{Node, ShardState, StreamShard};
@@ -100,7 +100,9 @@ impl Cluster {
                 Ok(res) => match res {
                     CtrlMsg::Init(_) => panic!("Unexpected CtrlMsg {:?}", res),
                     CtrlMsg::Read | CtrlMsg::Unread => {
-                        todo!("We should keep track of the reads on each node and load balance among them");
+                        todo!(
+                            "We should keep track of the reads on each node and load balance among them"
+                        );
                     }
                     CtrlMsg::Ack(key, b, c) => {
                         if let Some(at) = self.keys.get(&key) {
@@ -113,7 +115,9 @@ impl Cluster {
                         }
                     }
                     CtrlMsg::Rewind(_, _) => {
-                        todo!("For existing shards, we send a Rewind msg to the node. For new shards, we'd add them to the first node.");
+                        todo!(
+                            "For existing shards, we send a Rewind msg to the node. For new shards, we'd add them to the first node."
+                        );
                     }
                     CtrlMsg::AddShard(m) => {
                         panic!("Unexpected CtrlMsg CtrlMsg::AddShard({:?})", m)

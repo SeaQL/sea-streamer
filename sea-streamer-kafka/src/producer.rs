@@ -1,18 +1,18 @@
 use std::{fmt::Debug, future::Future, time::Duration};
 
 use crate::{
-    cluster::cluster_uri, impl_into_string, stream_err, BaseOptionKey, KafkaConnectOptions,
-    KafkaErr, KafkaResult, DEFAULT_TIMEOUT,
+    BaseOptionKey, DEFAULT_TIMEOUT, KafkaConnectOptions, KafkaErr, KafkaResult,
+    cluster::cluster_uri, impl_into_string, stream_err,
 };
+pub use rdkafka::{TopicPartitionList, consumer::ConsumerGroupMetadata, producer::FutureRecord};
 use rdkafka::{
     config::ClientConfig,
     producer::{DeliveryFuture, FutureRecord as RawPayload, Producer as ProducerTrait},
 };
-pub use rdkafka::{consumer::ConsumerGroupMetadata, producer::FutureRecord, TopicPartitionList};
 use sea_streamer_runtime::spawn_blocking;
 use sea_streamer_types::{
-    export::futures::FutureExt, runtime_error, Buffer, MessageHeader, Producer, ProducerOptions,
-    SeqNo, ShardId, StreamErr, StreamKey, StreamResult, StreamerUri, Timestamp,
+    Buffer, MessageHeader, Producer, ProducerOptions, SeqNo, ShardId, StreamErr, StreamKey,
+    StreamResult, StreamerUri, Timestamp, export::futures::FutureExt, runtime_error,
 };
 
 #[derive(Clone)]

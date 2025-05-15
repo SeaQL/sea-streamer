@@ -215,10 +215,12 @@ fn parse_url(
 ) -> Result<StreamUrl, StreamUrlErr> {
     let urls: Vec<_> = if urls.is_empty() {
         if let Some(protocol) = protocol {
-            vec![format!("{protocol}://.")
-                .as_str()
-                .parse::<Url>()
-                .map_err(Into::<StreamUrlErr>::into)?]
+            vec![
+                format!("{protocol}://.")
+                    .as_str()
+                    .parse::<Url>()
+                    .map_err(Into::<StreamUrlErr>::into)?,
+            ]
         } else {
             return Err(StreamUrlErr::ProtocolRequired);
         }

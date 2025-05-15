@@ -59,8 +59,8 @@
 //! with the stream key `SEA_STREAMER_INTERNAL` and payload `EOS`.
 
 use crate::{
-    crc::{crc16_cdma2000, crc_update},
     ByteSink, ByteSource, Bytes, FileErr,
+    crc::{crc_update, crc16_cdma2000},
 };
 use sea_streamer_types::{
     Buffer, Message as MessageTrait, OwnedMessage, SeqNo, ShardId, StreamKey, StreamKeyErr,

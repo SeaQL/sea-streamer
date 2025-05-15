@@ -6,8 +6,8 @@ async fn main() -> anyhow::Result<()> {
         StdioConnectOptions, StdioConsumer, StdioConsumerOptions, StdioStreamer,
     };
     use sea_streamer_types::{
-        export::futures::StreamExt, Buffer, Consumer, ConsumerGroup, ConsumerMode, ConsumerOptions,
-        Message, Producer, StreamKey, Streamer, StreamerUri,
+        Buffer, Consumer, ConsumerGroup, ConsumerMode, ConsumerOptions, Message, Producer,
+        StreamKey, Streamer, StreamerUri, export::futures::StreamExt,
     };
 
     env_logger::init();

@@ -5,8 +5,8 @@ use sea_streamer_runtime::file::{
     AsyncReadExt, AsyncSeekExt, AsyncWriteExt, File, OpenOptions, SeekFrom,
 };
 use sea_streamer_types::{
-    export::futures::{future::BoxFuture, FutureExt},
     SeqPos, StreamUrlErr, StreamerUri,
+    export::futures::{FutureExt, future::BoxFuture},
 };
 
 pub(crate) const BUFFER_SIZE: usize = 10240;
