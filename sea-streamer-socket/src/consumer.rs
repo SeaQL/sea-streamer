@@ -7,10 +7,10 @@ use sea_streamer_redis::RedisConsumer;
 #[cfg(feature = "backend-stdio")]
 use sea_streamer_stdio::StdioConsumer;
 
-use crate::{map_err, Backend, BackendErr, SeaMessage, SeaResult, SeaStreamerBackend};
+use crate::{Backend, BackendErr, SeaMessage, SeaResult, SeaStreamerBackend, map_err};
 use sea_streamer_types::{
-    export::futures::{FutureExt, Stream},
     Consumer, SeqPos, ShardId, StreamKey, StreamResult, Timestamp,
+    export::futures::{FutureExt, Stream},
 };
 use std::{fmt::Debug, future::Future, pin::Pin, task::Poll};
 

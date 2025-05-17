@@ -125,8 +125,8 @@ async fn rolling_and_disabled() -> anyhow::Result<()> {
         AutoCommit, AutoStreamReset, RedisConnectOptions, RedisConsumerOptions, RedisStreamer,
     };
     use sea_streamer_types::{
-        export::futures::StreamExt, Buffer, Consumer, ConsumerGroup, ConsumerId, ConsumerMode,
-        ConsumerOptions, Message, Producer, StreamKey, Streamer, Timestamp,
+        Buffer, Consumer, ConsumerGroup, ConsumerId, ConsumerMode, ConsumerOptions, Message,
+        Producer, StreamKey, Streamer, Timestamp, export::futures::StreamExt,
     };
     use std::time::Duration;
 

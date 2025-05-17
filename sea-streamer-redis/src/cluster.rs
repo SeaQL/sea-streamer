@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use crate::{Connection, RedisConnectOptions, RedisResult};
-use sea_streamer_types::{export::url::Url, StreamErr, StreamUrlErr, StreamerUri};
+use sea_streamer_types::{StreamErr, StreamUrlErr, StreamerUri, export::url::Url};
 
 /// ID of a node in a Redis Cluster.
 pub type NodeId = Url;

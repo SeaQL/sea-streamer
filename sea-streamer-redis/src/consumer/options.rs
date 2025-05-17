@@ -1,4 +1,4 @@
-use super::{constants::*, ConsumerConfig, RedisConsumerOptions};
+use super::{ConsumerConfig, RedisConsumerOptions, constants::*};
 use crate::{MessageField, RedisErr, RedisResult, TimestampFormat};
 use sea_streamer_types::{ConsumerGroup, ConsumerId, ConsumerMode, ConsumerOptions, StreamErr};
 use std::time::Duration;

@@ -1,5 +1,5 @@
 use pin_project::pin_project;
-use sea_streamer_types::{export::futures::Stream, Message, StreamKey};
+use sea_streamer_types::{Message, StreamKey, export::futures::Stream};
 use std::{
     collections::{BTreeMap, VecDeque},
     pin::Pin,
@@ -160,8 +160,8 @@ mod test {
     use super::*;
     use sea_streamer_socket::{BackendErr, SeaMessage, SeaMessageStream};
     use sea_streamer_types::{
-        export::futures::{self, TryStreamExt},
         MessageHeader, OwnedMessage, StreamErr, Timestamp,
+        export::futures::{self, TryStreamExt},
     };
 
     // just to see if this compiles

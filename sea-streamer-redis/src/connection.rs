@@ -1,7 +1,7 @@
 use std::{fmt::Debug, sync::Arc, time::Duration};
 
 use crate::{
-    map_err, NodeId, RedisConnectOptions, RedisErr, RedisResult, DEFAULT_TIMEOUT, REDIS_PORT,
+    DEFAULT_TIMEOUT, NodeId, REDIS_PORT, RedisConnectOptions, RedisErr, RedisResult, map_err,
 };
 use redis::{ConnectionAddr, ConnectionInfo, RedisConnectionInfo};
 use sea_streamer_runtime::{sleep, timeout};

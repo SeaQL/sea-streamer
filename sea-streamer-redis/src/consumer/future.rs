@@ -1,9 +1,9 @@
 use super::RedisConsumer;
-use crate::{consumer::cluster::CtrlMsg, RedisErr, RedisResult};
+use crate::{RedisErr, RedisResult, consumer::cluster::CtrlMsg};
 use flume::r#async::RecvFut;
 use sea_streamer_types::{
-    export::futures::{FutureExt, Stream},
     Consumer, SharedMessage, StreamErr,
+    export::futures::{FutureExt, Stream},
 };
 use std::{fmt::Debug, future::Future};
 

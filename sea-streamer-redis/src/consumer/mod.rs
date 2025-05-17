@@ -11,18 +11,18 @@ use node::*;
 pub use options::*;
 use shard::*;
 
-use flume::{bounded, unbounded, Receiver, Sender};
+use flume::{Receiver, Sender, bounded, unbounded};
 use std::{fmt::Debug, future::Future, sync::Arc, time::Duration};
 
 use crate::{
-    from_seq_no, get_message_id, host_id, MessageField, MessageId, RedisCluster, RedisErr,
-    RedisResult, TimestampFormat, DEFAULT_TIMEOUT, MAX_MSG_ID,
+    DEFAULT_TIMEOUT, MAX_MSG_ID, MessageField, MessageId, RedisCluster, RedisErr, RedisResult,
+    TimestampFormat, from_seq_no, get_message_id, host_id,
 };
 use sea_streamer_runtime::{spawn_task, timeout};
 use sea_streamer_types::{
-    export::futures::FutureExt, Buffer, ConnectOptions, Consumer, ConsumerGroup, ConsumerId,
-    ConsumerMode, ConsumerOptions, Message, MessageHeader, SeqNo, SeqPos, ShardId, SharedMessage,
-    StreamErr, StreamKey, Timestamp, SEA_STREAMER_INTERNAL,
+    Buffer, ConnectOptions, Consumer, ConsumerGroup, ConsumerId, ConsumerMode, ConsumerOptions,
+    Message, MessageHeader, SEA_STREAMER_INTERNAL, SeqNo, SeqPos, ShardId, SharedMessage,
+    StreamErr, StreamKey, Timestamp, export::futures::FutureExt,
 };
 
 #[derive(Debug)]

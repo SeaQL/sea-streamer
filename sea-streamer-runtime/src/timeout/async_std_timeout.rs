@@ -1,1 +1,1 @@
-pub use async_std::future::{timeout, TimeoutError};
+pub use async_std::future::{TimeoutError, timeout};

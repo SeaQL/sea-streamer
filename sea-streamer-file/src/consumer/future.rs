@@ -1,7 +1,7 @@
 //! Basically copied from sea-streamer-redis
 use super::{FileConsumer, NextFuture};
 use crate::FileResult;
-use sea_streamer_types::{export::futures::Stream, Consumer, SharedMessage};
+use sea_streamer_types::{Consumer, SharedMessage, export::futures::Stream};
 use std::{fmt::Debug, future::Future};
 
 pub struct StreamFuture<'a> {

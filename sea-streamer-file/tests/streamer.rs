@@ -88,14 +88,18 @@ async fn streamer() -> anyhow::Result<()> {
 
         if matches!(mode, Mode::CreateOnly) {
             // the file already exist
-            assert!(FileStreamer::connect(file_id.to_streamer_uri()?, options)
-                .await
-                .is_err());
+            assert!(
+                FileStreamer::connect(file_id.to_streamer_uri()?, options)
+                    .await
+                    .is_err()
+            );
         } else {
             // should be okay
-            assert!(FileStreamer::connect(file_id.to_streamer_uri()?, options)
-                .await
-                .is_ok());
+            assert!(
+                FileStreamer::connect(file_id.to_streamer_uri()?, options)
+                    .await
+                    .is_ok()
+            );
         }
 
         Ok(())

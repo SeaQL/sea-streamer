@@ -1,12 +1,12 @@
 mod backend;
 
-use flume::{r#async::RecvFut, unbounded, Sender};
+use flume::{Sender, r#async::RecvFut, unbounded};
 use std::{fmt::Debug, future::Future};
 
 use crate::{Bytes, FileErr, FileId, FileResult};
 use sea_streamer_types::{
-    export::futures::FutureExt, Buffer, MessageHeader, Producer as ProducerTrait, ShardId,
-    StreamErr, StreamKey, StreamResult, Timestamp,
+    Buffer, MessageHeader, Producer as ProducerTrait, ShardId, StreamErr, StreamKey, StreamResult,
+    Timestamp, export::futures::FutureExt,
 };
 
 pub(crate) use backend::{end_producer, new_producer};

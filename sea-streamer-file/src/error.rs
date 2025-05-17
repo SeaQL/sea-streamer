@@ -1,4 +1,4 @@
-use crate::{format::FormatErr, ConfigErr};
+use crate::{ConfigErr, format::FormatErr};
 use sea_streamer_types::{StreamErr, StreamResult};
 use std::str::Utf8Error;
 use thiserror::Error;

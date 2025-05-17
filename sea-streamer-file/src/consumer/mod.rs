@@ -3,15 +3,15 @@ mod group;
 
 pub use future::StreamFuture as FileMessageStream;
 
-use flume::{r#async::RecvFut, Receiver, Sender, TrySendError};
+use flume::{Receiver, Sender, TrySendError, r#async::RecvFut};
 use sea_streamer_types::{
-    export::futures::{Future, FutureExt},
     Consumer as ConsumerTrait, SeqPos, ShardId, SharedMessage, StreamErr, StreamKey, Timestamp,
+    export::futures::{Future, FutureExt},
 };
 
-use crate::{is_pulse, FileErr, FileId, FileResult, SeekTarget};
-pub(crate) use group::new_consumer;
+use crate::{FileErr, FileId, FileResult, SeekTarget, is_pulse};
 use group::Sid;
+pub(crate) use group::new_consumer;
 
 pub use self::group::query_streamer;
 use self::group::{preseek_consumer, remove_consumer};

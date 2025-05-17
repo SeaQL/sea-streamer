@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use crate::{
-    consumer, create_consumer, producer, StdioConsumer, StdioErr, StdioProducer, StdioResult,
+    StdioConsumer, StdioErr, StdioProducer, StdioResult, consumer, create_consumer, producer,
 };
 use sea_streamer_types::{
     ConnectOptions as ConnectOptionsTrait, ConsumerGroup, ConsumerMode,

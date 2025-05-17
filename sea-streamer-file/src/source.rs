@@ -1,16 +1,16 @@
 use std::time::Duration;
 
-use flume::{bounded, r#async::RecvStream, unbounded, Receiver, Sender, TryRecvError};
+use flume::{Receiver, Sender, TryRecvError, r#async::RecvStream, bounded, unbounded};
 use sea_streamer_types::{
-    export::futures::{Future, StreamExt},
     SeqPos,
+    export::futures::{Future, StreamExt},
 };
 
 use crate::{
-    watcher::{new_watcher, FileEvent, Watcher},
     AsyncFile, ByteBuffer, Bytes, FileErr, FileId, ReadFrom,
+    watcher::{FileEvent, Watcher, new_watcher},
 };
-use sea_streamer_runtime::{spawn_task, timeout, TaskHandle};
+use sea_streamer_runtime::{TaskHandle, spawn_task, timeout};
 
 pub trait ByteSource {
     type Future<'a>: Future<Output = Result<Bytes, FileErr>>

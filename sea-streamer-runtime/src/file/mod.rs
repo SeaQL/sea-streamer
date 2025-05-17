@@ -7,7 +7,7 @@ pub use tokio::{
 #[cfg(feature = "runtime-async-std")]
 pub use async_std::{
     fs::{File, OpenOptions},
-    io::{prelude::SeekExt as AsyncSeekExt, ReadExt as AsyncReadExt, WriteExt as AsyncWriteExt},
+    io::{ReadExt as AsyncReadExt, WriteExt as AsyncWriteExt, prelude::SeekExt as AsyncSeekExt},
 };
 
 #[cfg(not(any(feature = "runtime-tokio", feature = "runtime-async-std")))]

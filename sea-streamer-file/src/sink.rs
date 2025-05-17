@@ -1,10 +1,10 @@
-use flume::{bounded, unbounded, Receiver, Sender, TryRecvError};
+use flume::{Receiver, Sender, TryRecvError, bounded, unbounded};
 
 use crate::{
-    watcher::{new_watcher, FileEvent, Watcher},
     AsyncFile, Bytes, FileErr,
+    watcher::{FileEvent, Watcher, new_watcher},
 };
-use sea_streamer_runtime::{spawn_task, TaskHandle};
+use sea_streamer_runtime::{TaskHandle, spawn_task};
 
 pub trait ByteSink {
     /// This should never block.

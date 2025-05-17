@@ -1,5 +1,5 @@
-use flume::{bounded, unbounded, Receiver, Sender};
-use sea_streamer_runtime::{spawn_task, AsyncMutex};
+use flume::{Receiver, Sender, bounded, unbounded};
+use sea_streamer_runtime::{AsyncMutex, spawn_task};
 use std::{
     collections::HashMap,
     ops::Deref,
@@ -8,12 +8,12 @@ use std::{
 
 use super::{CtrlMsg, FileConsumer};
 use crate::{
-    is_end_of_stream, is_internal, is_pulse, is_wildcard, pulse_message, ConfigErr, FileErr,
-    FileId, MessageSource, StreamMode,
+    ConfigErr, FileErr, FileId, MessageSource, StreamMode, is_end_of_stream, is_internal, is_pulse,
+    is_wildcard, pulse_message,
 };
 use sea_streamer_types::{
-    export::futures::{select, FutureExt},
     ConsumerGroup, Message, ShardId, SharedMessage, StreamKey,
+    export::futures::{FutureExt, select},
 };
 
 lazy_static::lazy_static! {

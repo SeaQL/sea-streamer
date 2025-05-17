@@ -1,20 +1,21 @@
 use flume::{
+    Receiver, RecvError, Sender,
     r#async::{RecvFut, RecvStream},
-    unbounded, Receiver, RecvError, Sender,
+    unbounded,
 };
 use std::sync::Mutex;
 
 use sea_streamer_types::{
-    export::futures::{future::MapErr, stream::Map as StreamMap, StreamExt, TryFutureExt},
     Consumer as ConsumerTrait, ConsumerGroup, SeqPos, ShardId, SharedMessage, StreamErr, StreamKey,
     Timestamp,
+    export::futures::{StreamExt, TryFutureExt, future::MapErr, stream::Map as StreamMap},
 };
 
 use crate::{
+    PartialHeader, StdioErr, StdioResult,
     consumer_group::{Cid, Consumers},
     parse_meta,
     util::PanicGuard,
-    PartialHeader, StdioErr, StdioResult,
 };
 
 lazy_static::lazy_static! {

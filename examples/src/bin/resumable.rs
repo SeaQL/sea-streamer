@@ -1,11 +1,11 @@
 use anyhow::Result;
 use clap::Parser;
 use sea_streamer::{
-    kafka::AutoOffsetReset,
-    redis::{AutoCommit, AutoStreamReset},
     Buffer, Consumer, ConsumerMode, ConsumerOptions, Message, Producer, SeaConsumer,
     SeaConsumerOptions, SeaMessage, SeaProducer, SeaStreamer, SeaStreamerBackend, StreamUrl,
     Streamer,
+    kafka::AutoOffsetReset,
+    redis::{AutoCommit, AutoStreamReset},
 };
 use std::time::Duration;
 

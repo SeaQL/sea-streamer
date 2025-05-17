@@ -3,7 +3,7 @@
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
 async fn surveyor() -> anyhow::Result<()> {
-    use sea_streamer_file::{format::Beacon, MockBeacon, SurveyResult, Surveyor};
+    use sea_streamer_file::{MockBeacon, SurveyResult, Surveyor, format::Beacon};
     use std::cmp::Ordering;
 
     env_logger::init();

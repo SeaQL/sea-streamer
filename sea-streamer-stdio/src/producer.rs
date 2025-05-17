@@ -1,12 +1,12 @@
-use flume::{bounded, r#async::RecvFut, unbounded, Sender};
+use flume::{Sender, r#async::RecvFut, bounded, unbounded};
 use std::{collections::HashMap, fmt::Debug, future::Future, sync::Mutex};
 
 use sea_streamer_types::{
-    export::futures::FutureExt, Buffer, Message, MessageHeader, Producer as ProducerTrait, Receipt,
-    SeqNo, ShardId, SharedMessage, StreamErr, StreamKey, StreamResult, Timestamp,
+    Buffer, Message, MessageHeader, Producer as ProducerTrait, Receipt, SeqNo, ShardId,
+    SharedMessage, StreamErr, StreamKey, StreamResult, Timestamp, export::futures::FutureExt,
 };
 
-use crate::{PartialHeader, StdioErr, StdioResult, BROADCAST, TIMESTAMP_FORMAT};
+use crate::{BROADCAST, PartialHeader, StdioErr, StdioResult, TIMESTAMP_FORMAT};
 
 lazy_static::lazy_static! {
     static ref PRODUCERS: Mutex<Producers> = Default::default();

@@ -6,14 +6,14 @@ use std::{
 
 use sea_streamer_runtime::spawn_blocking;
 use sea_streamer_types::{
-    runtime_error, ConnectOptions, ConsumerGroup, ConsumerMode, ConsumerOptions, StreamErr,
-    StreamKey, Streamer, StreamerUri,
+    ConnectOptions, ConsumerGroup, ConsumerMode, ConsumerOptions, StreamErr, StreamKey, Streamer,
+    StreamerUri, runtime_error,
 };
 
 use crate::{
-    cluster::cluster_uri, create_consumer, create_producer, host_id, impl_into_string,
-    KafkaConsumer, KafkaConsumerOptions, KafkaErr, KafkaProducer, KafkaProducerOptions,
-    KafkaResult, DEFAULT_TIMEOUT,
+    DEFAULT_TIMEOUT, KafkaConsumer, KafkaConsumerOptions, KafkaErr, KafkaProducer,
+    KafkaProducerOptions, KafkaResult, cluster::cluster_uri, create_consumer, create_producer,
+    host_id, impl_into_string,
 };
 
 #[derive(Debug, Clone)]

@@ -1,16 +1,16 @@
 use std::{cmp::Ordering, collections::BTreeMap, num::NonZeroU32, path::Path};
 
 use sea_streamer_types::{
-    export::futures::{future::BoxFuture, FutureExt},
-    Buffer, Message as MessageTrait, MessageHeader, OwnedMessage, SeqNo, SeqPos, ShardId,
-    SharedMessage, StreamKey, Timestamp, SEA_STREAMER_INTERNAL,
+    Buffer, Message as MessageTrait, MessageHeader, OwnedMessage, SEA_STREAMER_INTERNAL, SeqNo,
+    SeqPos, ShardId, SharedMessage, StreamKey, Timestamp,
+    export::futures::{FutureExt, future::BoxFuture},
 };
 
 use crate::{
-    format::{Beacon, Checksum, FormatErr, Header, Marker, Message, RunningChecksum},
     AsyncFile, BeaconReader, ByteBuffer, ByteSource, Bytes, DynFileSource, FileErr, FileId,
-    FileReader, FileSink, FileSourceType, SeekErr, StreamMode, SurveyResult, Surveyor,
-    SEA_STREAMER_WILDCARD,
+    FileReader, FileSink, FileSourceType, SEA_STREAMER_WILDCARD, SeekErr, StreamMode, SurveyResult,
+    Surveyor,
+    format::{Beacon, Checksum, FormatErr, Header, Marker, Message, RunningChecksum},
 };
 
 pub const END_OF_STREAM: &str = "EOS";
@@ -133,11 +133,7 @@ impl MessageSource {
                 SeqPos::At(nth) => {
                     #[allow(clippy::unnecessary_cast)]
                     let at = nth as u64 * self.beacon_interval();
-                    if at < self.known_size() {
-                        at
-                    } else {
-                        max
-                    }
+                    if at < self.known_size() { at } else { max }
                 }
             };
             if self.offset != pos {
@@ -234,7 +230,7 @@ impl MessageSource {
                     break 'outer match e {
                         FileErr::NotEnoughBytes => Err(FileErr::SeekErr(SeekErr::OutOfBound)),
                         e => Err(e),
-                    }
+                    };
                 }
             };
             // read until we found what we want
@@ -245,7 +241,7 @@ impl MessageSource {
                         break 'outer match e {
                             FileErr::NotEnoughBytes => Err(FileErr::SeekErr(SeekErr::OutOfBound)),
                             e => Err(e),
-                        }
+                        };
                     }
                 };
                 if let SurveyResult::Right = compare(&to, mess.message.header()) {

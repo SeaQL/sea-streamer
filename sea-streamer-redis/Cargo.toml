@@ -2,14 +2,14 @@
 name = "sea-streamer-redis"
 version = "0.5.2"
 authors = ["Chris Tsang <chris.2y3@outlook.com>"]
-edition = "2021"
+edition = "2024"
 description = "🌊 SeaStreamer Redis Backend"
 license = "MIT OR Apache-2.0"
 documentation = "https://docs.rs/sea-streamer-redis"
 repository = "https://github.com/SeaQL/sea-streamer"
 categories = ["concurrency"]
 keywords = ["async", "stream", "redis", "stream-processing"]
-rust-version = "1.60"
+rust-version = "1.85.0"
 
 [package.metadata.docs.rs]
 features = []

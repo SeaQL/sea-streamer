@@ -7,9 +7,9 @@ use sea_streamer_redis::RedisProducer;
 #[cfg(feature = "backend-stdio")]
 use sea_streamer_stdio::StdioProducer;
 
-use crate::{map_err, Backend, BackendErr, SeaResult, SeaStreamerBackend};
+use crate::{Backend, BackendErr, SeaResult, SeaStreamerBackend, map_err};
 use sea_streamer_types::{
-    export::futures::FutureExt, Buffer, Producer, Receipt, StreamKey, StreamResult,
+    Buffer, Producer, Receipt, StreamKey, StreamResult, export::futures::FutureExt,
 };
 use std::{future::Future, pin::Pin, task::Poll};
 

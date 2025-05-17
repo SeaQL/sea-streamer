@@ -18,7 +18,7 @@
 use anyhow::Result;
 use clap::Parser;
 use sea_streamer_file::{
-    format::MessageJson, is_end_of_stream, FileErr, FileId, MessageSource, StreamMode,
+    FileErr, FileId, MessageSource, StreamMode, format::MessageJson, is_end_of_stream,
 };
 use sea_streamer_types::{Buffer, Message, TIMESTAMP_FORMAT};
 use std::str::FromStr;

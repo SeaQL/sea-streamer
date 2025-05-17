@@ -10,9 +10,8 @@ use sea_streamer_stdio::StdioStreamer;
 use sea_streamer_types::{StreamErr, StreamKey, Streamer, StreamerUri};
 
 use crate::{
-    map_err, Backend, BackendErr, SeaConnectOptions, SeaConsumer, SeaConsumerBackend,
-    SeaConsumerOptions, SeaProducer, SeaProducerBackend, SeaProducerOptions, SeaResult,
-    SeaStreamerBackend,
+    Backend, BackendErr, SeaConnectOptions, SeaConsumer, SeaConsumerBackend, SeaConsumerOptions,
+    SeaProducer, SeaProducerBackend, SeaProducerOptions, SeaResult, SeaStreamerBackend, map_err,
 };
 
 #[derive(Debug)]

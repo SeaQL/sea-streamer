@@ -1,8 +1,8 @@
 use crate::{FileErr, FileId};
-use flume::{unbounded, Sender};
+use flume::{Sender, unbounded};
 use notify::{
-    event::ModifyKind, Config, EventKind, RecommendedWatcher, RecursiveMode,
-    Watcher as WatcherTrait,
+    Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher as WatcherTrait,
+    event::ModifyKind,
 };
 use sea_streamer_runtime::spawn_task;
 use std::{

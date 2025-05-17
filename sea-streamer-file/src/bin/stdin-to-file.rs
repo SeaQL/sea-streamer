@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
-use sea_streamer_file::export::flume::{unbounded, Receiver};
+use sea_streamer_file::export::flume::{Receiver, unbounded};
 use sea_streamer_file::{AsyncFile, FileId};
 
 #[derive(Debug, Parser)]

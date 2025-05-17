@@ -1,5 +1,5 @@
 use super::PendingAck;
-use crate::{get_message_id, map_err, MessageId, RedisCluster, RedisResult, ZERO};
+use crate::{MessageId, RedisCluster, RedisResult, ZERO, get_message_id, map_err};
 use redis::AsyncCommands;
 use sea_streamer_types::{MessageHeader, ShardId, StreamKey, Timestamp};
 

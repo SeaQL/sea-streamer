@@ -10,12 +10,12 @@ static INIT: std::sync::Once = std::sync::Once::new();
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
 async fn consumer() -> anyhow::Result<()> {
     use sea_streamer_file::{
-        AutoStreamReset, FileConsumerOptions, FileErr, FileStreamer, MessageSink,
-        DEFAULT_FILE_SIZE_LIMIT, SEA_STREAMER_WILDCARD,
+        AutoStreamReset, DEFAULT_FILE_SIZE_LIMIT, FileConsumerOptions, FileErr, FileStreamer,
+        MessageSink, SEA_STREAMER_WILDCARD,
     };
     use sea_streamer_types::{
-        export::futures::TryStreamExt, Buffer, Consumer, Message, MessageHeader, OwnedMessage,
-        SeqNo, ShardId, SharedMessage, StreamErr, StreamKey, Streamer, Timestamp,
+        Buffer, Consumer, Message, MessageHeader, OwnedMessage, SeqNo, ShardId, SharedMessage,
+        StreamErr, StreamKey, Streamer, Timestamp, export::futures::TryStreamExt,
     };
 
     const TEST: &str = "consumer";
@@ -116,8 +116,8 @@ async fn consumer() -> anyhow::Result<()> {
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
 async fn demux() -> anyhow::Result<()> {
     use sea_streamer_file::{
-        query_streamer, AutoStreamReset, FileConsumerOptions, FileStreamer, MessageSink,
-        DEFAULT_FILE_SIZE_LIMIT,
+        AutoStreamReset, DEFAULT_FILE_SIZE_LIMIT, FileConsumerOptions, FileStreamer, MessageSink,
+        query_streamer,
     };
     use sea_streamer_types::{
         Buffer, Consumer, Message, MessageHeader, OwnedMessage, SeqNo, ShardId, SharedMessage,
@@ -215,8 +215,8 @@ async fn demux() -> anyhow::Result<()> {
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
 async fn group() -> anyhow::Result<()> {
     use sea_streamer_file::{
-        query_streamer, AutoStreamReset, FileConsumerOptions, FileStreamer, MessageSink,
-        DEFAULT_FILE_SIZE_LIMIT,
+        AutoStreamReset, DEFAULT_FILE_SIZE_LIMIT, FileConsumerOptions, FileStreamer, MessageSink,
+        query_streamer,
     };
     use sea_streamer_types::{
         Buffer, Consumer, ConsumerGroup, ConsumerMode, ConsumerOptions, Message, MessageHeader,
@@ -325,7 +325,7 @@ async fn group() -> anyhow::Result<()> {
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
 async fn seek() -> anyhow::Result<()> {
     use sea_streamer_file::{
-        AutoStreamReset, FileConsumerOptions, FileStreamer, MessageSink, DEFAULT_FILE_SIZE_LIMIT,
+        AutoStreamReset, DEFAULT_FILE_SIZE_LIMIT, FileConsumerOptions, FileStreamer, MessageSink,
     };
     use sea_streamer_types::{
         Buffer, Consumer, ConsumerGroup, ConsumerMode, ConsumerOptions, Message, MessageHeader,

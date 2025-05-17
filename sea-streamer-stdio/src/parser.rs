@@ -1,12 +1,12 @@
 use crate::{TIMESTAMP_FORMAT, TIMESTAMP_FORMAT_SUBSEC};
 use nom::{
+    IResult,
     bytes::complete::{is_not, take_while_m_n},
     character::complete::char,
     sequence::delimited,
-    IResult,
 };
 use sea_streamer_types::{
-    is_valid_stream_key_char, SeqNo, ShardId, StreamKey, Timestamp, MAX_STREAM_KEY_LEN,
+    MAX_STREAM_KEY_LEN, SeqNo, ShardId, StreamKey, Timestamp, is_valid_stream_key_char,
 };
 use thiserror::Error;
 use time::PrimitiveDateTime;
@@ -38,7 +38,7 @@ pub fn parse_meta(input: &str) -> Result<(PartialHeader, &str), ParseErr> {
                     ..Default::default()
                 },
                 input,
-            ))
+            ));
         }
     };
     let parts = raw.split('|').map(|s| s.trim());
