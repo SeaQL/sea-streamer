@@ -165,18 +165,46 @@ impl RedisProducer {
         })
     }
 
-    /// Performs `XTRIM <stream_key> MAXLEN ~ <maxlen>`, returning number of items trimmed.
-    ///
-    /// This method is not yet considered stable.
-    pub async fn trim(&self, stream_key: &StreamKey, maxlen: u32) -> RedisResult<u64> {
+    /// Performs `XTRIM <stream_key> MAXLEN ~ <max_len>`, returning number of items trimmed.
+    pub async fn trim_stream_max_len(
+        &self,
+        stream_key: &StreamKey,
+        max_len: u32,
+    ) -> RedisResult<u64> {
         let (receipt, receiver) = bounded(1);
 
         self.sender
             .send(SendRequest {
                 stream_key: StreamKey::new(SEA_STREAMER_INTERNAL)?,
-                bytes: format!("XTRIM,{},{}", stream_key.name(), maxlen).into_bytes(),
+                bytes: format!("XTRIM,{},MAXLEN,{}", stream_key.name(), max_len).into_bytes(),
                 receipt,
                 timestamp: Timestamp::UNIX_EPOCH,
+            })
+            .map_err(|_| StreamErr::Backend(RedisErr::ProducerDied))?;
+
+        let res = receiver
+            .recv_async()
+            .await
+            .map_err(|_| StreamErr::Backend(RedisErr::ProducerDied))??;
+
+        #[allow(clippy::useless_conversion)]
+        Ok((*res.sequence()).try_into().expect("integer out of range"))
+    }
+
+    /// Performs `XTRIM <stream_key> MINID ~ <timestamp>`, returning number of items trimmed.
+    pub async fn trim_stream_min_ts(
+        &self,
+        stream_key: &StreamKey,
+        timestamp: Timestamp,
+    ) -> RedisResult<u64> {
+        let (receipt, receiver) = bounded(1);
+
+        self.sender
+            .send(SendRequest {
+                stream_key: StreamKey::new(SEA_STREAMER_INTERNAL)?,
+                bytes: format!("XTRIM,{},MINID,", stream_key.name()).into_bytes(),
+                receipt,
+                timestamp,
             })
             .map_err(|_| StreamErr::Backend(RedisErr::ProducerDied))?;
 
@@ -243,6 +271,17 @@ impl Future for SendFuture {
     }
 }
 
+struct Xtrim {
+    stream_key: StreamKey,
+    param: XtrimParam,
+    receipt: Receipt,
+}
+
+enum XtrimParam {
+    MaxLen(u32),
+    MinTs(Timestamp),
+}
+
 pub(crate) async fn create_producer(
     mut cluster: RedisCluster,
     mut options: RedisProducerOptions,
@@ -287,10 +326,24 @@ pub(crate) async fn create_producer(
                             match oper.op {
                                 "XTRIM" => {
                                     if let Ok(key) = StreamKey::new(oper.arg1) {
-                                        if let Ok(maxlen) = oper.arg2.parse::<u32>() {
-                                            xtrims.push((key, maxlen, receipt));
+                                        if oper.arg2 == "MAXLEN" {
+                                            if let Ok(max_len) = oper.arg3.parse::<u32>() {
+                                                xtrims.push(Xtrim {
+                                                    stream_key: key,
+                                                    param: XtrimParam::MaxLen(max_len),
+                                                    receipt,
+                                                });
+                                            } else {
+                                                log::warn!("Invalid number {}", oper.arg3);
+                                            }
+                                        } else if oper.arg2 == "MINID" {
+                                            xtrims.push(Xtrim {
+                                                stream_key: key,
+                                                param: XtrimParam::MinTs(timestamp),
+                                                receipt,
+                                            });
                                         } else {
-                                            log::warn!("Invalid number {}", oper.arg2);
+                                            log::warn!("Invalid XTRIM param {}", oper.arg2);
                                         }
                                     } else {
                                         log::warn!("Invalid Stream Key {}", oper.arg1);
@@ -465,8 +518,9 @@ pub(crate) async fn create_producer(
             }
 
             if !xtrims.is_empty() {
-                for (stream_key, maxlen, receipt) in xtrims.drain(..) {
-                    let (_, conn) = match cluster.get_connection_for(stream_key.name()).await {
+                for xtrim in xtrims.drain(..) {
+                    let (_, conn) = match cluster.get_connection_for(xtrim.stream_key.name()).await
+                    {
                         Ok(conn) => conn,
                         Err(err) => {
                             log::warn!("{err:?}");
@@ -475,14 +529,27 @@ pub(crate) async fn create_producer(
                     };
 
                     let mut cmd = command("XTRIM");
-                    cmd.arg(stream_key.name())
-                        .arg("MAXLEN")
-                        .arg("~")
-                        .arg(maxlen);
+                    cmd.arg(xtrim.stream_key.name());
+                    match xtrim.param {
+                        XtrimParam::MaxLen(max_len) => {
+                            cmd.arg("MAXLEN").arg("~").arg(max_len);
+                        }
+                        XtrimParam::MinTs(ts) => {
+                            cmd.arg("MINID").arg("~").arg(
+                                if cfg!(feature = "nanosecond-timestamp") {
+                                    ts.unix_timestamp_nanos()
+                                } else {
+                                    ts.unix_timestamp_nanos() / 1_000_000
+                                }
+                                .to_string(),
+                            );
+                        }
+                    }
 
                     match conn.req_packed_command(&cmd).await {
                         Ok(Value::Int(deleted)) => {
-                            receipt
+                            xtrim
+                                .receipt
                                 .send_async(Ok(MessageHeader::new(
                                     StreamKey::new(SEA_STREAMER_INTERNAL).unwrap(),
                                     Default::default(),
@@ -496,7 +563,7 @@ pub(crate) async fn create_producer(
                             log::warn!("XTRIM failed: {res:?}");
                         }
                         Err(err) => {
-                            receipt.send_async(Err(map_err(err))).await.ok();
+                            xtrim.receipt.send_async(Err(map_err(err))).await.ok();
                         }
                     }
                 }
@@ -562,6 +629,7 @@ struct InternalMess<'a> {
     op: &'static str,
     arg1: &'a str,
     arg2: &'a str,
+    arg3: &'a str,
 }
 
 fn parse_internal_mess(bytes: &[u8]) -> Option<InternalMess> {
@@ -573,6 +641,14 @@ fn parse_internal_mess(bytes: &[u8]) -> Option<InternalMess> {
         "XTRIM" => "XTRIM",
         _ => return None,
     };
-    let (arg1, arg2) = right.split_once(',')?;
-    Some(InternalMess { op, arg1, arg2 })
+    let mut args = right.split(',');
+    let arg1 = args.next()?;
+    let arg2 = args.next()?;
+    let arg3 = args.next()?;
+    Some(InternalMess {
+        op,
+        arg1,
+        arg2,
+        arg3,
+    })
 }
