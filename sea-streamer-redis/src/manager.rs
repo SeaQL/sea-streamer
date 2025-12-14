@@ -1,8 +1,8 @@
 use crate::{
-    map_err, string_from_redis_value, MessageField, RedisCluster, RedisErr, RedisMessage,
-    RedisResult, StreamRangeReply, TimestampFormat,
+    MessageField, RedisCluster, RedisErr, RedisMessage, RedisResult, StreamRangeReply,
+    TimestampFormat, map_err, string_from_redis_value,
 };
-use redis::{aio::ConnectionLike, cmd as command, Value};
+use redis::{Value, aio::ConnectionLike, cmd as command};
 use sea_streamer_types::{StreamErr, StreamKey, Timestamp};
 
 #[derive(Debug)]

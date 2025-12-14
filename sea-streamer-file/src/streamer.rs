@@ -2,9 +2,9 @@ use std::time::Duration;
 use thiserror::Error;
 
 use crate::{
-    consumer::new_consumer, end_producer, format::Header, new_producer, AsyncFile, FileConsumer,
-    FileErr, FileId, FileProducer, FileResult, DEFAULT_BEACON_INTERVAL, DEFAULT_FILE_SIZE_LIMIT,
-    DEFAULT_PREFETCH_MESSAGE, SEA_STREAMER_WILDCARD,
+    AsyncFile, DEFAULT_BEACON_INTERVAL, DEFAULT_FILE_SIZE_LIMIT, DEFAULT_PREFETCH_MESSAGE,
+    FileConsumer, FileErr, FileId, FileProducer, FileResult, SEA_STREAMER_WILDCARD,
+    consumer::new_consumer, end_producer, format::Header, new_producer,
 };
 use sea_streamer_types::{
     ConnectOptions as ConnectOptionsTrait, ConsumerGroup, ConsumerMode,
@@ -140,7 +140,7 @@ impl StreamerTrait for FileStreamer {
             ConsumerMode::Resumable => {
                 return Err(StreamErr::Unsupported(
                     "File does not support Resumable yet".to_owned(),
-                ))
+                ));
             }
             ConsumerMode::LoadBalanced => {
                 if options.group.is_none() {
@@ -167,7 +167,7 @@ impl StreamerTrait for FileStreamer {
             (AutoStreamReset::Latest, false) => {
                 return Err(StreamErr::Backend(FileErr::ConfigErr(
                     ConfigErr::LatestButNotLive,
-                )))
+                )));
             }
         };
 

@@ -7,7 +7,7 @@ use sea_streamer_redis::{AutoStreamReset as RedisAutoStreamReset, RedisConsumerO
 #[cfg(feature = "backend-stdio")]
 use sea_streamer_stdio::StdioConsumerOptions;
 
-use crate::{map_err, BackendErr, SeaResult};
+use crate::{BackendErr, SeaResult, map_err};
 use sea_streamer_types::{ConsumerGroup, ConsumerMode, ConsumerOptions};
 
 #[derive(Debug, Default, Clone)]

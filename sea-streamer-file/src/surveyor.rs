@@ -1,6 +1,6 @@
 use std::{collections::HashSet, future::Future, num::NonZeroU32};
 
-use crate::{format::Beacon, FileErr, SeekErr};
+use crate::{FileErr, SeekErr, format::Beacon};
 
 pub trait BeaconReader {
     type Future<'a>: Future<Output = Result<Beacon, FileErr>>

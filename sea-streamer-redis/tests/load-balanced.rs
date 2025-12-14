@@ -22,8 +22,8 @@ async fn load_balance() -> anyhow::Result<()> {
     };
     use sea_streamer_runtime::{sleep, spawn_task};
     use sea_streamer_types::{
-        export::futures::stream::StreamExt, Buffer, Consumer, ConsumerMode, ConsumerOptions,
-        Message, Producer, StreamKey, Streamer, Timestamp,
+        Buffer, Consumer, ConsumerMode, ConsumerOptions, Message, Producer, StreamKey, Streamer,
+        Timestamp, export::futures::stream::StreamExt,
     };
     use std::time::Duration;
 

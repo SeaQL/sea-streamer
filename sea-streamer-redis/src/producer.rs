@@ -1,15 +1,15 @@
-use flume::{bounded, r#async::RecvFut, unbounded, Sender};
-use redis::{aio::ConnectionLike, cmd as command, ErrorKind, Pipeline, Value};
+use flume::{Sender, r#async::RecvFut, bounded, unbounded};
+use redis::{ErrorKind, Pipeline, Value, aio::ConnectionLike, cmd as command};
 use std::{fmt::Debug, future::Future, sync::Arc, time::Duration};
 
 use crate::{
-    map_err, parse_message_id, string_from_redis_value, MessageField, RedisCluster, RedisErr,
-    RedisResult, TimestampFormat, ZERO,
+    MessageField, RedisCluster, RedisErr, RedisResult, TimestampFormat, ZERO, map_err,
+    parse_message_id, string_from_redis_value,
 };
 use sea_streamer_runtime::{sleep, spawn_task};
 use sea_streamer_types::{
-    export::futures::FutureExt, Buffer, MessageHeader, Producer, ProducerOptions, ShardId,
-    StreamErr, StreamKey, Timestamp, SEA_STREAMER_INTERNAL,
+    Buffer, MessageHeader, Producer, ProducerOptions, SEA_STREAMER_INTERNAL, ShardId, StreamErr,
+    StreamKey, Timestamp, export::futures::FutureExt,
 };
 
 const MAX_RETRY: usize = 100;
@@ -465,8 +465,8 @@ pub(crate) async fn create_producer(
                                 retried += 1;
                                 if retried == MAX_RETRY {
                                     panic!(
-                                    "The cluster might have a problem. Already retried {retried} times."
-                                );
+                                        "The cluster might have a problem. Already retried {retried} times."
+                                    );
                                 }
                                 let kind = err.kind();
                                 if kind == ErrorKind::Moved {

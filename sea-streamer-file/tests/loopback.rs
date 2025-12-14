@@ -11,8 +11,8 @@ static INIT: std::sync::Once = std::sync::Once::new();
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
 async fn loopback() -> anyhow::Result<()> {
     use sea_streamer_file::{
+        AsyncFile, Bytes, DEFAULT_FILE_SIZE_LIMIT, FileSink, FileSource, ReadFrom,
         format::{self, Beacon, Checksum, HeaderV1, Marker, ShortString},
-        AsyncFile, Bytes, FileSink, FileSource, ReadFrom, DEFAULT_FILE_SIZE_LIMIT,
     };
     use sea_streamer_types::{Buffer, MessageHeader, OwnedMessage, ShardId, StreamKey, Timestamp};
 
@@ -122,7 +122,7 @@ async fn loopback() -> anyhow::Result<()> {
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
 async fn file() -> anyhow::Result<()> {
     use sea_streamer_file::{
-        AsyncFile, Bytes, FileSink, FileSource, ReadFrom, DEFAULT_FILE_SIZE_LIMIT,
+        AsyncFile, Bytes, DEFAULT_FILE_SIZE_LIMIT, FileSink, FileSource, ReadFrom,
     };
     use sea_streamer_types::{SeqPos, Timestamp};
 
@@ -188,9 +188,9 @@ async fn file() -> anyhow::Result<()> {
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
 async fn beacon() -> anyhow::Result<()> {
     use sea_streamer_file::{
+        AsyncFile, Bytes, DEFAULT_FILE_SIZE_LIMIT, FileErr, FileSink, FileSourceType,
+        MessageSource, StreamMode,
         format::{Beacon, Header},
-        AsyncFile, Bytes, FileErr, FileSink, FileSourceType, MessageSource, StreamMode,
-        DEFAULT_FILE_SIZE_LIMIT,
     };
     use sea_streamer_types::{SeqPos, Timestamp};
 
@@ -363,7 +363,7 @@ async fn sink() -> anyhow::Result<()> {
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
 #[cfg_attr(feature = "runtime-async-std", async_std::test)]
 async fn rewind() -> anyhow::Result<()> {
-    use sea_streamer_file::{format::RunningChecksum, MessageSink, MessageSource, StreamMode};
+    use sea_streamer_file::{MessageSink, MessageSource, StreamMode, format::RunningChecksum};
     use sea_streamer_types::{
         Buffer, MessageHeader, OwnedMessage, SeqPos, ShardId, StreamKey, Timestamp,
     };

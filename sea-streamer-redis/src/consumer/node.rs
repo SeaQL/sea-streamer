@@ -1,24 +1,24 @@
 use flume::{Receiver, RecvError, Sender, TryRecvError};
 use redis::{
+    AsyncCommands, ErrorKind, RedisWrite, ToRedisArgs, Value,
     aio::ConnectionLike,
     cmd as command,
     streams::{StreamInfoConsumersReply, StreamReadOptions},
-    AsyncCommands, ErrorKind, RedisWrite, ToRedisArgs, Value,
 };
 use std::{fmt::Display, sync::Arc, time::Duration};
 
 use super::{
-    constants::HEARTBEAT, format_stream_shard, AutoCommit, AutoStreamReset, CtrlMsg, ShardState,
-    StatusMsg, StreamShard,
+    AutoCommit, AutoStreamReset, CtrlMsg, ShardState, StatusMsg, StreamShard, constants::HEARTBEAT,
+    format_stream_shard,
 };
 use crate::{
-    map_err, AutoClaimReply, MessageId, NodeId, RedisCluster, RedisConsumerOptions, RedisErr,
-    RedisResult, StreamReadReply, MAX_MSG_ID, ZERO,
+    AutoClaimReply, MAX_MSG_ID, MessageId, NodeId, RedisCluster, RedisConsumerOptions, RedisErr,
+    RedisResult, StreamReadReply, ZERO, map_err,
 };
 use sea_streamer_runtime::sleep;
 use sea_streamer_types::{
-    ConsumerMode, ConsumerOptions, MessageHeader, SharedMessage, StreamErr, StreamKey, Timestamp,
-    SEA_STREAMER_INTERNAL,
+    ConsumerMode, ConsumerOptions, MessageHeader, SEA_STREAMER_INTERNAL, SharedMessage, StreamErr,
+    StreamKey, Timestamp,
 };
 
 const DOLLAR: &str = "$";
@@ -69,7 +69,7 @@ impl ToRedisArgs for PendingAck {
     where
         W: ?Sized + RedisWrite,
     {
-        out.write_arg(format!("{}-{}", self.0 .0, self.0 .1).as_bytes())
+        out.write_arg(format!("{}-{}", self.0.0, self.0.1).as_bytes())
     }
 }
 
@@ -80,7 +80,7 @@ impl Display for AckDisplay<'_> {
             if i > 0 {
                 write!(f, ", ")?;
             }
-            write!(f, "{}-{}", ack.0 .0, ack.0 .1)?;
+            write!(f, "{}-{}", ack.0.0, ack.0.1)?;
         }
         write!(f, "]")
     }

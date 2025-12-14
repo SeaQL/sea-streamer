@@ -68,7 +68,7 @@ pub trait Consumer: Sized + Send + Sync {
     ///
     /// If the consumer is not already assigned, shard ZERO will be used.
     fn seek(&mut self, to: Timestamp)
-        -> impl Future<Output = StreamResult<(), Self::Error>> + Send;
+    -> impl Future<Output = StreamResult<(), Self::Error>> + Send;
 
     /// Rewind all streams to a particular sequence number.
     ///

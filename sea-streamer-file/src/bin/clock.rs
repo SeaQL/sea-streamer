@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use clap::Parser;
 use sea_streamer_file::{FileId, FileStreamer};
 use sea_streamer_types::{Producer, StreamKey, Streamer};

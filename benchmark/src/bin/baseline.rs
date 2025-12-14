@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
-use sea_streamer::{runtime::sleep, StreamUrl};
+use sea_streamer::{StreamUrl, runtime::sleep};
 use std::time::Duration;
 
 #[derive(Debug, Parser)]
@@ -22,7 +22,9 @@ async fn main() -> Result<()> {
     std::hint::black_box(stream);
 
     for i in 0..100_000 {
-        let message = format!("The this the message payload {i:0>5}: Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo");
+        let message = format!(
+            "The this the message payload {i:0>5}: Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo"
+        );
         std::hint::black_box(message);
         if i % 1000 == 0 {
             sleep(Duration::from_nanos(1)).await;

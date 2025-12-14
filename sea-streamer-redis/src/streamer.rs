@@ -1,9 +1,9 @@
 use std::{sync::Arc, time::Duration};
 
 use crate::{
-    create_consumer, create_manager, create_producer, RedisCluster, RedisConsumer,
-    RedisConsumerOptions, RedisErr, RedisManager, RedisManagerOptions, RedisProducer,
-    RedisProducerOptions, RedisResult, MSG, REDIS_PORT,
+    MSG, REDIS_PORT, RedisCluster, RedisConsumer, RedisConsumerOptions, RedisErr, RedisManager,
+    RedisManagerOptions, RedisProducer, RedisProducerOptions, RedisResult, create_consumer,
+    create_manager, create_producer,
 };
 use sea_streamer_types::{
     ConnectOptions, StreamErr, StreamKey, StreamUrlErr, Streamer, StreamerUri,
