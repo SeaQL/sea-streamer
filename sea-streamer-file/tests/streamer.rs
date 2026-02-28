@@ -4,10 +4,10 @@ use util::*;
 static INIT: std::sync::Once = std::sync::Once::new();
 
 // cargo test --test streamer --features=test,runtime-tokio -- --nocapture
-// cargo test --test streamer --features=test,runtime-async-std -- --nocapture
+// cargo test --test streamer --features=test,runtime-smol -- --nocapture
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
-#[cfg_attr(feature = "runtime-async-std", async_std::test)]
+#[cfg_attr(feature = "runtime-smol", smol_potat::test)]
 async fn streamer() -> anyhow::Result<()> {
     use sea_streamer_file::{
         AutoStreamReset, FileConnectOptions, FileConsumerOptions, FileErr, FileId, FileStreamer,
@@ -88,14 +88,18 @@ async fn streamer() -> anyhow::Result<()> {
 
         if matches!(mode, Mode::CreateOnly) {
             // the file already exist
-            assert!(FileStreamer::connect(file_id.to_streamer_uri()?, options)
-                .await
-                .is_err());
+            assert!(
+                FileStreamer::connect(file_id.to_streamer_uri()?, options)
+                    .await
+                    .is_err()
+            );
         } else {
             // should be okay
-            assert!(FileStreamer::connect(file_id.to_streamer_uri()?, options)
-                .await
-                .is_ok());
+            assert!(
+                FileStreamer::connect(file_id.to_streamer_uri()?, options)
+                    .await
+                    .is_ok()
+            );
         }
 
         Ok(())

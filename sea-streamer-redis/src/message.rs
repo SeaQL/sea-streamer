@@ -93,9 +93,9 @@ impl StreamReadReply {
     pub(crate) fn from_redis_value(value: Value, ts_fmt: TsFmt, msg: MsgF) -> RedisResult<Self> {
         let mut messages = Vec::new();
 
-        if let Value::Bulk(values) = value {
+        if let Value::Array(values) = value {
             for value in values {
-                if let Value::Bulk(values) = value {
+                if let Value::Array(values) = value {
                     if values.len() != 2 {
                         return Err(err(values));
                     }
@@ -117,7 +117,7 @@ impl StreamReadReply {
                             (stream_key, ZERO)
                         };
                     let stream_key = StreamKey::new(stream_key)?;
-                    if let Value::Bulk(values) = value_1 {
+                    if let Value::Array(values) = value_1 {
                         parse_messages(values, stream_key, shard, &mut messages, ts_fmt, msg)?;
                     }
                 }
@@ -137,7 +137,7 @@ impl StreamRangeReply {
     ) -> RedisResult<Self> {
         let mut messages = Vec::new();
 
-        if let Value::Bulk(values) = values {
+        if let Value::Array(values) = values {
             parse_messages(values, stream_key, ZERO, &mut messages, ts_fmt, msg)?;
         }
 
@@ -154,14 +154,14 @@ impl AutoClaimReply {
         msg: MsgF,
     ) -> RedisResult<Self> {
         let mut messages = Vec::new();
-        if let Value::Bulk(values) = value {
+        if let Value::Array(values) = value {
             if values.len() != 3 {
                 return Err(err(values));
             }
             let mut values = values.into_iter();
             _ = values.next().unwrap();
             let value = values.next().unwrap();
-            if let Value::Bulk(values) = value {
+            if let Value::Array(values) = value {
                 parse_messages(values, stream_key, shard, &mut messages, ts_fmt, msg)?;
             } else {
                 return Err(err(value));
@@ -180,7 +180,7 @@ pub(crate) fn parse_messages(
     msg: MsgF,
 ) -> RedisResult<()> {
     for value in values {
-        if let Value::Bulk(values) = value {
+        if let Value::Array(values) = value {
             if values.len() != 2 {
                 return Err(err(values));
             }
@@ -189,7 +189,7 @@ pub(crate) fn parse_messages(
             let value_1 = values.next().unwrap();
             let id = string_from_redis_value(value_0)?;
             let (timestamp, sequence) = parse_message_id(ts_fmt, &id)?;
-            if let Value::Bulk(values) = value_1 {
+            if let Value::Array(values) = value_1 {
                 assert!(values.len() % 2 == 0);
                 let pairs = values.len() / 2;
                 let mut values = values.into_iter();
@@ -220,11 +220,11 @@ fn err<D: std::fmt::Debug>(d: D) -> StreamErr<RedisErr> {
 
 pub(crate) fn string_from_redis_value(v: Value) -> RedisResult<String> {
     match v {
-        Value::Data(bytes) => {
+        Value::BulkString(bytes) => {
             Ok(String::from_utf8(bytes).map_err(|e| StreamErr::Utf8Error(e.utf8_error()))?)
         }
         Value::Okay => Ok("OK".to_owned()),
-        Value::Status(val) => Ok(val),
+        Value::SimpleString(val) => Ok(val),
         _ => Err(StreamErr::Backend(RedisErr::TypeError(
             "Expected String".to_owned(),
         ))),
@@ -233,7 +233,7 @@ pub(crate) fn string_from_redis_value(v: Value) -> RedisResult<String> {
 
 pub(crate) fn bytes_from_redis_value(v: Value) -> RedisResult<Vec<u8>> {
     match v {
-        Value::Data(bytes) => Ok(bytes),
+        Value::BulkString(bytes) => Ok(bytes),
         _ => Err(StreamErr::Backend(RedisErr::TypeError(
             "Expected Data".to_owned(),
         ))),

@@ -86,8 +86,8 @@ use sea_streamer_types::ShardId;
 /// Shard 0
 pub const ZERO: ShardId = ShardId::new(0);
 
-#[cfg(all(feature = "runtime-async-std", feature = "runtime-tokio"))]
-compile_error!("'runtime-async-std' and 'runtime-tokio' cannot be enabled at the same time");
+#[cfg(all(feature = "runtime-smol", feature = "runtime-tokio"))]
+compile_error!("'runtime-smol' and 'runtime-tokio' cannot be enabled at the same time");
 
 mod cluster;
 mod connection;

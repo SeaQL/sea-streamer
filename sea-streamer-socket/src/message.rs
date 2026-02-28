@@ -170,7 +170,7 @@ impl Message for SeaMessage<'_> {
         }
     }
 
-    fn message(&self) -> Payload {
+    fn message(&self) -> Payload<'_> {
         match self {
             #[cfg(feature = "backend-kafka")]
             Self::Kafka(i) => i.message(),

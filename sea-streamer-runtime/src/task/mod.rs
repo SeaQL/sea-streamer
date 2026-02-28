@@ -4,14 +4,14 @@ mod tokio_task;
 #[cfg(feature = "runtime-tokio")]
 pub use tokio_task::*;
 
-#[cfg(feature = "runtime-async-std")]
-mod async_std_task;
+#[cfg(feature = "runtime-smol")]
+mod smol_task;
 
-#[cfg(feature = "runtime-async-std")]
-pub use async_std_task::*;
+#[cfg(feature = "runtime-smol")]
+pub use smol_task::*;
 
-#[cfg(not(any(feature = "runtime-tokio", feature = "runtime-async-std")))]
+#[cfg(not(any(feature = "runtime-tokio", feature = "runtime-smol")))]
 mod no_rt_task;
 
-#[cfg(not(any(feature = "runtime-tokio", feature = "runtime-async-std")))]
+#[cfg(not(any(feature = "runtime-tokio", feature = "runtime-smol")))]
 pub use no_rt_task::*;

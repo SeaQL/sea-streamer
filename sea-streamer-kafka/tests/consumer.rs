@@ -1,15 +1,15 @@
 // cargo test --test consumer --features=test,runtime-tokio -- --nocapture
-// cargo test --test consumer --features=test,runtime-async-std -- --nocapture
+// cargo test --test consumer --features=test,runtime-smol -- --nocapture
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
-#[cfg_attr(feature = "runtime-async-std", async_std::test)]
+#[cfg_attr(feature = "runtime-smol", smol_potat::test)]
 async fn main() -> anyhow::Result<()> {
     env_logger::init();
 
     use sea_streamer_kafka::{AutoOffsetReset, KafkaConsumer, KafkaConsumerOptions, KafkaStreamer};
     use sea_streamer_types::{
-        export::futures::StreamExt, Buffer, Consumer, ConsumerMode, ConsumerOptions, Message,
-        Producer, SeqPos, ShardId, StreamKey, Streamer, Timestamp,
+        Buffer, Consumer, ConsumerMode, ConsumerOptions, Message, Producer, SeqPos, ShardId,
+        StreamKey, Streamer, Timestamp, export::futures::StreamExt,
     };
 
     let streamer = KafkaStreamer::connect(

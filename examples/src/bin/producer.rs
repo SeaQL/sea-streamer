@@ -14,7 +14,7 @@ struct Args {
 }
 
 #[cfg_attr(feature = "runtime-tokio", tokio::main)]
-#[cfg_attr(feature = "runtime-async-std", async_std::main)]
+#[cfg_attr(feature = "runtime-smol", smol_potat::main)]
 async fn main() -> Result<()> {
     env_logger::init();
 

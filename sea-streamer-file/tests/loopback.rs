@@ -4,15 +4,15 @@ use util::*;
 static INIT: std::sync::Once = std::sync::Once::new();
 
 // cargo test --test loopback --features=test,runtime-tokio -- --nocapture
-// cargo test --test loopback --features=test,runtime-async-std -- --nocapture
+// cargo test --test loopback --features=test,runtime-smol -- --nocapture
 
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
-#[cfg_attr(feature = "runtime-async-std", async_std::test)]
+#[cfg_attr(feature = "runtime-smol", smol_potat::test)]
 async fn loopback() -> anyhow::Result<()> {
     use sea_streamer_file::{
+        AsyncFile, Bytes, DEFAULT_FILE_SIZE_LIMIT, FileSink, FileSource, ReadFrom,
         format::{self, Beacon, Checksum, HeaderV1, Marker, ShortString},
-        AsyncFile, Bytes, FileSink, FileSource, ReadFrom, DEFAULT_FILE_SIZE_LIMIT,
     };
     use sea_streamer_types::{Buffer, MessageHeader, OwnedMessage, ShardId, StreamKey, Timestamp};
 
@@ -119,10 +119,10 @@ async fn loopback() -> anyhow::Result<()> {
 
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
-#[cfg_attr(feature = "runtime-async-std", async_std::test)]
+#[cfg_attr(feature = "runtime-smol", smol_potat::test)]
 async fn file() -> anyhow::Result<()> {
     use sea_streamer_file::{
-        AsyncFile, Bytes, FileSink, FileSource, ReadFrom, DEFAULT_FILE_SIZE_LIMIT,
+        AsyncFile, Bytes, DEFAULT_FILE_SIZE_LIMIT, FileSink, FileSource, ReadFrom,
     };
     use sea_streamer_types::{SeqPos, Timestamp};
 
@@ -185,12 +185,12 @@ async fn file() -> anyhow::Result<()> {
 
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
-#[cfg_attr(feature = "runtime-async-std", async_std::test)]
+#[cfg_attr(feature = "runtime-smol", smol_potat::test)]
 async fn beacon() -> anyhow::Result<()> {
     use sea_streamer_file::{
+        AsyncFile, Bytes, DEFAULT_FILE_SIZE_LIMIT, FileErr, FileSink, FileSourceType,
+        MessageSource, StreamMode,
         format::{Beacon, Header},
-        AsyncFile, Bytes, FileErr, FileSink, FileSourceType, MessageSource, StreamMode,
-        DEFAULT_FILE_SIZE_LIMIT,
     };
     use sea_streamer_types::{SeqPos, Timestamp};
 
@@ -303,7 +303,7 @@ async fn beacon() -> anyhow::Result<()> {
 
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
-#[cfg_attr(feature = "runtime-async-std", async_std::test)]
+#[cfg_attr(feature = "runtime-smol", smol_potat::test)]
 async fn sink() -> anyhow::Result<()> {
     use sea_streamer_file::{MessageSink, MessageSource, StreamMode};
     use sea_streamer_types::{
@@ -361,9 +361,9 @@ async fn sink() -> anyhow::Result<()> {
 
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
-#[cfg_attr(feature = "runtime-async-std", async_std::test)]
+#[cfg_attr(feature = "runtime-smol", smol_potat::test)]
 async fn rewind() -> anyhow::Result<()> {
-    use sea_streamer_file::{format::RunningChecksum, MessageSink, MessageSource, StreamMode};
+    use sea_streamer_file::{MessageSink, MessageSource, StreamMode, format::RunningChecksum};
     use sea_streamer_types::{
         Buffer, MessageHeader, OwnedMessage, SeqPos, ShardId, StreamKey, Timestamp,
     };
@@ -478,7 +478,7 @@ async fn rewind() -> anyhow::Result<()> {
 
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
-#[cfg_attr(feature = "runtime-async-std", async_std::test)]
+#[cfg_attr(feature = "runtime-smol", smol_potat::test)]
 async fn source() -> anyhow::Result<()> {
     use sea_streamer_file::{
         BeaconReader, FileErr, MessageSink, MessageSource, SeekErr, SeekTarget, StreamMode,

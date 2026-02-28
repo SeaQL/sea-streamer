@@ -2,27 +2,28 @@
 name = "sea-streamer-runtime"
 version = "0.5.0"
 authors = ["Chris Tsang <chris.2y3@outlook.com>"]
-edition = "2021"
+edition = "2024"
 description = "🌊 SeaStreamer async runtime abstraction"
 license = "MIT OR Apache-2.0"
 documentation = "https://docs.rs/sea-streamer-runtime"
 repository = "https://github.com/SeaQL/sea-streamer"
 categories = ["concurrency"]
-keywords = ["async", "async-std", "tokio"]
-rust-version = "1.60"
+keywords = ["async", "smol", "tokio"]
+rust-version = "1.85"
 
 [package.metadata.docs.rs]
 features = []
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-async-std  = { version = "1.12", optional = true }
+async-io = { version = "2", optional = true }
 futures = { version = "0.3", default-features = false }
+smol = { version = "2", optional = true }
 tokio = { version = "1.10", optional = true, features = ["time", "sync", "rt"] }
 
 [dev-dependencies]
 
 [features]
-runtime-async-std = ["async-std"]
+runtime-smol = ["smol", "async-io"]
 runtime-tokio = ["tokio"]
 file = ["tokio?/fs", "tokio?/io-util"]

@@ -3,8 +3,7 @@ mod spread;
 use anyhow::Result;
 use clap::Parser;
 use sea_orm::{
-    ActiveModelTrait, ConnectOptions, ConnectionTrait, Database, DbConn, DbErr, IntoActiveModel,
-    NotSet, Schema,
+    ActiveModelTrait, ConnectOptions, Database, DbConn, DbErr, IntoActiveModel, NotSet,
 };
 use sea_streamer::{Buffer, Consumer, Message, SeaStreamer, StreamKey, Streamer, StreamerUri};
 use serde::Deserialize;
@@ -54,16 +53,9 @@ async fn main() -> Result<()> {
 }
 
 async fn create_tables(db: &DbConn) -> Result<(), DbErr> {
-    let builder = db.get_database_backend();
-    let schema = Schema::new(builder);
-
-    let stmt = builder.build(
-        schema
-            .create_table_from_entity(spread::Entity)
-            .if_not_exists(),
-    );
-    log::info!("{stmt}");
-    db.execute(stmt).await?;
-
+    db.get_schema_builder()
+        .register(spread::Entity)
+        .sync(db)
+        .await?;
     Ok(())
 }

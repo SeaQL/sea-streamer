@@ -1,5 +1,5 @@
 use pin_project::pin_project;
-use sea_streamer_types::{export::futures::Stream, Message, StreamKey};
+use sea_streamer_types::{Message, StreamKey, export::futures::Stream};
 use std::{
     collections::{BTreeMap, VecDeque},
     pin::Pin,
@@ -80,17 +80,12 @@ where
                 }
             }
         }
-        if let Some(min_key) = min_key {
-            Some(
-                keys.get_mut(&min_key)
-                    .unwrap()
-                    .pop_front()
-                    .expect("Checked above"),
-            )
-        } else {
-            // all streams ended
-            None
-        }
+        min_key.map(|min_key| {
+            keys.get_mut(&min_key)
+                .unwrap()
+                .pop_front()
+                .expect("Checked above")
+        })
     }
 
     fn check(keys: &Keys<M>, key_keys: &[StreamKey]) -> bool {
@@ -123,7 +118,7 @@ where
                 Poll::Ready(Some(Ok(mes))) => {
                     let key = mes.stream_key();
                     this.keys.entry(key).or_default().push_back(mes);
-                    if Self::check(&this.keys, &this.key_keys) {
+                    if Self::check(this.keys, this.key_keys) {
                         // if we can yield
                         break;
                     }
@@ -144,7 +139,7 @@ where
                 }
             }
         }
-        if *this.ended || Self::check(&this.keys, &this.key_keys) {
+        if *this.ended || Self::check(this.keys, this.key_keys) {
             Poll::Ready(match Self::next(this.keys) {
                 Some(item) => Some(Ok(item)),
                 None => this.err.take().map(Err),
@@ -160,8 +155,8 @@ mod test {
     use super::*;
     use sea_streamer_socket::{BackendErr, SeaMessage, SeaMessageStream};
     use sea_streamer_types::{
-        export::futures::{self, TryStreamExt},
         MessageHeader, OwnedMessage, StreamErr, Timestamp,
+        export::futures::{self, TryStreamExt},
     };
 
     // just to see if this compiles

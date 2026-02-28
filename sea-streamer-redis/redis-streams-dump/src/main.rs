@@ -1,10 +1,10 @@
 use anyhow::Result;
 use clap::Parser;
-use sea_streamer_file::{FileId, MessageSink, DEFAULT_BEACON_INTERVAL, DEFAULT_FILE_SIZE_LIMIT};
+use sea_streamer_file::{DEFAULT_BEACON_INTERVAL, DEFAULT_FILE_SIZE_LIMIT, FileId, MessageSink};
 use sea_streamer_redis::{AutoStreamReset, RedisConsumerOptions, RedisStreamer};
 use sea_streamer_types::{
-    Consumer, ConsumerMode, ConsumerOptions, Message, StreamUrl, Streamer, Timestamp,
-    TIMESTAMP_FORMAT,
+    Consumer, ConsumerMode, ConsumerOptions, Message, StreamUrl, Streamer, TIMESTAMP_FORMAT,
+    Timestamp,
 };
 use std::time::Duration;
 use time::PrimitiveDateTime;

@@ -4,10 +4,10 @@ use util::*;
 static INIT: std::sync::Once = std::sync::Once::new();
 
 // cargo test --test resumable --features=test,runtime-tokio -- --nocapture
-// cargo test --test resumable --no-default-features --features=test,runtime-async-std -- --nocapture
+// cargo test --test resumable --no-default-features --features=test,runtime-smol -- --nocapture
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
-#[cfg_attr(feature = "runtime-async-std", async_std::test)]
+#[cfg_attr(feature = "runtime-smol", smol_potat::test)]
 /// Auto Ack & auto Commit
 async fn immediate_and_delayed() -> anyhow::Result<()> {
     use sea_streamer_redis::{
@@ -118,15 +118,15 @@ async fn immediate_and_delayed() -> anyhow::Result<()> {
 
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
-#[cfg_attr(feature = "runtime-async-std", async_std::test)]
+#[cfg_attr(feature = "runtime-smol", smol_potat::test)]
 /// Manual Ack, auto / manual Commit
 async fn rolling_and_disabled() -> anyhow::Result<()> {
     use sea_streamer_redis::{
         AutoCommit, AutoStreamReset, RedisConnectOptions, RedisConsumerOptions, RedisStreamer,
     };
     use sea_streamer_types::{
-        export::futures::StreamExt, Buffer, Consumer, ConsumerGroup, ConsumerId, ConsumerMode,
-        ConsumerOptions, Message, Producer, StreamKey, Streamer, Timestamp,
+        Buffer, Consumer, ConsumerGroup, ConsumerId, ConsumerMode, ConsumerOptions, Message,
+        Producer, StreamKey, Streamer, Timestamp, export::futures::StreamExt,
     };
     use std::time::Duration;
 

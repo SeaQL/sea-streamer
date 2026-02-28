@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
 use sea_streamer_redis::RedisStreamer;
-use sea_streamer_types::{StreamUrl, Streamer, Timestamp, TIMESTAMP_FORMAT};
+use sea_streamer_types::{StreamUrl, Streamer, TIMESTAMP_FORMAT, Timestamp};
 use time::PrimitiveDateTime;
 
 #[derive(Debug, Parser)]

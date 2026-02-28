@@ -20,7 +20,7 @@
 //!
 //! 1. Async
 //!
-//! SeaStreamer provides an async and non-blocking API with no locks on the hot path. Supporting both `tokio` and `async-std`,
+//! SeaStreamer provides an async and non-blocking API with no locks on the hot path. Supporting both `tokio` and `smol`,
 //! you can build highly concurrent stream processors.
 //!
 //! 2. Generic
@@ -216,6 +216,6 @@ pub use sea_streamer_socket::*;
 #[cfg(any(
     feature = "runtime",
     feature = "runtime-tokio",
-    feature = "runtime-async-std"
+    feature = "runtime-smol"
 ))]
 pub use sea_streamer_runtime as runtime;

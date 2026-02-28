@@ -4,10 +4,10 @@ use util::*;
 static INIT: std::sync::Once = std::sync::Once::new();
 
 // cargo test --test producer --features=test,runtime-tokio -- --nocapture
-// cargo test --test producer --features=test,runtime-async-std -- --nocapture
+// cargo test --test producer --features=test,runtime-smol -- --nocapture
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
-#[cfg_attr(feature = "runtime-async-std", async_std::test)]
+#[cfg_attr(feature = "runtime-smol", smol_potat::test)]
 async fn producer() -> anyhow::Result<()> {
     use std::time::Duration;
 

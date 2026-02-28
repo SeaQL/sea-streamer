@@ -3,19 +3,15 @@ use futures::{Future, Stream};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 /// Mode of stream consumption.
+#[derive(Default)]
 pub enum ConsumerMode {
     /// This is the 'vanilla' stream consumer. It does not auto-commit, and thus only consumes messages from now on.
+    #[default]
     RealTime,
     /// When the process restarts, it will resume the stream from the previous committed sequence.
     Resumable,
     /// You should assign a consumer group manually. The load-balancing mechanism is implementation-specific.
     LoadBalanced,
-}
-
-impl Default for ConsumerMode {
-    fn default() -> Self {
-        Self::RealTime
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -68,7 +64,7 @@ pub trait Consumer: Sized + Send + Sync {
     ///
     /// If the consumer is not already assigned, shard ZERO will be used.
     fn seek(&mut self, to: Timestamp)
-        -> impl Future<Output = StreamResult<(), Self::Error>> + Send;
+    -> impl Future<Output = StreamResult<(), Self::Error>> + Send;
 
     /// Rewind all streams to a particular sequence number.
     ///

@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## Pending
+
+### Upgrades
+
+* Upgrade Rust edition to 2024, MSRV to 1.85
+* Upgrade `redis` to `1.0` (breaking: `Value` enum renames, `ErrorKind` restructuring, `ConnectionInfo` builder pattern)
+* Upgrade `thiserror` to `2`
+* Upgrade `env_logger` to `0.11`
+* Upgrade `fastrand` to `2`
+* Upgrade `rdkafka` to `0.37`
+* Upgrade `async-tungstenite` to `0.33`
+* Upgrade `sea-orm` to `2.0.0-rc.35` (in examples)
+
+### Enhancements
+
+* Replace `async-std` with `smol` as the second supported runtime (feature `runtime-smol`)
+* Replace `lazy_static` with `std::sync::LazyLock`
+
+### House keeping
+
+* Fix clippy warnings for edition 2024 (lifetime syntax, import ordering)
+* Update CI: Kafka 4.2/3.9 with KRaft mode, smol runtime matrix
+
 ## 0.5.2 - 2024-11-30
 
 ### `sea-streamer-types`

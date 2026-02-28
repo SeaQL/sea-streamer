@@ -1,14 +1,14 @@
-#[cfg(feature = "runtime-async-std")]
-mod async_std_impl;
+#[cfg(feature = "runtime-smol")]
+mod smol_impl;
 
-#[cfg(feature = "runtime-async-std")]
-pub use async_std_impl::AsyncStdRuntime as KafkaAsyncRuntime;
+#[cfg(feature = "runtime-smol")]
+pub use smol_impl::SmolRuntime as KafkaAsyncRuntime;
 
 #[cfg(feature = "runtime-tokio")]
 pub use rdkafka::util::TokioRuntime as KafkaAsyncRuntime;
 
-#[cfg(not(any(feature = "runtime-tokio", feature = "runtime-async-std")))]
+#[cfg(not(any(feature = "runtime-tokio", feature = "runtime-smol")))]
 mod no_rt;
 
-#[cfg(not(any(feature = "runtime-tokio", feature = "runtime-async-std")))]
+#[cfg(not(any(feature = "runtime-tokio", feature = "runtime-smol")))]
 pub use no_rt::NoRuntime as KafkaAsyncRuntime;

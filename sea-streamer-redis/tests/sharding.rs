@@ -2,10 +2,10 @@ mod util;
 use util::*;
 
 // cargo test --test sharding --features=test,runtime-tokio -- --nocapture
-// cargo test --test sharding --features=test,runtime-async-std -- --nocapture
+// cargo test --test sharding --features=test,runtime-smol -- --nocapture
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
-#[cfg_attr(feature = "runtime-async-std", async_std::test)]
+#[cfg_attr(feature = "runtime-smol", smol_potat::test)]
 async fn main() -> anyhow::Result<()> {
     use sea_streamer_redis::{
         AutoStreamReset, RedisConnectOptions, RedisConsumerOptions, RedisProducerOptions,

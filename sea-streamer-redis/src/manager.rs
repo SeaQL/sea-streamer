@@ -1,8 +1,8 @@
 use crate::{
-    map_err, string_from_redis_value, MessageField, RedisCluster, RedisErr, RedisMessage,
-    RedisResult, StreamRangeReply, TimestampFormat,
+    MessageField, RedisCluster, RedisErr, RedisMessage, RedisResult, StreamRangeReply,
+    TimestampFormat, map_err, string_from_redis_value,
 };
-use redis::{aio::ConnectionLike, cmd as command, Value};
+use redis::{Value, aio::ConnectionLike, cmd as command};
 use sea_streamer_types::{StreamErr, StreamKey, Timestamp};
 
 #[derive(Debug)]
@@ -111,7 +111,7 @@ impl ScanResult {
         let mut cursor = String::new();
         let mut streams = Vec::new();
 
-        if let Value::Bulk(values) = value {
+        if let Value::Array(values) = value {
             if values.len() != 2 {
                 return Err(err(values));
             }
@@ -121,7 +121,7 @@ impl ScanResult {
 
             cursor = string_from_redis_value(value_0)?;
 
-            if let Value::Bulk(values) = value_1 {
+            if let Value::Array(values) = value_1 {
                 for value in values {
                     streams.push(string_from_redis_value(value)?);
                 }

@@ -1,23 +1,22 @@
-use flume::{unbounded, Receiver, Sender};
-use sea_streamer_runtime::{spawn_task, AsyncMutex, TaskHandle};
+use flume::{Receiver, Sender, unbounded};
+use sea_streamer_runtime::{AsyncMutex, TaskHandle, spawn_task};
 use std::{collections::HashMap, num::NonZeroU32};
 
 use super::{Request, RequestTo};
 use crate::{
-    format::{Checksum, Header, RunningChecksum},
     BeaconReader, BeaconState, ByteBuffer, DynFileSource, FileConnectOptions, FileErr, FileId,
     FileProducer, FileProducerOptions, FileReader, FileSink, MessageSink, MessageSource,
     StreamMode,
+    format::{Checksum, Header, RunningChecksum},
 };
 use sea_streamer_types::{
     Message, MessageHeader, OwnedMessage, SeqNo, SeqPos, ShardId, StreamKey, Timestamp,
 };
 
-lazy_static::lazy_static! {
-    static ref WRITERS: AsyncMutex<Writers> = AsyncMutex::new(Writers::new());
-    /// N -> 1 channel
-    static ref SENDER: (Sender<RequestTo>, Receiver<RequestTo>) = unbounded();
-}
+static WRITERS: std::sync::LazyLock<AsyncMutex<Writers>> =
+    std::sync::LazyLock::new(|| AsyncMutex::new(Writers::new()));
+static SENDER: std::sync::LazyLock<(Sender<RequestTo>, Receiver<RequestTo>)> =
+    std::sync::LazyLock::new(unbounded);
 
 /// This is a process-wide singleton Writer manager. It allows multiple stream producers
 /// to share the same FileSink.
@@ -165,7 +164,7 @@ impl Writer {
                 .await?;
         let (sender, receiver) = unbounded::<Request>();
         let mut streams: HashMap<(StreamKey, ShardId), StreamState> = Default::default();
-        #[cfg(feature = "runtime-async-std")]
+        #[cfg(feature = "runtime-smol")]
         let mut last_flush = std::time::Instant::now();
 
         let _handle: TaskHandle<Result<(), FileErr>> = spawn_task(async move {
@@ -271,7 +270,7 @@ impl Writer {
                         };
                         stream.ts = req.timestamp;
                         stream.checksum = checksum;
-                        #[cfg(feature = "runtime-async-std")]
+                        #[cfg(feature = "runtime-smol")]
                         {
                             let now = std::time::Instant::now();
                             if now.duration_since(last_flush).as_secs() > 0 {

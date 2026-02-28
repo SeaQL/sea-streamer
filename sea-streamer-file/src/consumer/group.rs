@@ -1,5 +1,5 @@
-use flume::{bounded, unbounded, Receiver, Sender};
-use sea_streamer_runtime::{spawn_task, AsyncMutex};
+use flume::{Receiver, Sender, bounded, unbounded};
+use sea_streamer_runtime::{AsyncMutex, spawn_task};
 use std::{
     collections::HashMap,
     ops::Deref,
@@ -8,18 +8,18 @@ use std::{
 
 use super::{CtrlMsg, FileConsumer};
 use crate::{
-    is_end_of_stream, is_internal, is_pulse, is_wildcard, pulse_message, ConfigErr, FileErr,
-    FileId, MessageSource, StreamMode,
+    ConfigErr, FileErr, FileId, MessageSource, StreamMode, is_end_of_stream, is_internal, is_pulse,
+    is_wildcard, pulse_message,
 };
 use sea_streamer_types::{
-    export::futures::{select, FutureExt},
     ConsumerGroup, Message, ShardId, SharedMessage, StreamKey,
+    export::futures::{FutureExt, select},
 };
 
-lazy_static::lazy_static! {
-    static ref STREAMERS: AsyncMutex<Streamers> = AsyncMutex::new(Streamers::new());
-    static ref CONTROL: (Sender<BgTask>, Receiver<BgTask>) = unbounded();
-}
+static STREAMERS: std::sync::LazyLock<AsyncMutex<Streamers>> =
+    std::sync::LazyLock::new(|| AsyncMutex::new(Streamers::new()));
+static CONTROL: std::sync::LazyLock<(Sender<BgTask>, Receiver<BgTask>)> =
+    std::sync::LazyLock::new(unbounded);
 
 /// This is a process-wide singleton Streamer manager. It allows multiple stream consumers
 /// to share the same FileSource, and thus has the same pace.

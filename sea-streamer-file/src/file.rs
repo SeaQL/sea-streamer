@@ -5,8 +5,8 @@ use sea_streamer_runtime::file::{
     AsyncReadExt, AsyncSeekExt, AsyncWriteExt, File, OpenOptions, SeekFrom,
 };
 use sea_streamer_types::{
-    export::futures::{future::BoxFuture, FutureExt},
     SeqPos, StreamUrlErr, StreamerUri,
+    export::futures::{FutureExt, future::BoxFuture},
 };
 
 pub(crate) const BUFFER_SIZE: usize = 10240;
@@ -172,7 +172,7 @@ impl AsyncFile {
 
     /// Read up to `BUFFER_SIZE` amount of bytes.
     pub async fn read(&mut self) -> Result<Bytes, FileErr> {
-        #[cfg(feature = "runtime-async-std")]
+        #[cfg(feature = "runtime-smol")]
         if self.pos >= self.size {
             // Not sure why, there must be a subtle implementation difference.
             // This is needed only on async-std, when the file grows.

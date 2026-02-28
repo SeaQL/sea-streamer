@@ -1,6 +1,6 @@
 use futures::future::{Future, FutureExt};
 
-pub struct TaskHandle<T>(async_std::task::JoinHandle<T>);
+pub struct TaskHandle<T>(smol::Task<T>);
 
 #[derive(Debug)]
 pub struct JoinError;
@@ -10,15 +10,15 @@ where
     F: Future<Output = T> + Send + 'static,
     T: Send + 'static,
 {
-    TaskHandle(async_std::task::spawn(future))
+    TaskHandle(smol::spawn(future))
 }
 
-pub fn spawn_blocking<F, T>(future: F) -> TaskHandle<T>
+pub fn spawn_blocking<F, T>(f: F) -> TaskHandle<T>
 where
     F: FnOnce() -> T + Send + 'static,
     T: Send + 'static,
 {
-    TaskHandle(async_std::task::spawn_blocking(future))
+    TaskHandle(smol::unblock(f))
 }
 
 impl std::fmt::Display for JoinError {

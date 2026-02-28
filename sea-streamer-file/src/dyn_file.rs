@@ -4,7 +4,7 @@ use crate::{
     AsyncFile, ByteSource, Bytes, FileErr, FileId, FileReader, FileReaderFuture, FileSource,
     FileSourceFuture, ReadFrom,
 };
-use sea_streamer_types::{export::futures::FutureExt, SeqPos};
+use sea_streamer_types::{SeqPos, export::futures::FutureExt};
 
 /// A runtime adapter of `FileReader` and `FileSource`,
 /// also able to switch between the two mode of operations dynamically.

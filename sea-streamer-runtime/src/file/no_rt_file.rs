@@ -1,5 +1,5 @@
 use super::SeekFrom;
-use futures::future::{ready, Future, Ready};
+use futures::future::{Future, Ready, ready};
 use std::{
     fs::Metadata,
     io::{Error as IoError, ErrorKind},

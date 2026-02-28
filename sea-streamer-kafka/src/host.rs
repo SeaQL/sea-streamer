@@ -5,9 +5,7 @@ use std::{
     io::{BufRead, BufReader},
 };
 
-lazy_static::lazy_static! {
-    static ref HOST_ID: String = init();
-}
+static HOST_ID: std::sync::LazyLock<String> = std::sync::LazyLock::new(init);
 
 const LEN: usize = 12;
 

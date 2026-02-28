@@ -3,21 +3,21 @@
 [package]
 name = "sea-streamer-sea-orm-sink"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 publish = false
 
 [dependencies]
 anyhow = { version = "1" }
 clap = { version = "4.5", features = ["derive"] }
-env_logger = { version = "0.9" }
+env_logger = { version = "0.11" }
 log = { version = "0.4", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
 tokio = { version = "1", features = ["full"] }
 
 [dependencies.sea-orm]
-version = "1.0.0-rc.3"
-features = ["sqlx-sqlite", "runtime-tokio-native-tls"]
+version = "2.0.0-rc.35"
+features = ["sqlx-sqlite", "runtime-tokio-native-tls", "schema-sync"]
 
 [dependencies.sea-streamer]
 path = "../.." # remove this line in your own project

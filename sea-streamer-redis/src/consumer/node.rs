@@ -1,24 +1,24 @@
 use flume::{Receiver, RecvError, Sender, TryRecvError};
 use redis::{
+    AsyncCommands, ErrorKind, RedisWrite, ServerErrorKind, ToRedisArgs, Value,
     aio::ConnectionLike,
     cmd as command,
     streams::{StreamInfoConsumersReply, StreamReadOptions},
-    AsyncCommands, ErrorKind, RedisWrite, ToRedisArgs, Value,
 };
 use std::{fmt::Display, sync::Arc, time::Duration};
 
 use super::{
-    constants::HEARTBEAT, format_stream_shard, AutoCommit, AutoStreamReset, CtrlMsg, ShardState,
-    StatusMsg, StreamShard,
+    AutoCommit, AutoStreamReset, CtrlMsg, ShardState, StatusMsg, StreamShard, constants::HEARTBEAT,
+    format_stream_shard,
 };
 use crate::{
-    map_err, AutoClaimReply, MessageId, NodeId, RedisCluster, RedisConsumerOptions, RedisErr,
-    RedisResult, StreamReadReply, MAX_MSG_ID, ZERO,
+    AutoClaimReply, MAX_MSG_ID, MessageId, NodeId, RedisCluster, RedisConsumerOptions, RedisErr,
+    RedisResult, StreamReadReply, ZERO, map_err,
 };
 use sea_streamer_runtime::sleep;
 use sea_streamer_types::{
-    ConsumerMode, ConsumerOptions, MessageHeader, SharedMessage, StreamErr, StreamKey, Timestamp,
-    SEA_STREAMER_INTERNAL,
+    ConsumerMode, ConsumerOptions, MessageHeader, SEA_STREAMER_INTERNAL, SharedMessage, StreamErr,
+    StreamKey, Timestamp,
 };
 
 const DOLLAR: &str = "$";
@@ -69,7 +69,7 @@ impl ToRedisArgs for PendingAck {
     where
         W: ?Sized + RedisWrite,
     {
-        out.write_arg(format!("{}-{}", self.0 .0, self.0 .1).as_bytes())
+        out.write_arg(format!("{}-{}", self.0.0, self.0.1).as_bytes())
     }
 }
 
@@ -80,7 +80,7 @@ impl Display for AckDisplay<'_> {
             if i > 0 {
                 write!(f, ", ")?;
             }
-            write!(f, "{}-{}", ack.0 .0, ack.0 .1)?;
+            write!(f, "{}-{}", ack.0.0, ack.0.1)?;
         }
         write!(f, "]")
     }
@@ -422,7 +422,7 @@ impl Node {
             }
         }
 
-        fn ad(v: &Vec<PendingAck>) -> AckDisplay {
+        fn ad(v: &Vec<PendingAck>) -> AckDisplay<'_> {
             AckDisplay(v)
         }
 
@@ -566,11 +566,11 @@ impl Node {
             }
             Err(err) => {
                 let kind = err.kind();
-                if kind == ErrorKind::Moved {
+                if kind == ErrorKind::Server(ServerErrorKind::Moved) {
                     // we don't know which key is moved, so we have to try all
                     let events = self.move_shards(conn).await;
                     Ok(ReadResult::Events(events))
-                } else if kind == ErrorKind::IoError {
+                } else if kind == ErrorKind::Io {
                     Err(StreamErr::Backend(RedisErr::IoError(err.to_string())))
                 } else if is_cluster_error(kind) {
                     // cluster is temporarily unavailable
@@ -705,7 +705,7 @@ impl Node {
             },
             Err(err) => {
                 let kind = err.kind();
-                if kind == ErrorKind::IoError {
+                if kind == ErrorKind::Io {
                     Err(StreamErr::Backend(RedisErr::IoError(err.to_string())))
                 } else if is_cluster_error(kind) {
                     Err(StreamErr::Backend(RedisErr::TryAgain(err.to_string())))
@@ -730,7 +730,7 @@ impl Node {
                     self.shards.push(shard);
                 }
                 Err(err) => {
-                    if err.kind() == ErrorKind::Moved {
+                    if err.kind() == ErrorKind::Server(ServerErrorKind::Moved) {
                         // remove this shard from self
                         events.push(StatusMsg::Moved {
                             shard,
@@ -799,11 +799,13 @@ impl Node {
 fn is_cluster_error(kind: redis::ErrorKind) -> bool {
     matches!(
         kind,
-        ErrorKind::Ask
-            | ErrorKind::Moved
-            | ErrorKind::TryAgain
-            | ErrorKind::ClusterDown
-            | ErrorKind::MasterDown
+        ErrorKind::Server(
+            ServerErrorKind::Ask
+                | ServerErrorKind::Moved
+                | ServerErrorKind::TryAgain
+                | ServerErrorKind::ClusterDown
+                | ServerErrorKind::MasterDown
+        )
     )
 }
 

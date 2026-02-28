@@ -1,10 +1,10 @@
 #[cfg(feature = "runtime-tokio")]
 pub use tokio::sync::Mutex as AsyncMutex;
 
-#[cfg(feature = "runtime-async-std")]
-pub use async_std::sync::Mutex as AsyncMutex;
+#[cfg(feature = "runtime-smol")]
+pub use smol::lock::Mutex as AsyncMutex;
 
-#[cfg(not(any(feature = "runtime-tokio", feature = "runtime-async-std")))]
+#[cfg(not(any(feature = "runtime-tokio", feature = "runtime-smol")))]
 mod no_rt_mutex {
     use std::ops::{Deref, DerefMut};
 
@@ -41,5 +41,5 @@ mod no_rt_mutex {
     }
 }
 
-#[cfg(not(any(feature = "runtime-tokio", feature = "runtime-async-std")))]
+#[cfg(not(any(feature = "runtime-tokio", feature = "runtime-smol")))]
 pub use no_rt_mutex::*;

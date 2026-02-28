@@ -68,7 +68,7 @@ pub trait Message: Send {
 
     fn timestamp(&self) -> Timestamp;
 
-    fn message(&self) -> Payload;
+    fn message(&self) -> Payload<'_>;
 
     fn to_owned(&self) -> SharedMessage {
         SharedMessage::new(
@@ -167,7 +167,7 @@ impl Message for OwnedMessage {
         *self.header.timestamp()
     }
 
-    fn message(&self) -> Payload {
+    fn message(&self) -> Payload<'_> {
         Payload {
             data: BytesOrStr::Bytes(&self.payload),
         }
@@ -191,7 +191,7 @@ impl Message for SharedMessage {
         *self.header.timestamp()
     }
 
-    fn message(&self) -> Payload {
+    fn message(&self) -> Payload<'_> {
         Payload {
             data: BytesOrStr::Bytes(
                 &self.bytes[self.offset as usize..(self.offset + self.length) as usize],

@@ -1,4 +1,4 @@
-use redis::{ErrorKind, RedisError};
+use redis::{ErrorKind, RedisError, ServerErrorKind};
 use sea_streamer_types::{StreamErr, StreamResult};
 use thiserror::Error;
 
@@ -57,23 +57,23 @@ pub type RedisResult<T> = StreamResult<T, RedisErr>;
 pub(crate) fn map_err(err: RedisError) -> StreamErr<RedisErr> {
     let e = format!("{err}");
     StreamErr::Backend(match err.kind() {
-        ErrorKind::ResponseError => RedisErr::ResponseError(e),
         ErrorKind::AuthenticationFailed => RedisErr::AuthenticationFailed(e),
-        ErrorKind::TypeError => RedisErr::TypeError(e),
-        ErrorKind::ExecAbortError => RedisErr::ExecAbortError(e),
-        ErrorKind::BusyLoadingError => RedisErr::BusyLoadingError(e),
-        ErrorKind::NoScriptError => RedisErr::NoScriptError(e),
+        ErrorKind::UnexpectedReturnType => RedisErr::TypeError(e),
         ErrorKind::InvalidClientConfig => RedisErr::InvalidClientConfig(e),
-        ErrorKind::Moved => RedisErr::Moved(e),
-        ErrorKind::Ask => RedisErr::Ask(e),
-        ErrorKind::TryAgain => RedisErr::TryAgain(e),
-        ErrorKind::ClusterDown => RedisErr::ClusterDown(e),
-        ErrorKind::CrossSlot => RedisErr::CrossSlot(e),
-        ErrorKind::MasterDown => RedisErr::MasterDown(e),
-        ErrorKind::IoError => RedisErr::IoError(e),
-        ErrorKind::ClientError => RedisErr::ClientError(e),
-        ErrorKind::ExtensionError => RedisErr::ExtensionError(e),
-        ErrorKind::ReadOnly => RedisErr::ReadOnly(e),
+        ErrorKind::Io => RedisErr::IoError(e),
+        ErrorKind::Client => RedisErr::ClientError(e),
+        ErrorKind::Extension => RedisErr::ExtensionError(e),
+        ErrorKind::Server(ServerErrorKind::ResponseError) => RedisErr::ResponseError(e),
+        ErrorKind::Server(ServerErrorKind::ExecAbort) => RedisErr::ExecAbortError(e),
+        ErrorKind::Server(ServerErrorKind::BusyLoading) => RedisErr::BusyLoadingError(e),
+        ErrorKind::Server(ServerErrorKind::NoScript) => RedisErr::NoScriptError(e),
+        ErrorKind::Server(ServerErrorKind::Moved) => RedisErr::Moved(e),
+        ErrorKind::Server(ServerErrorKind::Ask) => RedisErr::Ask(e),
+        ErrorKind::Server(ServerErrorKind::TryAgain) => RedisErr::TryAgain(e),
+        ErrorKind::Server(ServerErrorKind::ClusterDown) => RedisErr::ClusterDown(e),
+        ErrorKind::Server(ServerErrorKind::CrossSlot) => RedisErr::CrossSlot(e),
+        ErrorKind::Server(ServerErrorKind::MasterDown) => RedisErr::MasterDown(e),
+        ErrorKind::Server(ServerErrorKind::ReadOnly) => RedisErr::ReadOnly(e),
         _ => RedisErr::Unknown(e),
     })
 }

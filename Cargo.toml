@@ -19,14 +19,14 @@ members = [
 name = "sea-streamer"
 version = "0.5.2"
 authors = ["Chris Tsang <chris.2y3@outlook.com>"]
-edition = "2021"
+edition = "2024"
 description = "🌊 The stream processing toolkit for Rust"
 license = "MIT OR Apache-2.0"
 documentation = "https://docs.rs/sea-streamer"
 repository = "https://github.com/SeaQL/sea-streamer"
 categories = ["concurrency"]
 keywords = ["async", "stream", "kafka", "stream-processing"]
-rust-version = "1.60"
+rust-version = "1.85"
 
 [package.metadata.docs.rs]
 features = ["json", "kafka", "stdio", "socket"]
@@ -49,5 +49,5 @@ stdio = ["sea-streamer-stdio", "sea-streamer-socket?/backend-stdio"]
 file = ["sea-streamer-file", "sea-streamer-socket?/backend-file"]
 socket = ["sea-streamer-socket"]
 runtime = ["sea-streamer-runtime"]
-runtime-async-std = ["sea-streamer-socket?/runtime-async-std", "sea-streamer-kafka?/runtime-async-std", "sea-streamer-redis?/runtime-async-std", "sea-streamer-runtime/runtime-async-std"]
+runtime-smol = ["sea-streamer-socket?/runtime-smol", "sea-streamer-kafka?/runtime-smol", "sea-streamer-redis?/runtime-smol", "sea-streamer-runtime/runtime-smol"]
 runtime-tokio = ["sea-streamer-socket?/runtime-tokio", "sea-streamer-kafka?/runtime-tokio", "sea-streamer-redis?/runtime-tokio", "sea-streamer-runtime/runtime-tokio"]

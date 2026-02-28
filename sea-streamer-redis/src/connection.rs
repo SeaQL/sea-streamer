@@ -1,9 +1,9 @@
 use std::{fmt::Debug, sync::Arc, time::Duration};
 
 use crate::{
-    map_err, NodeId, RedisConnectOptions, RedisErr, RedisResult, DEFAULT_TIMEOUT, REDIS_PORT,
+    DEFAULT_TIMEOUT, NodeId, REDIS_PORT, RedisConnectOptions, RedisErr, RedisResult, map_err,
 };
-use redis::{ConnectionAddr, ConnectionInfo, RedisConnectionInfo};
+use redis::{ConnectionAddr, IntoConnectionInfo, RedisConnectionInfo};
 use sea_streamer_runtime::{sleep, timeout};
 use sea_streamer_types::{ConnectOptions, StreamErr};
 
@@ -126,24 +126,28 @@ async fn create_connection(
         return Err(StreamErr::Connect("Host empty".to_owned()));
     };
     let port = url.port().unwrap_or(REDIS_PORT);
-    let conn = ConnectionInfo {
-        addr: match url.scheme() {
-            "redis" => ConnectionAddr::Tcp(host, port),
-            "rediss" => ConnectionAddr::TcpTls {
-                host,
-                port,
-                tls_params: None,
-                insecure: options.disable_hostname_verification(),
-            },
-            "" => return Err(StreamErr::Connect("protocol not set".to_owned())),
-            protocol => return Err(StreamErr::Connect(format!("unknown protocol `{protocol}`"))),
+    let addr = match url.scheme() {
+        "redis" => ConnectionAddr::Tcp(host, port),
+        "rediss" => ConnectionAddr::TcpTls {
+            host,
+            port,
+            tls_params: None,
+            insecure: options.disable_hostname_verification(),
         },
-        redis: RedisConnectionInfo {
-            db: options.db() as i64,
-            username: options.username().map(|s| s.to_owned()),
-            password: options.password().map(|s| s.to_owned()),
-        },
+        "" => return Err(StreamErr::Connect("protocol not set".to_owned())),
+        protocol => return Err(StreamErr::Connect(format!("unknown protocol `{protocol}`"))),
     };
+    let mut redis_info = RedisConnectionInfo::default().set_db(options.db() as i64);
+    if let Some(u) = options.username() {
+        redis_info = redis_info.set_username(u);
+    }
+    if let Some(p) = options.password() {
+        redis_info = redis_info.set_password(p);
+    }
+    let conn = addr
+        .into_connection_info()
+        .map_err(map_err)?
+        .set_redis_settings(redis_info);
     let client = redis::Client::open(conn).map_err(map_err)?;
     // I wish we could do `.await_timeout(d)` some day
     match timeout(

@@ -1,8 +1,8 @@
 use crate::{FileErr, FileId};
-use flume::{unbounded, Sender};
+use flume::{Sender, unbounded};
 use notify::{
-    event::ModifyKind, Config, EventKind, RecommendedWatcher, RecursiveMode,
-    Watcher as WatcherTrait,
+    Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher as WatcherTrait,
+    event::ModifyKind,
 };
 use sea_streamer_runtime::spawn_task;
 use std::{
@@ -18,9 +18,8 @@ pub(crate) enum FileEvent {
     Rewatch,
 }
 
-lazy_static::lazy_static! {
-    static ref WATCHERS: Mutex<Watchers> = Mutex::new(Watchers::new());
-}
+static WATCHERS: std::sync::LazyLock<Mutex<Watchers>> =
+    std::sync::LazyLock::new(|| Mutex::new(Watchers::new()));
 
 type Wid = u32;
 

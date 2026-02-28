@@ -2,7 +2,7 @@ use crate::{ByteSink, ByteSource, FileErr};
 use std::{
     cmp::Ordering,
     collections::VecDeque,
-    future::{ready, Ready},
+    future::{Ready, ready},
 };
 
 pub trait Appendable: Default {
@@ -22,8 +22,9 @@ impl Appendable for ByteBuffer {
 }
 
 /// A blob of bytes; optimized over byte and word.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub enum Bytes {
+    #[default]
     Empty,
     Byte(u8),
     Word([u8; 4]),
@@ -44,12 +45,6 @@ impl std::fmt::Debug for Bytes {
             Self::Word(w) => write!(f, "Word({w:?})"),
             Self::Bytes(b) => write!(f, "Bytes(len = {})", b.len()),
         }
-    }
-}
-
-impl Default for Bytes {
-    fn default() -> Self {
-        Self::Empty
     }
 }
 

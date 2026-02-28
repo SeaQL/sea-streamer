@@ -4,10 +4,10 @@ use util::*;
 static INIT: std::sync::Once = std::sync::Once::new();
 
 // cargo test --test consumer-group --features=test,runtime-tokio -- --nocapture
-// cargo test --test consumer-group --no-default-features --features=test,runtime-async-std -- --nocapture
+// cargo test --test consumer-group --no-default-features --features=test,runtime-smol -- --nocapture
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
-#[cfg_attr(feature = "runtime-async-std", async_std::test)]
+#[cfg_attr(feature = "runtime-smol", smol_potat::test)]
 async fn consumer_group() -> anyhow::Result<()> {
     use sea_streamer_redis::{
         AutoStreamReset, RedisConnectOptions, RedisConsumerOptions, RedisStreamer,

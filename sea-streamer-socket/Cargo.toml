@@ -2,14 +2,14 @@
 name = "sea-streamer-socket"
 version = "0.5.2"
 authors = ["Chris Tsang <chris.2y3@outlook.com>"]
-edition = "2021"
+edition = "2024"
 description = "🌊 SeaStreamer backend-agnostic Socket API"
 license = "MIT OR Apache-2.0"
 documentation = "https://docs.rs/sea-streamer-socket"
 repository = "https://github.com/SeaQL/sea-streamer"
 categories = ["concurrency"]
 keywords = ["async", "stream", "kafka", "stream-processing"]
-rust-version = "1.60"
+rust-version = "1.85"
 
 [package.metadata.docs.rs]
 features = ["default"]
@@ -17,20 +17,20 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 anyhow = { version = "1", optional = true }
-env_logger = { version = "0.9", optional = true }
+env_logger = { version = "0.11", optional = true }
 sea-streamer-kafka = { version = "0.5", path = "../sea-streamer-kafka", optional = true }
 sea-streamer-redis = { version = "0.5", path = "../sea-streamer-redis", optional = true }
 sea-streamer-stdio = { version = "0.5", path = "../sea-streamer-stdio", optional = true }
 sea-streamer-file = { version = "0.5", path = "../sea-streamer-file", optional = true }
 sea-streamer-types = { version = "0.5", path = "../sea-streamer-types" }
 clap = { version = "4.5", features = ["derive"], optional = true }
-thiserror = { version = "1", default-features = false }
+thiserror = { version = "2", default-features = false }
 tokio = { version = "1.10.0", optional = true }
 
 [features]
 default = ["backend-stdio"] # sadly cannot compile without one backend
 executables = ["anyhow", "env_logger", "clap", "tokio/full", "runtime-tokio"]
-runtime-async-std = ["sea-streamer-kafka?/runtime-async-std", "sea-streamer-redis?/runtime-async-std", "sea-streamer-stdio?/runtime-async-std", "sea-streamer-file?/runtime-async-std"]
+runtime-smol = ["sea-streamer-kafka?/runtime-smol", "sea-streamer-redis?/runtime-smol", "sea-streamer-stdio?/runtime-smol", "sea-streamer-file?/runtime-smol"]
 runtime-tokio = ["sea-streamer-kafka?/runtime-tokio", "sea-streamer-redis?/runtime-tokio", "sea-streamer-stdio?/runtime-tokio", "sea-streamer-file?/runtime-tokio"]
 backend-kafka = ["sea-streamer-kafka"]
 backend-redis = ["sea-streamer-redis"]

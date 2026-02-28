@@ -1,10 +1,10 @@
 static INIT: std::sync::Once = std::sync::Once::new();
 
 // cargo test --test sample --features=test,runtime-tokio -- --nocapture
-// cargo test --test sample --features=test,runtime-async-std -- --nocapture
+// cargo test --test sample --features=test,runtime-smol -- --nocapture
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
-#[cfg_attr(feature = "runtime-async-std", async_std::test)]
+#[cfg_attr(feature = "runtime-smol", smol_potat::test)]
 async fn sample_1() -> anyhow::Result<()> {
     use sea_streamer_file::{AutoStreamReset, FileConsumerOptions, FileErr, FileId, FileStreamer};
     use sea_streamer_types::{Consumer, Message, StreamErr, StreamKey, Streamer};

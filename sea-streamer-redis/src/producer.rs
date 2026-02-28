@@ -1,15 +1,15 @@
-use flume::{bounded, r#async::RecvFut, unbounded, Sender};
-use redis::{aio::ConnectionLike, cmd as command, ErrorKind, Pipeline, Value};
+use flume::{Sender, r#async::RecvFut, bounded, unbounded};
+use redis::{ErrorKind, Pipeline, ServerErrorKind, Value, aio::ConnectionLike, cmd as command};
 use std::{fmt::Debug, future::Future, sync::Arc, time::Duration};
 
 use crate::{
-    map_err, parse_message_id, string_from_redis_value, MessageField, RedisCluster, RedisErr,
-    RedisResult, TimestampFormat, ZERO,
+    MessageField, RedisCluster, RedisErr, RedisResult, TimestampFormat, ZERO, map_err,
+    parse_message_id, string_from_redis_value,
 };
 use sea_streamer_runtime::{sleep, spawn_task};
 use sea_streamer_types::{
-    export::futures::FutureExt, Buffer, MessageHeader, Producer, ProducerOptions, ShardId,
-    StreamErr, StreamKey, Timestamp, SEA_STREAMER_INTERNAL,
+    Buffer, MessageHeader, Producer, ProducerOptions, SEA_STREAMER_INTERNAL, ShardId, StreamErr,
+    StreamKey, Timestamp, export::futures::FutureExt,
 };
 
 const MAX_RETRY: usize = 100;
@@ -465,11 +465,11 @@ pub(crate) async fn create_producer(
                                 retried += 1;
                                 if retried == MAX_RETRY {
                                     panic!(
-                                    "The cluster might have a problem. Already retried {retried} times."
-                                );
+                                        "The cluster might have a problem. Already retried {retried} times."
+                                    );
                                 }
                                 let kind = err.kind();
-                                if kind == ErrorKind::Moved {
+                                if kind == ErrorKind::Server(ServerErrorKind::Moved) {
                                     cluster.moved(
                                         redis_key,
                                         match err.redirect_node() {
@@ -487,7 +487,7 @@ pub(crate) async fn create_producer(
                                     // This is an exponential backoff, in seq of [1, 2, 4, 8, 16, 32, 64].
                                     sleep(Duration::from_secs(1 << std::cmp::min(6, asked))).await;
                                     asked += 1;
-                                } else if kind == ErrorKind::IoError {
+                                } else if kind == ErrorKind::Io {
                                     let node = node.to_owned();
                                     cluster.reconnect(&node).ok();
                                 } else {
@@ -580,7 +580,12 @@ pub(crate) async fn create_producer(
 fn is_ask(kind: &ErrorKind) -> bool {
     matches!(
         kind,
-        ErrorKind::Ask | ErrorKind::TryAgain | ErrorKind::ClusterDown | ErrorKind::MasterDown
+        ErrorKind::Server(
+            ServerErrorKind::Ask
+                | ServerErrorKind::TryAgain
+                | ServerErrorKind::ClusterDown
+                | ServerErrorKind::MasterDown
+        )
     )
 }
 
@@ -632,7 +637,7 @@ struct InternalMess<'a> {
     arg3: &'a str,
 }
 
-fn parse_internal_mess(bytes: &[u8]) -> Option<InternalMess> {
+fn parse_internal_mess(bytes: &[u8]) -> Option<InternalMess<'_>> {
     let Ok(string) = std::str::from_utf8(bytes) else {
         return None;
     };

@@ -11,10 +11,10 @@ macro_rules! flush {
 }
 
 // cargo test --test load-balanced --features=test,runtime-tokio -- --nocapture
-// cargo test --test load-balanced --features=test,runtime-async-std -- --nocapture
+// cargo test --test load-balanced --features=test,runtime-smol -- --nocapture
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
-#[cfg_attr(feature = "runtime-async-std", async_std::test)]
+#[cfg_attr(feature = "runtime-smol", smol_potat::test)]
 async fn load_balance() -> anyhow::Result<()> {
     use flume::unbounded;
     use sea_streamer_redis::{
@@ -22,8 +22,8 @@ async fn load_balance() -> anyhow::Result<()> {
     };
     use sea_streamer_runtime::{sleep, spawn_task};
     use sea_streamer_types::{
-        export::futures::stream::StreamExt, Buffer, Consumer, ConsumerMode, ConsumerOptions,
-        Message, Producer, StreamKey, Streamer, Timestamp,
+        Buffer, Consumer, ConsumerMode, ConsumerOptions, Message, Producer, StreamKey, Streamer,
+        Timestamp, export::futures::stream::StreamExt,
     };
     use std::time::Duration;
 
@@ -167,10 +167,10 @@ async fn load_balance() -> anyhow::Result<()> {
 }
 
 // cargo test --test load-balanced --features=test,runtime-tokio -- --nocapture
-// cargo test --test load-balanced --features=test,runtime-async-std -- --nocapture
+// cargo test --test load-balanced --features=test,runtime-smol -- --nocapture
 #[cfg(feature = "test")]
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
-#[cfg_attr(feature = "runtime-async-std", async_std::test)]
+#[cfg_attr(feature = "runtime-smol", smol_potat::test)]
 async fn failover() -> anyhow::Result<()> {
     use sea_streamer_redis::{
         AutoCommit, AutoStreamReset, RedisConnectOptions, RedisConsumerOptions, RedisStreamer,

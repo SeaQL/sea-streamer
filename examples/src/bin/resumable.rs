@@ -1,11 +1,11 @@
 use anyhow::Result;
 use clap::Parser;
 use sea_streamer::{
-    kafka::AutoOffsetReset,
-    redis::{AutoCommit, AutoStreamReset},
     Buffer, Consumer, ConsumerMode, ConsumerOptions, Message, Producer, SeaConsumer,
     SeaConsumerOptions, SeaMessage, SeaProducer, SeaStreamer, SeaStreamerBackend, StreamUrl,
     Streamer,
+    kafka::AutoOffsetReset,
+    redis::{AutoCommit, AutoStreamReset},
 };
 use std::time::Duration;
 
@@ -26,7 +26,7 @@ struct Args {
 }
 
 #[cfg_attr(feature = "runtime-tokio", tokio::main)]
-#[cfg_attr(feature = "runtime-async-std", async_std::main)]
+#[cfg_attr(feature = "runtime-smol", smol_potat::main)]
 async fn main() -> Result<()> {
     env_logger::init();
 

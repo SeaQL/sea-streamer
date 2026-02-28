@@ -2,14 +2,14 @@
 name = "sea-streamer-kafka"
 version = "0.5.0"
 authors = ["Chris Tsang <chris.2y3@outlook.com>"]
-edition = "2021"
+edition = "2024"
 description = "🌊 SeaStreamer Kafka / Redpanda Backend"
 license = "MIT OR Apache-2.0"
 documentation = "https://docs.rs/sea-streamer-kafka"
 repository = "https://github.com/SeaQL/sea-streamer"
 categories = ["concurrency"]
 keywords = ["async", "stream", "kafka", "stream-processing"]
-rust-version = "1.60"
+rust-version = "1.85"
 
 [package.metadata.docs.rs]
 features = []
@@ -17,22 +17,22 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 anyhow = { version = "1", optional = true }
-async-std = { version = "1", optional = true }
-env_logger = { version = "0.9", optional = true }
-lazy_static = { version = "1.4" }
+env_logger = { version = "0.11", optional = true }
+smol = { version = "2", optional = true }
 mac_address = { version = "1" }
-rdkafka = { version = "0.36", default-features = false, features = ["libz"] }
+rdkafka = { version = "0.37", default-features = false, features = ["libz"] }
 sea-streamer-types = { version = "0.5", path = "../sea-streamer-types" }
 sea-streamer-runtime = { version = "0.5", path = "../sea-streamer-runtime" }
 clap = { version = "4.5", features = ["derive", "env"], optional = true }
 tokio = { version = "1.10.0", optional = true }
 
 [dev-dependencies]
+smol-potat = "1"
 
 [features]
-test = ["anyhow", "async-std?/attributes", "tokio?/full", "env_logger"]
+test = ["anyhow", "tokio?/full", "env_logger"]
 executables = ["anyhow", "env_logger", "clap", "runtime-tokio", "tokio/full"]
-runtime-async-std = ["async-std", "sea-streamer-runtime/runtime-async-std"]
+runtime-smol = ["smol", "sea-streamer-runtime/runtime-smol"]
 runtime-tokio = ["tokio", "rdkafka/tokio", "sea-streamer-runtime/runtime-tokio"]
 # passthru of rdkafka features
 libz = ["rdkafka/libz"]
