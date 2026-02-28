@@ -1,6 +1,6 @@
 [package]
 name = "sea-streamer-file"
-version = "0.5.2"
+version = "1.0.0-rc.1"
 authors = ["Chris Tsang <chris.2y3@outlook.com>"]
 edition = "2024"
 description = "🌊 SeaStreamer File Backend"
@@ -22,8 +22,8 @@ fastrand = { version = "2" }
 flume = { version = "0.11", default-features = false, features = ["async"] }
 log = { version = "0.4", default-features = false }
 notify = { version = "6" }
-sea-streamer-types = { version = "0.5", path = "../sea-streamer-types" }
-sea-streamer-runtime = { version = "0.5", path = "../sea-streamer-runtime", features = ["file"]}
+sea-streamer-types = { version = "1.0.0-rc", path = "../sea-streamer-types" }
+sea-streamer-runtime = { version = "1.0.0-rc", path = "../sea-streamer-runtime", features = ["file"]}
 serde = { version = "1", optional = true, features = ["derive"] }
 serde_json = { version = "1", optional = true }
 clap = { version = "4.5", features = ["derive"], optional = true }

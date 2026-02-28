@@ -1,6 +1,6 @@
 [package]
 name = "sea-streamer-redis"
-version = "0.5.2"
+version = "1.0.0-rc.1"
 authors = ["Chris Tsang <chris.2y3@outlook.com>"]
 edition = "2024"
 description = "🌊 SeaStreamer Redis Backend"
@@ -22,8 +22,8 @@ flume = { version = "0.11", default-features = false, features = ["async"] }
 log = { version = "0.4", default-features = false }
 mac_address = { version = "1" }
 redis = { version = "1", default-features = false, features = ["acl", "streams"] }
-sea-streamer-types = { version = "0.5", path = "../sea-streamer-types" }
-sea-streamer-runtime = { version = "0.5", path = "../sea-streamer-runtime" }
+sea-streamer-types = { version = "1.0.0-rc", path = "../sea-streamer-types" }
+sea-streamer-runtime = { version = "1.0.0-rc", path = "../sea-streamer-runtime" }
 smol = { version = "2", optional = true }
 clap = { version = "4.5", features = ["derive", "env"], optional = true }
 thiserror = { version = "2", default-features = false }

@@ -21,5 +21,5 @@ features = ["sqlx-sqlite", "runtime-tokio-native-tls", "schema-sync"]
 
 [dependencies.sea-streamer]
 path = "../.." # remove this line in your own project
-version = "0.5"
+version = "1.0.0-rc"
 features = ["redis", "socket", "json", "runtime-tokio"]

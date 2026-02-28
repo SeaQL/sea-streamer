@@ -1,6 +1,6 @@
 [package]
 name = "sea-streamer-types"
-version = "0.5.2"
+version = "1.0.0-rc.1"
 authors = ["Chris Tsang <chris.2y3@outlook.com>"]
 edition = "2024"
 description = "🌊 SeaStreamer Traits & Types"

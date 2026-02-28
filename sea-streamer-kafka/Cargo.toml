@@ -1,6 +1,6 @@
 [package]
 name = "sea-streamer-kafka"
-version = "0.5.0"
+version = "1.0.0-rc.1"
 authors = ["Chris Tsang <chris.2y3@outlook.com>"]
 edition = "2024"
 description = "🌊 SeaStreamer Kafka / Redpanda Backend"
@@ -21,8 +21,8 @@ env_logger = { version = "0.11", optional = true }
 smol = { version = "2", optional = true }
 mac_address = { version = "1" }
 rdkafka = { version = "0.37", default-features = false, features = ["libz"] }
-sea-streamer-types = { version = "0.5", path = "../sea-streamer-types" }
-sea-streamer-runtime = { version = "0.5", path = "../sea-streamer-runtime" }
+sea-streamer-types = { version = "1.0.0-rc", path = "../sea-streamer-types" }
+sea-streamer-runtime = { version = "1.0.0-rc", path = "../sea-streamer-runtime" }
 clap = { version = "4.5", features = ["derive", "env"], optional = true }
 tokio = { version = "1.10.0", optional = true }
 
