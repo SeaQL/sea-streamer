@@ -6,7 +6,10 @@ use crate::{Connection, MessageId, NodeId, RedisCluster, RedisConsumerOptions, R
 use sea_streamer_runtime::{sleep, spawn_task};
 use sea_streamer_types::{SharedMessage, Timestamp};
 
-const ONE_SEC: Duration = Duration::from_secs(1);
+/// Short yield duration for the poll loop. Must be significantly shorter than
+/// the HEARTBEAT (XREAD block timeout) to avoid a race where the cluster
+/// propagates Ready after the node's first XREAD has already timed out.
+const POLL_INTERVAL: Duration = Duration::from_millis(1);
 
 pub struct Cluster {
     shards: Vec<ShardState>,
@@ -214,7 +217,7 @@ impl Cluster {
             }
 
             if nothing == 2 {
-                sleep(ONE_SEC).await;
+                sleep(POLL_INTERVAL).await;
             }
         }
         log::debug!("Cluster {cluster_uri} exit");

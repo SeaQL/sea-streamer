@@ -16,9 +16,9 @@ features = []
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
-async-io = { version = "2", optional = true }
+async-io = { version = "2.6", optional = true }
 futures = { version = "0.3", default-features = false }
-smol = { version = "2", optional = true }
+smol = { version = "2.0.2", optional = true }
 tokio = { version = "1.10", optional = true, features = ["time", "sync", "rt"] }
 
 [dev-dependencies]
