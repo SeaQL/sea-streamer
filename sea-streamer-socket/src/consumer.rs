@@ -21,7 +21,8 @@ pub struct SeaConsumer {
 }
 
 #[derive(Debug)]
-pub(crate) enum SeaConsumerBackend {
+/// The inner backend of [`SeaConsumer`].
+pub enum SeaConsumerBackend {
     #[cfg(feature = "backend-kafka")]
     Kafka(KafkaConsumer),
     #[cfg(feature = "backend-redis")]
@@ -30,6 +31,13 @@ pub(crate) enum SeaConsumerBackend {
     Stdio(StdioConsumer),
     #[cfg(feature = "backend-file")]
     File(FileConsumer),
+}
+
+impl SeaConsumer {
+    /// Take the inner backend, consuming this wrapper.
+    pub fn into_inner(self) -> SeaConsumerBackend {
+        self.backend
+    }
 }
 
 /// `sea-streamer-socket` concrete type of Future that will yield the next message.

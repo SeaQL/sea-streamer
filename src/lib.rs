@@ -41,7 +41,7 @@
 //! Add the following to your `Cargo.toml`
 //!
 //! ```toml
-//! sea-streamer = { version = "0", features = ["kafka", "redis", "stdio", "socket", "runtime-tokio"] }
+//! sea-streamer = { version = "0", features = ["kafka", "redis", "socket", "runtime-tokio"] }
 //! ```
 //!
 //! Here is a basic [stream consumer](https://github.com/SeaQL/sea-streamer/tree/main/examples/src/bin/consumer.rs):
@@ -159,14 +159,6 @@
 //! cargo run --bin processor -- --input file://$file/hello --output stdio:///hello
 //! ```
 //!
-//! With Stdio:
-//!
-//! ```shell
-//! # Pipe the producer to the processor
-//! cargo run --bin producer -- --stream stdio:///hello1 | \
-//! cargo run --bin processor -- --input stdio:///hello1 --output stdio:///hello2
-//! ```
-//!
 //! ## Production
 //!
 //! SeaStreamer File powers the event stream of [FireDBG](https://firedbg.sea-ql.org/).
@@ -180,7 +172,6 @@
 //! + [`sea-streamer-socket`](https://docs.rs/sea-streamer-socket)
 //!     + [`sea-streamer-kafka`](https://docs.rs/sea-streamer-kafka)
 //!     + [`sea-streamer-redis`](https://docs.rs/sea-streamer-redis)
-//!     + [`sea-streamer-stdio`](https://docs.rs/sea-streamer-stdio)
 //!     + [`sea-streamer-file`](https://docs.rs/sea-streamer-file)
 //! + [`sea-streamer-runtime`](https://docs.rs/sea-streamer-runtime)
 //!

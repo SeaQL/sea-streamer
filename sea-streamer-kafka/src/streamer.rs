@@ -16,6 +16,12 @@ use crate::{
     host_id, impl_into_string,
 };
 
+/// The Kafka streamer, which manages connections to a Kafka cluster and
+/// creates producers and consumers.
+///
+/// On [`connect`](Streamer::connect), it verifies the cluster is reachable by
+/// fetching the cluster ID. On [`disconnect`](Streamer::disconnect), it flushes
+/// all producers created through this streamer.
 #[derive(Debug, Clone)]
 pub struct KafkaStreamer {
     uri: StreamerUri,
@@ -23,6 +29,11 @@ pub struct KafkaStreamer {
     options: KafkaConnectOptions,
 }
 
+/// Options for connecting to a Kafka cluster.
+///
+/// Configures network timeout, security protocol, SASL authentication, and
+/// any additional librdkafka properties via
+/// [`add_custom_option`](Self::add_custom_option).
 #[derive(Debug, Default, Clone)]
 pub struct KafkaConnectOptions {
     timeout: Option<Duration>,
@@ -38,14 +49,36 @@ pub(crate) enum BaseOptionKey {
     SecurityProtocol,
 }
 
+/// Kafka security protocol.
+///
+/// Corresponds to the `security.protocol` librdkafka config.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum SecurityProtocol {
+    /// No encryption or authentication.
     Plaintext,
+    /// SSL/TLS encryption.
     Ssl,
+    /// SASL authentication over plaintext.
     SaslPlaintext,
+    /// SASL authentication over SSL/TLS.
     SaslSsl,
 }
 
+/// SASL authentication options.
+///
+/// Constructed via [`SaslOptions::new`] with a [`SaslMechanism`], then
+/// optionally chaining [`username`](Self::username) and
+/// [`password`](Self::password).
+///
+/// # Example
+///
+/// ```
+/// use sea_streamer_kafka::{SaslOptions, SaslMechanism};
+///
+/// let sasl = SaslOptions::new(SaslMechanism::Plain)
+///     .username("user")
+///     .password("secret");
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SaslOptions {
     mechanism: SaslMechanism,
@@ -53,12 +86,20 @@ pub struct SaslOptions {
     password: Option<String>,
 }
 
+/// SASL authentication mechanism.
+///
+/// Corresponds to the `sasl.mechanism` librdkafka config.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum SaslMechanism {
+    /// PLAIN (username/password in clear text — use with SSL).
     Plain,
+    /// Kerberos (GSSAPI).
     Gssapi,
+    /// SCRAM-SHA-256.
     ScramSha256,
+    /// SCRAM-SHA-512.
     ScramSha512,
+    /// OAuth 2.0 bearer token.
     Oauthbearer,
 }
 
@@ -130,6 +171,7 @@ impl KafkaConnectOptions {
 }
 
 impl SaslOptions {
+    /// Create a new `SaslOptions` with the given mechanism.
     pub fn new(mechanism: SaslMechanism) -> Self {
         Self {
             mechanism,
@@ -138,11 +180,13 @@ impl SaslOptions {
         }
     }
 
+    /// Set the SASL username (builder pattern).
     pub fn username<T: Into<String>>(mut self, v: T) -> Self {
         self.username = Some(v.into());
         self
     }
 
+    /// Set the SASL password (builder pattern).
     pub fn password<T: Into<String>>(mut self, v: T) -> Self {
         self.password = Some(v.into());
         self
@@ -170,6 +214,7 @@ impl BaseOptionKey {
 }
 
 impl SecurityProtocol {
+    /// Returns the Kafka configuration value string for this variant.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Plaintext => "PLAINTEXT",
@@ -181,6 +226,7 @@ impl SecurityProtocol {
 }
 
 impl SaslMechanism {
+    /// Returns the Kafka configuration value string for this variant.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Plain => "PLAIN",

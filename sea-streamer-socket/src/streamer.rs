@@ -21,7 +21,8 @@ pub struct SeaStreamer {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) enum SeaStreamerInner {
+/// The inner backend of [`SeaStreamer`].
+pub enum SeaStreamerInner {
     #[cfg(feature = "backend-kafka")]
     Kafka(KafkaStreamer),
     #[cfg(feature = "backend-redis")]
@@ -30,6 +31,13 @@ pub(crate) enum SeaStreamerInner {
     Stdio(StdioStreamer),
     #[cfg(feature = "backend-file")]
     File(FileStreamer),
+}
+
+impl SeaStreamer {
+    /// Take the inner backend, consuming this wrapper.
+    pub fn into_inner(self) -> SeaStreamerInner {
+        self.backend
+    }
 }
 
 #[cfg(feature = "backend-kafka")]

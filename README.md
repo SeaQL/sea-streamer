@@ -20,7 +20,7 @@ SeaStreamer is a toolkit to help you build real-time stream processors in Rust.
 
 1. Async
 
-SeaStreamer provides an async and non-blocking API with no locks on the hot path. Supporting both `tokio` and `async-std`,
+SeaStreamer provides an async and non-blocking API with no locks on the hot path. Supporting both `tokio` and `smol`,
 you can build highly concurrent stream processors.
 
 2. Generic
@@ -41,7 +41,7 @@ Let's build real-time (multi-threaded, no GC), self-contained (aka easy to deplo
 Add the following to your `Cargo.toml`
 
 ```toml
-sea-streamer = { version = "0", features = ["kafka", "redis", "stdio", "socket", "runtime-tokio"] }
+sea-streamer = { version = "0", features = ["kafka", "redis", "socket", "runtime-tokio"] }
 ```
 
 Here is a basic [stream consumer](https://github.com/SeaQL/sea-streamer/tree/main/examples/src/bin/consumer.rs):
@@ -159,14 +159,6 @@ cargo run --bin consumer -- --stream file://$file/hello
 cargo run --bin processor -- --input file://$file/hello --output stdio:///hello
 ```
 
-With Stdio:
-
-```shell
-# Pipe the producer to the processor
-cargo run --bin producer -- --stream stdio:///hello1 | \
-cargo run --bin processor -- --input stdio:///hello1 --output stdio:///hello2
-```
-
 ## Production
 
 SeaStreamer File powers the event stream of [FireDBG](https://firedbg.sea-ql.org/).
@@ -180,7 +172,6 @@ The architecture of [`sea-streamer`](https://docs.rs/sea-streamer) is constructe
 + [`sea-streamer-socket`](https://docs.rs/sea-streamer-socket)
     + [`sea-streamer-kafka`](https://docs.rs/sea-streamer-kafka)
     + [`sea-streamer-redis`](https://docs.rs/sea-streamer-redis)
-    + [`sea-streamer-stdio`](https://docs.rs/sea-streamer-stdio)
     + [`sea-streamer-file`](https://docs.rs/sea-streamer-file)
 + [`sea-streamer-runtime`](https://docs.rs/sea-streamer-runtime)
 
@@ -332,58 +323,6 @@ There is also a [small utility](https://github.com/SeaQL/sea-streamer/tree/main/
 
 This crate is built on top of [`redis`](https://docs.rs/redis).
 
-### `sea-streamer-stdio`: Standard I/O Backend
-
-This is the `stdio` backend implementation for SeaStreamer. It is designed to be connected together with unix pipes,
-enabling great flexibility when developing stream processors or processing data locally.
-
-You can connect processors together with pipes: `processor_a | processor_b`.
-
-You can also connect them asynchronously:
-
-```shell
-touch stream # set up an empty file
-tail -f stream | processor_b # program b can be spawned anytime
-processor_a >> stream # append to the file
-```
-
-You can also use `cat` to replay a file, but it runs from start to end as fast as possible then stops,
-which may or may not be the desired behavior.
-
-You can write any valid UTF-8 string to stdin and each line will be considered a message. In addition, you can write some message meta in a simple format:
-
-```log
-[timestamp | stream_key | sequence | shard_id] payload
-```
-
-Note: the square brackets are literal `[` `]`.
-
-The following are all valid:
-
-```log
-a plain, raw message
-[2022-01-01T00:00:00] { "payload": "anything" }
-[2022-01-01T00:00:00.123 | my_topic] "a string payload"
-[2022-01-01T00:00:00 | my-topic-2 | 123] ["array", "of", "values"]
-[2022-01-01T00:00:00 | my-topic-2 | 123 | 4] { "payload": "anything" }
-[my_topic] a string payload
-[my_topic | 123] { "payload": "anything" }
-[my_topic | 123 | 4] { "payload": "anything" }
-```
-
-The following are all invalid:
-
-```log
-[Jan 1, 2022] { "payload": "anything" }
-[2022-01-01T00:00:00] 12345
-```
-
-If no stream key is given, it will be assigned the name `broadcast` and sent to all consumers.
-
-You can create consumers that subscribe to only a subset of the topics.
-
-Consumers in the same `ConsumerGroup` will be load balanced (in a round-robin fashion), meaning you can spawn multiple async tasks to process messages in parallel.
-
 ### `sea-streamer-file`: File Backend
 
 This is very similar to `sea-streamer-stdio`, but the difference is SeaStreamerStdio works in real-time,
@@ -450,7 +389,7 @@ There is also a Typescript implementation under [`sea-streamer-file-reader`](htt
 
 ### `sea-streamer-runtime`: Async runtime abstraction
 
-This crate provides a small set of functions aligning the type signatures between `async-std` and `tokio`,
+This crate provides a small set of functions aligning the type signatures between `smol` and `tokio`,
 so that you can build applications generic to both runtimes.
 
 ## License

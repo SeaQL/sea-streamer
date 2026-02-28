@@ -23,6 +23,12 @@ use crate::{
     impl_into_string, stream_err,
 };
 
+/// The Kafka consumer, a wrapper over [`RawConsumer`] (rdkafka's `StreamConsumer`).
+///
+/// Since rdkafka's API is `&self` but some operations require exclusive access,
+/// the inner consumer may be temporarily taken for blocking operations
+/// (e.g. `commit`, `seek`). Calling any method while a previous async operation
+/// is still in progress will panic.
 pub struct KafkaConsumer {
     mode: ConsumerMode,
     inner: Option<RawConsumer>,
@@ -35,11 +41,20 @@ pub type RawConsumer = rdkafka::consumer::StreamConsumer<
     crate::KafkaAsyncRuntime,
 >;
 
+/// A Kafka message, a thin wrapper over rdkafka's `BorrowedMessage`.
+///
+/// Implements [`Message`] to provide stream key, shard ID, sequence number,
+/// timestamp and payload.
 #[repr(transparent)]
 pub struct KafkaMessage<'a>(RawMessage<'a>);
 
 const ZERO: ShardId = ShardId::new(0);
 
+/// Options for constructing a [`KafkaConsumer`].
+///
+/// These map to the standard Kafka consumer configuration properties.
+/// Any property not covered by the typed setters can be passed via
+/// [`add_custom_option`](Self::add_custom_option).
 #[derive(Debug, Default, Clone)]
 pub struct KafkaConsumerOptions {
     mode: ConsumerMode,
@@ -52,6 +67,10 @@ pub struct KafkaConsumerOptions {
     custom_options: Vec<(String, String)>,
 }
 
+/// Kafka consumer configuration property keys.
+///
+/// Use [`as_str`](Self::as_str) to get the corresponding Kafka config string
+/// (e.g. `GroupId` → `"group.id"`).
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum KafkaConsumerOptionKey {
     GroupId,
@@ -64,6 +83,10 @@ pub enum KafkaConsumerOptionKey {
 
 type OptionKey = KafkaConsumerOptionKey;
 
+/// What to do when there is no initial offset in Kafka or if the current
+/// offset no longer exists on the server.
+///
+/// Corresponds to the `auto.offset.reset` Kafka consumer config.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum AutoOffsetReset {
     /// Automatically reset the offset to the earliest offset.
@@ -218,6 +241,7 @@ impl KafkaConsumerOptions {
 }
 
 impl OptionKey {
+    /// Returns the Kafka configuration property string for this key.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::GroupId => "group.id",
@@ -231,6 +255,7 @@ impl OptionKey {
 }
 
 impl AutoOffsetReset {
+    /// Returns the Kafka configuration value string for this variant.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Earliest => "earliest",

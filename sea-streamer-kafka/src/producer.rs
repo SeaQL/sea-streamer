@@ -15,6 +15,11 @@ use sea_streamer_types::{
     StreamResult, StreamerUri, Timestamp, export::futures::FutureExt, runtime_error,
 };
 
+/// The Kafka producer, a wrapper over [`RawProducer`] (rdkafka's `FutureProducer`).
+///
+/// Like [`KafkaConsumer`](crate::KafkaConsumer), the inner producer may be
+/// temporarily taken for blocking operations (transactions, flush). Calling any
+/// method while a previous async operation is still in progress will panic.
 #[derive(Clone)]
 pub struct KafkaProducer {
     stream: Option<StreamKey>,
@@ -37,6 +42,11 @@ pub type RawProducer = rdkafka::producer::FutureProducer<
     crate::KafkaAsyncRuntime,
 >;
 
+/// Options for constructing a [`KafkaProducer`].
+///
+/// These map to the standard Kafka producer configuration properties.
+/// Any property not covered by the typed setters can be passed via
+/// [`add_custom_option`](Self::add_custom_option).
 #[derive(Debug, Default, Clone)]
 pub struct KafkaProducerOptions {
     compression_type: Option<CompressionType>,
@@ -44,6 +54,8 @@ pub struct KafkaProducerOptions {
     custom_options: Vec<(String, String)>,
 }
 
+/// A future that resolves to a [`MessageHeader`] (the send receipt) once the
+/// broker acknowledges the message delivery.
 pub struct SendFuture {
     stream_key: Option<StreamKey>,
     fut: DeliveryFuture,
@@ -57,6 +69,10 @@ impl Debug for SendFuture {
     }
 }
 
+/// Kafka producer configuration property keys.
+///
+/// Use [`as_str`](Self::as_str) to get the corresponding Kafka config string
+/// (e.g. `CompressionType` → `"compression.type"`).
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum KafkaProducerOptionKey {
     CompressionType,
@@ -64,6 +80,10 @@ pub enum KafkaProducerOptionKey {
 
 type OptionKey = KafkaProducerOptionKey;
 
+/// Compression codec for the producer.
+///
+/// Corresponds to the `compression.type` Kafka producer config.
+/// Defaults to `None` (no compression).
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
 pub enum CompressionType {
     #[default]
@@ -333,6 +353,7 @@ impl KafkaProducerOptions {
 }
 
 impl OptionKey {
+    /// Returns the Kafka configuration property string for this key.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::CompressionType => "compression.type",
@@ -341,6 +362,7 @@ impl OptionKey {
 }
 
 impl CompressionType {
+    /// Returns the Kafka configuration value string for this variant.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::None => "none",
