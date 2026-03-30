@@ -1,7 +1,11 @@
+use std::collections::HashSet;
+
 use super::PendingAck;
 use crate::{MessageId, RedisCluster, RedisResult, ZERO, get_message_id, map_err};
 use redis::AsyncCommands;
-use sea_streamer_types::{MessageHeader, ShardId, StreamKey, Timestamp};
+use sea_streamer_types::{
+    MessageHeader, ShardId, StreamKey, Timestamp, export::futures::TryStreamExt,
+};
 
 pub type StreamShard = (StreamKey, ShardId);
 
@@ -36,10 +40,15 @@ pub async fn discover_shards(
     stream: StreamKey,
 ) -> RedisResult<Vec<ShardState>> {
     let (_node, conn) = cluster.get_any()?;
-    let shard_keys: Vec<String> = conn
-        .keys(format!("{}:*", stream.name()))
+    let mut keys_stream = conn
+        .scan_match(format!("{}:*", stream.name()))
         .await
         .map_err(map_err)?;
+    let mut shard_keys: HashSet<String> = HashSet::new();
+
+    while let Some(key) = keys_stream.try_next().await.map_err(map_err)? {
+        shard_keys.insert(key);
+    }
 
     Ok(if shard_keys.is_empty() {
         vec![ShardState {
