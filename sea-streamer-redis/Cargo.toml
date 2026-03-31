@@ -1,6 +1,6 @@
 [package]
 name = "sea-streamer-redis"
-version = "1.0.0-rc.1"
+version = "1.0.0-rc.2"
 authors = ["Chris Tsang <chris.2y3@outlook.com>"]
 edition = "2024"
 description = "🌊 SeaStreamer Redis Backend"
