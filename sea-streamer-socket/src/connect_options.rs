@@ -1,5 +1,7 @@
 #[cfg(feature = "backend-file")]
 use sea_streamer_file::FileConnectOptions;
+#[cfg(feature = "backend-iggy")]
+use sea_streamer_iggy::IggyConnectOptions;
 #[cfg(feature = "backend-kafka")]
 use sea_streamer_kafka::KafkaConnectOptions;
 #[cfg(feature = "backend-redis")]
@@ -22,6 +24,8 @@ pub struct SeaConnectOptions {
     stdio: StdioConnectOptions,
     #[cfg(feature = "backend-file")]
     file: FileConnectOptions,
+    #[cfg(feature = "backend-iggy")]
+    iggy: IggyConnectOptions,
 }
 
 impl SeaConnectOptions {
@@ -43,6 +47,11 @@ impl SeaConnectOptions {
     #[cfg(feature = "backend-file")]
     pub fn into_file_connect_options(self) -> FileConnectOptions {
         self.file
+    }
+
+    #[cfg(feature = "backend-iggy")]
+    pub fn into_iggy_connect_options(self) -> IggyConnectOptions {
+        self.iggy
     }
 
     #[cfg(feature = "backend-kafka")]
@@ -68,6 +77,12 @@ impl SeaConnectOptions {
     pub fn set_file_connect_options<F: FnOnce(&mut FileConnectOptions)>(&mut self, func: F) {
         func(&mut self.file)
     }
+
+    #[cfg(feature = "backend-iggy")]
+    /// Set options that only applies to Iggy
+    pub fn set_iggy_connect_options<F: FnOnce(&mut IggyConnectOptions)>(&mut self, func: F) {
+        func(&mut self.iggy)
+    }
 }
 
 impl ConnectOptions for SeaConnectOptions {
@@ -84,6 +99,8 @@ impl ConnectOptions for SeaConnectOptions {
         return self.stdio.timeout().map_err(map_err);
         #[cfg(feature = "backend-file")]
         return self.file.timeout().map_err(map_err);
+        #[cfg(feature = "backend-iggy")]
+        return self.iggy.timeout().map_err(map_err);
     }
 
     fn set_timeout(&mut self, d: Duration) -> SeaResult<&mut Self> {
@@ -95,6 +112,8 @@ impl ConnectOptions for SeaConnectOptions {
         self.stdio.set_timeout(d).map_err(map_err)?;
         #[cfg(feature = "backend-file")]
         self.file.set_timeout(d).map_err(map_err)?;
+        #[cfg(feature = "backend-iggy")]
+        self.iggy.set_timeout(d).map_err(map_err)?;
 
         Ok(self)
     }

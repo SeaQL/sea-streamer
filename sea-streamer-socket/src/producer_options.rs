@@ -1,5 +1,7 @@
 #[cfg(feature = "backend-file")]
 use sea_streamer_file::FileProducerOptions;
+#[cfg(feature = "backend-iggy")]
+use sea_streamer_iggy::IggyProducerOptions;
 #[cfg(feature = "backend-kafka")]
 use sea_streamer_kafka::KafkaProducerOptions;
 #[cfg(feature = "backend-redis")]
@@ -20,6 +22,8 @@ pub struct SeaProducerOptions {
     stdio: StdioProducerOptions,
     #[cfg(feature = "backend-file")]
     file: FileProducerOptions,
+    #[cfg(feature = "backend-iggy")]
+    iggy: IggyProducerOptions,
 }
 
 impl SeaProducerOptions {
@@ -41,6 +45,11 @@ impl SeaProducerOptions {
     #[cfg(feature = "backend-file")]
     pub fn into_file_producer_options(self) -> FileProducerOptions {
         self.file
+    }
+
+    #[cfg(feature = "backend-iggy")]
+    pub fn into_iggy_producer_options(self) -> IggyProducerOptions {
+        self.iggy
     }
 
     #[cfg(feature = "backend-kafka")]
@@ -65,6 +74,12 @@ impl SeaProducerOptions {
     /// Set options that only applies to File
     pub fn set_file_producer_options<F: FnOnce(&mut FileProducerOptions)>(&mut self, func: F) {
         func(&mut self.file)
+    }
+
+    #[cfg(feature = "backend-iggy")]
+    /// Set options that only applies to Iggy
+    pub fn set_iggy_producer_options<F: FnOnce(&mut IggyProducerOptions)>(&mut self, func: F) {
+        func(&mut self.iggy)
     }
 }
 

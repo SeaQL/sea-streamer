@@ -184,6 +184,10 @@
 
 pub use sea_streamer_types::*;
 
+#[cfg(feature = "sea-streamer-iggy")]
+#[cfg_attr(docsrs, doc(cfg(feature = "sea-streamer-iggy")))]
+pub use sea_streamer_iggy as iggy;
+
 #[cfg(feature = "sea-streamer-kafka")]
 #[cfg_attr(docsrs, doc(cfg(feature = "sea-streamer-kafka")))]
 pub use sea_streamer_kafka as kafka;

@@ -1,5 +1,7 @@
 #[cfg(feature = "backend-file")]
 use sea_streamer_file::FileStreamer;
+#[cfg(feature = "backend-iggy")]
+use sea_streamer_iggy::IggyStreamer;
 #[cfg(feature = "backend-kafka")]
 use sea_streamer_kafka::KafkaStreamer;
 #[cfg(feature = "backend-redis")]
@@ -31,6 +33,8 @@ pub enum SeaStreamerInner {
     Stdio(StdioStreamer),
     #[cfg(feature = "backend-file")]
     File(FileStreamer),
+    #[cfg(feature = "backend-iggy")]
+    Iggy(IggyStreamer),
 }
 
 impl SeaStreamer {
@@ -76,6 +80,15 @@ impl From<FileStreamer> for SeaStreamer {
     }
 }
 
+#[cfg(feature = "backend-iggy")]
+impl From<IggyStreamer> for SeaStreamer {
+    fn from(i: IggyStreamer) -> Self {
+        Self {
+            backend: SeaStreamerInner::Iggy(i),
+        }
+    }
+}
+
 impl SeaStreamerBackend for SeaStreamer {
     #[cfg(feature = "backend-kafka")]
     type Kafka = KafkaStreamer;
@@ -85,6 +98,8 @@ impl SeaStreamerBackend for SeaStreamer {
     type Stdio = StdioStreamer;
     #[cfg(feature = "backend-file")]
     type File = FileStreamer;
+    #[cfg(feature = "backend-iggy")]
+    type Iggy = IggyStreamer;
 
     fn backend(&self) -> Backend {
         match self.backend {
@@ -96,6 +111,8 @@ impl SeaStreamerBackend for SeaStreamer {
             SeaStreamerInner::Stdio(_) => Backend::Stdio,
             #[cfg(feature = "backend-file")]
             SeaStreamerInner::File(_) => Backend::File,
+            #[cfg(feature = "backend-iggy")]
+            SeaStreamerInner::Iggy(_) => Backend::Iggy,
         }
     }
 
@@ -109,6 +126,8 @@ impl SeaStreamerBackend for SeaStreamer {
             SeaStreamerInner::Stdio(_) => None,
             #[cfg(feature = "backend-file")]
             SeaStreamerInner::File(_) => None,
+            #[cfg(feature = "backend-iggy")]
+            SeaStreamerInner::Iggy(_) => None,
         }
     }
 
@@ -122,6 +141,8 @@ impl SeaStreamerBackend for SeaStreamer {
             SeaStreamerInner::Stdio(_) => None,
             #[cfg(feature = "backend-file")]
             SeaStreamerInner::File(_) => None,
+            #[cfg(feature = "backend-iggy")]
+            SeaStreamerInner::Iggy(_) => None,
         }
     }
 
@@ -135,6 +156,8 @@ impl SeaStreamerBackend for SeaStreamer {
             SeaStreamerInner::Stdio(s) => Some(s),
             #[cfg(feature = "backend-file")]
             SeaStreamerInner::File(_) => None,
+            #[cfg(feature = "backend-iggy")]
+            SeaStreamerInner::Iggy(_) => None,
         }
     }
 
@@ -148,6 +171,23 @@ impl SeaStreamerBackend for SeaStreamer {
             #[cfg(feature = "backend-stdio")]
             SeaStreamerInner::Stdio(_) => None,
             SeaStreamerInner::File(s) => Some(s),
+            #[cfg(feature = "backend-iggy")]
+            SeaStreamerInner::Iggy(_) => None,
+        }
+    }
+
+    #[cfg(feature = "backend-iggy")]
+    fn get_iggy(&mut self) -> Option<&mut Self::Iggy> {
+        match &mut self.backend {
+            #[cfg(feature = "backend-kafka")]
+            SeaStreamerInner::Kafka(_) => None,
+            #[cfg(feature = "backend-redis")]
+            SeaStreamerInner::Redis(_) => None,
+            #[cfg(feature = "backend-stdio")]
+            SeaStreamerInner::Stdio(_) => None,
+            #[cfg(feature = "backend-file")]
+            SeaStreamerInner::File(_) => None,
+            SeaStreamerInner::Iggy(s) => Some(s),
         }
     }
 }
@@ -187,6 +227,12 @@ impl Streamer for SeaStreamer {
                         .await
                         .map_err(map_err)?,
                 ),
+                #[cfg(feature = "backend-iggy")]
+                "iggy" => SeaStreamerInner::Iggy(
+                    IggyStreamer::connect(uri, options.into_iggy_connect_options())
+                        .await
+                        .map_err(map_err)?,
+                ),
                 _ => {
                     return Err(StreamErr::Connect(format!("unknown protocol `{protocol}`")));
                 }
@@ -208,6 +254,8 @@ impl Streamer for SeaStreamer {
             SeaStreamerInner::Stdio(i) => i.disconnect().await.map_err(map_err),
             #[cfg(feature = "backend-file")]
             SeaStreamerInner::File(i) => i.disconnect().await.map_err(map_err),
+            #[cfg(feature = "backend-iggy")]
+            SeaStreamerInner::Iggy(i) => i.disconnect().await.map_err(map_err),
         }
     }
 
@@ -237,6 +285,12 @@ impl Streamer for SeaStreamer {
             #[cfg(feature = "backend-file")]
             SeaStreamerInner::File(i) => SeaProducerBackend::File(
                 i.create_generic_producer(options.into_file_producer_options())
+                    .await
+                    .map_err(map_err)?,
+            ),
+            #[cfg(feature = "backend-iggy")]
+            SeaStreamerInner::Iggy(i) => SeaProducerBackend::Iggy(
+                i.create_generic_producer(options.into_iggy_producer_options())
                     .await
                     .map_err(map_err)?,
             ),
@@ -271,6 +325,12 @@ impl Streamer for SeaStreamer {
             #[cfg(feature = "backend-file")]
             SeaStreamerInner::File(i) => SeaConsumerBackend::File(
                 i.create_consumer(streams, options.into_file_consumer_options())
+                    .await
+                    .map_err(map_err)?,
+            ),
+            #[cfg(feature = "backend-iggy")]
+            SeaStreamerInner::Iggy(i) => SeaConsumerBackend::Iggy(
+                i.create_consumer(streams, options.into_iggy_consumer_options())
                     .await
                     .map_err(map_err)?,
             ),

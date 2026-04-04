@@ -1,5 +1,7 @@
 #[cfg(feature = "backend-file")]
 use sea_streamer_file::{AutoStreamReset as FileAutoStreamReset, FileConsumerOptions};
+#[cfg(feature = "backend-iggy")]
+use sea_streamer_iggy::IggyConsumerOptions;
 #[cfg(feature = "backend-kafka")]
 use sea_streamer_kafka::{AutoOffsetReset, KafkaConsumerOptions};
 #[cfg(feature = "backend-redis")]
@@ -21,6 +23,8 @@ pub struct SeaConsumerOptions {
     stdio: StdioConsumerOptions,
     #[cfg(feature = "backend-file")]
     file: FileConsumerOptions,
+    #[cfg(feature = "backend-iggy")]
+    iggy: IggyConsumerOptions,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -50,6 +54,11 @@ impl SeaConsumerOptions {
         self.file
     }
 
+    #[cfg(feature = "backend-iggy")]
+    pub fn into_iggy_consumer_options(self) -> IggyConsumerOptions {
+        self.iggy
+    }
+
     #[cfg(feature = "backend-kafka")]
     /// Set options that only applies to Kafka
     pub fn set_kafka_consumer_options<F: FnOnce(&mut KafkaConsumerOptions)>(&mut self, func: F) {
@@ -72,6 +81,12 @@ impl SeaConsumerOptions {
     /// Set options that only applies to File
     pub fn set_file_consumer_options<F: FnOnce(&mut FileConsumerOptions)>(&mut self, func: F) {
         func(&mut self.file)
+    }
+
+    #[cfg(feature = "backend-iggy")]
+    /// Set options that only applies to Iggy
+    pub fn set_iggy_consumer_options<F: FnOnce(&mut IggyConsumerOptions)>(&mut self, func: F) {
+        func(&mut self.iggy)
     }
 
     pub fn set_auto_stream_reset(&mut self, _val: SeaStreamReset) {
@@ -112,6 +127,8 @@ impl ConsumerOptions for SeaConsumerOptions {
             stdio: StdioConsumerOptions::new(mode),
             #[cfg(feature = "backend-file")]
             file: FileConsumerOptions::new(mode),
+            #[cfg(feature = "backend-iggy")]
+            iggy: IggyConsumerOptions::new(mode),
         }
     }
 
@@ -127,6 +144,8 @@ impl ConsumerOptions for SeaConsumerOptions {
         return self.stdio.mode().map_err(map_err);
         #[cfg(feature = "backend-file")]
         return self.file.mode().map_err(map_err);
+        #[cfg(feature = "backend-iggy")]
+        return self.iggy.mode().map_err(map_err);
     }
 
     /// Get currently set consumer group; may return `StreamErr::ConsumerGroupNotSet`.
@@ -141,6 +160,8 @@ impl ConsumerOptions for SeaConsumerOptions {
         return self.stdio.consumer_group().map_err(map_err);
         #[cfg(feature = "backend-file")]
         return self.file.consumer_group().map_err(map_err);
+        #[cfg(feature = "backend-iggy")]
+        return self.iggy.consumer_group().map_err(map_err);
     }
 
     /// Set consumer group for this consumer. Note the semantic is implementation-specific.
@@ -160,6 +181,10 @@ impl ConsumerOptions for SeaConsumerOptions {
             .map_err(map_err)?;
         #[cfg(feature = "backend-file")]
         self.file
+            .set_consumer_group(group_id.clone())
+            .map_err(map_err)?;
+        #[cfg(feature = "backend-iggy")]
+        self.iggy
             .set_consumer_group(group_id.clone())
             .map_err(map_err)?;
         Ok(self)

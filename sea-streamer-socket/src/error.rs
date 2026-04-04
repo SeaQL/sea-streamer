@@ -1,5 +1,7 @@
 #[cfg(feature = "backend-file")]
 use sea_streamer_file::FileErr;
+#[cfg(feature = "backend-iggy")]
+use sea_streamer_iggy::IggyErr;
 #[cfg(feature = "backend-kafka")]
 use sea_streamer_kafka::KafkaErr;
 #[cfg(feature = "backend-redis")]
@@ -17,6 +19,9 @@ pub type Error = StreamErr<BackendErr>;
 #[derive(Error, Debug)]
 /// `sea-streamer-socket` the concrete backend error.
 pub enum BackendErr {
+    #[cfg(feature = "backend-iggy")]
+    #[error("IggyBackendErr: {0}")]
+    Iggy(IggyErr),
     #[cfg(feature = "backend-kafka")]
     #[error("KafkaBackendErr: {0}")]
     Kafka(KafkaErr),
@@ -29,6 +34,13 @@ pub enum BackendErr {
     #[cfg(feature = "backend-file")]
     #[error("FileBackendErr: {0}")]
     File(FileErr),
+}
+
+#[cfg(feature = "backend-iggy")]
+impl From<IggyErr> for BackendErr {
+    fn from(err: IggyErr) -> Self {
+        Self::Iggy(err)
+    }
 }
 
 #[cfg(feature = "backend-kafka")]
@@ -60,6 +72,8 @@ impl From<FileErr> for BackendErr {
 }
 
 impl SeaStreamerBackend for BackendErr {
+    #[cfg(feature = "backend-iggy")]
+    type Iggy = IggyErr;
     #[cfg(feature = "backend-kafka")]
     type Kafka = KafkaErr;
     #[cfg(feature = "backend-redis")]
@@ -71,6 +85,8 @@ impl SeaStreamerBackend for BackendErr {
 
     fn backend(&self) -> Backend {
         match self {
+            #[cfg(feature = "backend-iggy")]
+            Self::Iggy(_) => Backend::Iggy,
             #[cfg(feature = "backend-kafka")]
             Self::Kafka(_) => Backend::Kafka,
             #[cfg(feature = "backend-redis")]
@@ -82,10 +98,27 @@ impl SeaStreamerBackend for BackendErr {
         }
     }
 
+    #[cfg(feature = "backend-iggy")]
+    fn get_iggy(&mut self) -> Option<&mut IggyErr> {
+        match self {
+            Self::Iggy(s) => Some(s),
+            #[cfg(feature = "backend-kafka")]
+            Self::Kafka(_) => None,
+            #[cfg(feature = "backend-redis")]
+            Self::Redis(_) => None,
+            #[cfg(feature = "backend-stdio")]
+            Self::Stdio(_) => None,
+            #[cfg(feature = "backend-file")]
+            Self::File(_) => None,
+        }
+    }
+
     #[cfg(feature = "backend-kafka")]
     fn get_kafka(&mut self) -> Option<&mut KafkaErr> {
         match self {
             Self::Kafka(s) => Some(s),
+            #[cfg(feature = "backend-iggy")]
+            Self::Iggy(_) => None,
             #[cfg(feature = "backend-redis")]
             Self::Redis(_) => None,
             #[cfg(feature = "backend-stdio")]
@@ -98,6 +131,8 @@ impl SeaStreamerBackend for BackendErr {
     #[cfg(feature = "backend-redis")]
     fn get_redis(&mut self) -> Option<&mut RedisErr> {
         match self {
+            #[cfg(feature = "backend-iggy")]
+            Self::Iggy(_) => None,
             #[cfg(feature = "backend-kafka")]
             Self::Kafka(_) => None,
             Self::Redis(s) => Some(s),
@@ -111,6 +146,8 @@ impl SeaStreamerBackend for BackendErr {
     #[cfg(feature = "backend-stdio")]
     fn get_stdio(&mut self) -> Option<&mut StdioErr> {
         match self {
+            #[cfg(feature = "backend-iggy")]
+            Self::Iggy(_) => None,
             #[cfg(feature = "backend-kafka")]
             Self::Kafka(_) => None,
             #[cfg(feature = "backend-redis")]
@@ -124,6 +161,8 @@ impl SeaStreamerBackend for BackendErr {
     #[cfg(feature = "backend-file")]
     fn get_file(&mut self) -> Option<&mut FileErr> {
         match self {
+            #[cfg(feature = "backend-iggy")]
+            Self::Iggy(_) => None,
             #[cfg(feature = "backend-kafka")]
             Self::Kafka(_) => None,
             #[cfg(feature = "backend-redis")]
