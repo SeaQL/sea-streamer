@@ -1,12 +1,15 @@
 use std::sync::Arc;
 
-use iggy::prelude::{Client, MessageClient, StreamClient, TopicClient};
+use iggy::prelude::{Client, MessageClient};
 use sea_streamer_types::{StreamErr, StreamKey, StreamResult, Streamer, StreamerUri};
 
 use crate::consumer::IggyConsumer;
 use crate::error::IggyErr;
 use crate::message::IggyMessage;
-use crate::options::{IggyConnectOptions, IggyConsumerOptions, IggyProducerOptions};
+use crate::options::{
+    IggyAutoCommit, IggyConnectOptions, IggyConsumerOptions, IggyPollingStrategy,
+    IggyProducerOptions,
+};
 use crate::producer::IggyProducer;
 
 #[derive(Debug, Clone)]
@@ -57,12 +60,11 @@ impl Streamer for IggyStreamer {
     ) -> StreamResult<Self::Producer, IggyErr> {
         let stream_name = options
             .stream_name()
-            .unwrap_or("default")
+            .expect("stream name is required for Iggy producer")
             .to_owned();
         let topic_name = options
             .topic_name()
-            .unwrap_or("default")
-            .to_owned();
+            .map(|v| StreamKey::new(v).expect("invalid topic name"));
 
         Ok(IggyProducer::new(
             self.client.clone(),
@@ -88,6 +90,8 @@ impl Streamer for IggyStreamer {
             name.to_owned()
         } else if streams.len() >= 2 {
             streams[1].name().to_owned()
+        } else if let Some(first) = streams.first() {
+            first.name().to_owned()
         } else {
             return Err(StreamErr::Backend(IggyErr::StreamTopicRequired));
         };
@@ -96,6 +100,22 @@ impl Streamer for IggyStreamer {
         let client = self.client.clone();
         let batch_size = options.batch_size();
         let polling_interval_ms = options.polling_interval_ms();
+        let auto_commit = match options.auto_commit() {
+            IggyAutoCommit::Disabled => false,
+            IggyAutoCommit::AfterPolling | IggyAutoCommit::IntervalOrAfterPolling(_) => true,
+            IggyAutoCommit::Interval(_) => false,
+        };
+        let polling_strategy = match options.polling_strategy() {
+            IggyPollingStrategy::Offset(v) => iggy::prelude::PollingStrategy::offset(*v),
+            IggyPollingStrategy::Timestamp(v) => iggy::prelude::PollingStrategy {
+                kind: iggy::prelude::PollingKind::Timestamp,
+                value: *v,
+            },
+            IggyPollingStrategy::First => iggy::prelude::PollingStrategy::first(),
+            IggyPollingStrategy::Last => iggy::prelude::PollingStrategy::last(),
+            IggyPollingStrategy::Next => iggy::prelude::PollingStrategy::next(),
+        };
+        let consumer_name = options.consumer_name().map(|s| s.to_owned());
         let handle = Arc::new(());
         let weak = Arc::downgrade(&handle);
 
@@ -117,8 +137,17 @@ impl Streamer for IggyStreamer {
                 return;
             };
 
-            let consumer = iggy::prelude::Consumer::default();
-            let polling_strategy = iggy::prelude::PollingStrategy::next();
+            let consumer = if let Some(name) = &consumer_name {
+                let Ok(id) = name.as_str().try_into() else {
+                    let _ = sender.send(Err(StreamErr::Backend(IggyErr::Generic(format!(
+                        "invalid consumer name: {name}"
+                    )))));
+                    return;
+                };
+                iggy::prelude::Consumer::new(id)
+            } else {
+                iggy::prelude::Consumer::default()
+            };
             let interval = std::time::Duration::from_millis(polling_interval_ms);
 
             loop {
@@ -134,7 +163,7 @@ impl Streamer for IggyStreamer {
                     &consumer,
                     &polling_strategy,
                     batch_size,
-                    false,
+                    auto_commit,
                 )
                 .await;
 

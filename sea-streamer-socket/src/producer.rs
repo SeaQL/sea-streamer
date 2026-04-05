@@ -211,6 +211,39 @@ impl Producer for SeaProducer {
 
     type SendFuture = SendFuture;
 
+    #[cfg(feature = "backend-iggy")]
+    fn send_to<S: Buffer>(&self, stream: Option<&StreamKey>, topic: &StreamKey, payload: S) -> SeaResult<Self::SendFuture> {
+        Ok(match &self.backend {
+            #[cfg(feature = "backend-kafka")]
+            SeaProducerBackend::Kafka(i) => {
+                SendFuture::Kafka(i.send_to(topic, payload).map_err(map_err)?)
+            }
+            #[cfg(feature = "backend-redis")]
+            SeaProducerBackend::Redis(i) => {
+                SendFuture::Redis(i.send_to(topic, payload).map_err(map_err)?)
+            }
+            #[cfg(all(feature = "backend-stdio", not(feature = "backend-iggy")))]
+            SeaProducerBackend::Stdio(i) => {
+                SendFuture::Stdio(i.send_to(topic, payload).map_err(map_err)?)
+            }
+            #[cfg(all(feature = "backend-stdio", feature = "backend-iggy"))]
+            SeaProducerBackend::Stdio(i) => {
+                SendFuture::Stdio(i.send_to(stream, topic, payload).map_err(map_err)?)
+            }
+            #[cfg(feature = "backend-file")]
+            SeaProducerBackend::File(i) => {
+                SendFuture::File(i.send_to(topic, payload).map_err(map_err)?)
+            }
+            #[cfg(feature = "backend-iggy")]
+            SeaProducerBackend::Iggy(i) => {
+                tracing::info!("sending message to stream \"{}\" with payload size", topic);
+                tracing::info!("stream key: {:?}, topic key: {}", stream, topic);
+                SendFuture::Iggy(i.send_to(stream, topic, payload).map_err(map_err)?)
+            }
+        })
+    }
+
+    #[cfg(not(feature = "backend-iggy"))]
     fn send_to<S: Buffer>(&self, stream: &StreamKey, payload: S) -> SeaResult<Self::SendFuture> {
         Ok(match &self.backend {
             #[cfg(feature = "backend-kafka")]
@@ -221,9 +254,13 @@ impl Producer for SeaProducer {
             SeaProducerBackend::Redis(i) => {
                 SendFuture::Redis(i.send_to(stream, payload).map_err(map_err)?)
             }
-            #[cfg(feature = "backend-stdio")]
+            #[cfg(all(feature = "backend-stdio", not(feature = "backend-iggy")))]
             SeaProducerBackend::Stdio(i) => {
                 SendFuture::Stdio(i.send_to(stream, payload).map_err(map_err)?)
+            }
+            #[cfg(all(feature = "backend-stdio", feature = "backend-iggy"))]
+            SeaProducerBackend::Stdio(i) => {
+                SendFuture::Stdio(i.send_to(None, stream, payload).map_err(map_err)?)
             }
             #[cfg(feature = "backend-file")]
             SeaProducerBackend::File(i) => {
@@ -231,7 +268,8 @@ impl Producer for SeaProducer {
             }
             #[cfg(feature = "backend-iggy")]
             SeaProducerBackend::Iggy(i) => {
-                SendFuture::Iggy(i.send_to(stream, payload).map_err(map_err)?)
+                tracing::info!("sending message to stream \"{}\" with payload size", stream);
+                SendFuture::Iggy(i.send_to(None, stream, payload).map_err(map_err)?)
             }
         })
     }

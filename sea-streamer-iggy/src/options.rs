@@ -86,9 +86,9 @@ pub enum IggyPollingStrategy {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum IggyAutoCommit {
     /// Disable auto-commit; the consumer must commit manually.
-    #[default]
     Disabled,
     /// Commit after every poll.
+    #[default]
     AfterPolling,
     /// Commit at a fixed interval (in milliseconds).
     Interval(u64),
@@ -132,8 +132,8 @@ impl Default for IggyConsumerOptions {
             partitions_count: 1,
             auto_join_consumer_group: true,
             create_consumer_group_if_not_exists: true,
-            polling_strategy: IggyPollingStrategy::default(),
-            auto_commit: IggyAutoCommit::default(),
+            polling_strategy: IggyPollingStrategy::Next,
+            auto_commit: IggyAutoCommit::AfterPolling,
             polling_retry_interval_ms: 1000,
             init_retries: 3,
             init_interval_ms: 1000,

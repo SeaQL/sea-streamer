@@ -16,7 +16,7 @@ use crate::error::IggyErr;
 #[derive(Clone)]
 pub struct IggyProducer {
     inner: Arc<Mutex<IggyProducerInner>>,
-    anchor: Arc<std::sync::Mutex<Option<StreamKey>>>,
+    anchor: Option<StreamKey>,
 }
 
 struct IggyProducerInner {
@@ -45,15 +45,17 @@ impl IggyProducer {
     pub(crate) fn new(
         client: Arc<iggy::prelude::IggyClient>,
         stream_name: String,
-        topic_name: String,
+        topic_name: Option<StreamKey>,
     ) -> Self {
+        let topic_name = topic_name.map(|k| k.name().to_owned()).unwrap_or_else(|| "default_topic".to_string());
+
         Self {
             inner: Arc::new(Mutex::new(IggyProducerInner {
                 client,
                 stream_name,
                 topic_name,
             })),
-            anchor: Arc::new(std::sync::Mutex::new(None)),
+            anchor: None,
         }
     }
 }
@@ -64,23 +66,27 @@ impl Producer for IggyProducer {
 
     fn send_to<S: Buffer>(
         &self,
-        stream: &StreamKey,
+        stream: Option<&StreamKey>,
+        topic: &StreamKey,
         payload: S,
     ) -> StreamResult<Self::SendFuture, IggyErr> {
         let bytes = payload.into_bytes();
         let inner = self.inner.clone();
-        let stream_key = stream.clone();
+        let inner_stream_name = stream
+            .map(|s| s.name().to_owned())
+            .unwrap_or_else(|| inner.blocking_lock().stream_name.clone());
+
+        let topic = Arc::new(topic.clone());
 
         Ok(SendFuture {
             inner: Box::pin(async move {
                 let inner = inner.lock().await;
-                let topic_id: iggy::prelude::Identifier = inner
-                    .topic_name
-                    .as_str()
+
+                let topic_id: iggy::prelude::Identifier = topic
+                    .name()
                     .try_into()
                     .map_err(|e| StreamErr::Backend(IggyErr::Client(e)))?;
-                let stream_id: iggy::prelude::Identifier = inner
-                    .stream_name
+                let stream_id: iggy::prelude::Identifier = inner_stream_name
                     .as_str()
                     .try_into()
                     .map_err(|e| StreamErr::Backend(IggyErr::Client(e)))?;
@@ -101,7 +107,7 @@ impl Producer for IggyProducer {
                 .map_err(|e| StreamErr::Backend(IggyErr::Client(e)))?;
 
                 let header = MessageHeader::new(
-                    stream_key,
+                    StreamKey::from_str(&inner_stream_name).map_err(|e| StreamErr::StreamKeyErr(e))?,
                     ShardId::new(0),
                     SeqNo::default(),
                     Timestamp::now_utc(),
@@ -115,21 +121,25 @@ impl Producer for IggyProducer {
         Ok(())
     }
 
+    fn send<S: Buffer>(&self, payload: S) -> StreamResult<Self::SendFuture, Self::Error> {
+        self.send_to(None, self.anchored()?, payload)
+    }
+
     async fn flush(&mut self) -> StreamResult<(), IggyErr> {
         Ok(())
     }
 
     fn anchor(&mut self, stream: StreamKey) -> StreamResult<(), IggyErr> {
-        let mut anchor = self.anchor.lock().unwrap();
-        if anchor.is_some() {
+        if self.anchor.is_some() {
             return Err(StreamErr::AlreadyAnchored);
         }
-        *anchor = Some(stream);
+        self.anchor = Some(stream);
         Ok(())
     }
 
     fn anchored(&self) -> StreamResult<&StreamKey, IggyErr> {
-        Err(StreamErr::NotAnchored)
+        let something = self.anchor.as_ref().ok_or_else(|| StreamErr::NotAnchored)?;
+        Ok(something)
     }
 }
 
