@@ -103,7 +103,7 @@ impl Producer for IggyProducer {
                 .map_err(|e| StreamErr::Backend(IggyErr::Client(e)))?;
 
                 let header = MessageHeader::new(
-                    StreamKey::from_str(&inner_stream_name).map_err(|e| StreamErr::StreamKeyErr(e))?,
+                    StreamKey::from_str(&inner_stream_name).map_err(StreamErr::StreamKeyErr)?,
                     ShardId::new(0),
                     SeqNo::default(),
                     Timestamp::now_utc(),
