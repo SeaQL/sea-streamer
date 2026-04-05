@@ -43,7 +43,7 @@ impl std::fmt::Debug for IggyMessageStream<'_> {
 }
 
 impl IggyConsumer {
-    pub(crate) fn new(
+    pub fn new(
         receiver: flume::Receiver<StreamResult<IggyMessage, IggyErr>>,
         handle: Arc<()>,
     ) -> Self {

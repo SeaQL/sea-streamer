@@ -22,7 +22,6 @@ pub struct IggyProducer {
 struct IggyProducerInner {
     client: Arc<iggy::prelude::IggyClient>,
     stream_name: String,
-    topic_name: String,
 }
 
 impl std::fmt::Debug for IggyProducer {
@@ -45,15 +44,12 @@ impl IggyProducer {
     pub(crate) fn new(
         client: Arc<iggy::prelude::IggyClient>,
         stream_name: String,
-        topic_name: Option<StreamKey>,
     ) -> Self {
-        let topic_name = topic_name.map(|k| k.name().to_owned()).unwrap_or_else(|| "default_topic".to_string());
 
         Self {
             inner: Arc::new(Mutex::new(IggyProducerInner {
                 client,
                 stream_name,
-                topic_name,
             })),
             anchor: None,
         }

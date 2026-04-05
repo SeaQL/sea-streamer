@@ -62,14 +62,10 @@ impl Streamer for IggyStreamer {
             .stream_name()
             .expect("stream name is required for Iggy producer")
             .to_owned();
-        let topic_name = options
-            .topic_name()
-            .map(|v| StreamKey::new(v).expect("invalid topic name"));
 
         Ok(IggyProducer::new(
             self.client.clone(),
             stream_name,
-            topic_name,
         ))
     }
 
