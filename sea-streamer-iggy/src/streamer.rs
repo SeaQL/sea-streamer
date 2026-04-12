@@ -115,7 +115,7 @@ impl Streamer for IggyStreamer {
                 let replication = options
                     .topic_replication_factor()
                     .map(|v| (v.min(u8::MAX as u32)) as u8);
-                
+
                 TopicClient::create_topic(
                     client,
                     &stream_id,
@@ -187,8 +187,7 @@ impl Streamer for IggyStreamer {
                 )))));
                 return;
             };
-            let Ok(topic_id): Result<iggy::prelude::Identifier, _> =
-                topic_name.as_str().try_into()
+            let Ok(topic_id): Result<iggy::prelude::Identifier, _> = topic_name.as_str().try_into()
             else {
                 let _ = sender.send(Err(StreamErr::Backend(IggyErr::Generic(format!(
                     "invalid topic name: {topic_name}"

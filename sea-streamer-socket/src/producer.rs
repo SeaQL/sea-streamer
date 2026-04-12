@@ -1,11 +1,11 @@
 #[cfg(feature = "backend-file")]
 use sea_streamer_file::FileProducer;
+#[cfg(feature = "backend-iggy")]
+use sea_streamer_iggy::IggyProducer;
 #[cfg(feature = "backend-kafka")]
 use sea_streamer_kafka::KafkaProducer;
 #[cfg(feature = "backend-redis")]
 use sea_streamer_redis::RedisProducer;
-#[cfg(feature = "backend-iggy")]
-use sea_streamer_iggy::IggyProducer;
 #[cfg(feature = "backend-stdio")]
 use sea_streamer_stdio::StdioProducer;
 
@@ -212,7 +212,12 @@ impl Producer for SeaProducer {
     type SendFuture = SendFuture;
 
     #[cfg(feature = "backend-iggy")]
-    fn send_to<S: Buffer>(&self, stream: Option<&StreamKey>, topic: &StreamKey, payload: S) -> SeaResult<Self::SendFuture> {
+    fn send_to<S: Buffer>(
+        &self,
+        stream: Option<&StreamKey>,
+        topic: &StreamKey,
+        payload: S,
+    ) -> SeaResult<Self::SendFuture> {
         Ok(match &self.backend {
             #[cfg(feature = "backend-kafka")]
             SeaProducerBackend::Kafka(i) => {

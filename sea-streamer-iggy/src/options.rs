@@ -284,10 +284,7 @@ impl ConsumerOptions for IggyConsumerOptions {
         }
     }
 
-    fn set_consumer_group(
-        &mut self,
-        group_id: ConsumerGroup,
-    ) -> StreamResult<&mut Self, IggyErr> {
+    fn set_consumer_group(&mut self, group_id: ConsumerGroup) -> StreamResult<&mut Self, IggyErr> {
         self.consumer_group = Some(group_id);
         Ok(self)
     }

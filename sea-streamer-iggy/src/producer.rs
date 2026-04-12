@@ -41,11 +41,7 @@ impl std::fmt::Debug for SendFuture {
 }
 
 impl IggyProducer {
-    pub(crate) fn new(
-        client: Arc<iggy::prelude::IggyClient>,
-        stream_name: String,
-    ) -> Self {
-
+    pub(crate) fn new(client: Arc<iggy::prelude::IggyClient>, stream_name: String) -> Self {
         Self {
             inner: Arc::new(Mutex::new(IggyProducerInner {
                 client,
@@ -68,7 +64,10 @@ impl Producer for IggyProducer {
     ) -> StreamResult<Self::SendFuture, IggyErr> {
         let bytes = payload.into_bytes();
         let inner = self.inner.clone();
-        let inner_stream_name = stream.map_or_else(|| inner.blocking_lock().stream_name.clone(), |s| s.name().to_owned());
+        let inner_stream_name = stream.map_or_else(
+            || inner.blocking_lock().stream_name.clone(),
+            |s| s.name().to_owned(),
+        );
 
         let topic = Arc::new(topic.clone());
 

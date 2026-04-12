@@ -206,7 +206,12 @@ impl ProducerTrait for StdioProducer {
     }
 
     #[cfg(feature = "backend-iggy")]
-    fn send_to<S: Buffer>(&self, _stream: Option<&StreamKey>, topic: &StreamKey, payload: S) -> StdioResult<Self::SendFuture> {
+    fn send_to<S: Buffer>(
+        &self,
+        _stream: Option<&StreamKey>,
+        topic: &StreamKey,
+        payload: S,
+    ) -> StdioResult<Self::SendFuture> {
         let payload = payload.as_str().map_err(StreamErr::Utf8Error)?.to_owned();
         // basically using this as oneshot
         let (sender, receiver) = bounded(1);
@@ -232,7 +237,6 @@ impl ProducerTrait for StdioProducer {
             fut: receiver.into_recv_async(),
         })
     }
-
 
     #[inline]
     async fn end(mut self) -> StdioResult<()> {

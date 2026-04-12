@@ -1,11 +1,12 @@
-
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
 
     use sea_streamer_iggy::{IggyConsumer, IggyErr, IggyMessage};
     use sea_streamer_types::export::futures::StreamExt;
-    use sea_streamer_types::{Buffer, Consumer, Message, SeqPos, ShardId, StreamErr, StreamKey, StreamResult, Timestamp};
+    use sea_streamer_types::{
+        Buffer, Consumer, Message, SeqPos, ShardId, StreamErr, StreamKey, StreamResult, Timestamp,
+    };
 
     fn make_consumer() -> (
         IggyConsumer,

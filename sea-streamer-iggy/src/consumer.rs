@@ -104,9 +104,7 @@ impl<'a> Future for NextFuture<'a> {
         let this = unsafe { self.get_unchecked_mut() };
         match Pin::new(&mut this.inner).poll(cx) {
             Poll::Ready(Ok(result)) => Poll::Ready(result),
-            Poll::Ready(Err(_)) => {
-                Poll::Ready(Err(StreamErr::Backend(IggyErr::ChannelRecv)))
-            }
+            Poll::Ready(Err(_)) => Poll::Ready(Err(StreamErr::Backend(IggyErr::ChannelRecv))),
             Poll::Pending => Poll::Pending,
         }
     }

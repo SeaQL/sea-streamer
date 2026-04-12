@@ -6,8 +6,8 @@ async fn main() -> anyhow::Result<()> {
 
     use sea_streamer_iggy::{IggyConnectOptions, IggyConsumerOptions, IggyPollingStrategy};
     use sea_streamer_types::{
-        export::futures::StreamExt, Buffer, Consumer, ConsumerMode, ConsumerOptions, Message,
-        Producer, StreamKey, Streamer, Timestamp,
+        Buffer, Consumer, ConsumerMode, ConsumerOptions, Message, Producer, StreamKey, Streamer,
+        Timestamp, export::futures::StreamExt,
     };
 
     let url = std::env::var("IGGY_URL").unwrap_or_else(|_| "iggy://127.0.0.1:8090".to_owned());
@@ -47,7 +47,10 @@ async fn main() -> anyhow::Result<()> {
     consumer_options.set_batch_size(10);
 
     let mut consumer = streamer
-        .create_consumer(&[StreamKey::new(&stream_name)?, StreamKey::new(&topic_name)?], consumer_options)
+        .create_consumer(
+            &[StreamKey::new(&stream_name)?, StreamKey::new(&topic_name)?],
+            consumer_options,
+        )
         .await?;
 
     let mut received = Vec::new();
@@ -63,7 +66,13 @@ async fn main() -> anyhow::Result<()> {
 
     assert_eq!(
         received,
-        vec!["message-0", "message-1", "message-2", "message-3", "message-4"]
+        vec![
+            "message-0",
+            "message-1",
+            "message-2",
+            "message-3",
+            "message-4"
+        ]
     );
     println!("Produce and consume ... ok");
 
