@@ -45,7 +45,7 @@ sea-streamer-runtime = { version = "1.0.0-rc", path = "sea-streamer-runtime", op
 
 [features]
 json = ["sea-streamer-types/json"]
-iggy = ["sea-streamer-iggy", "sea-streamer-socket?/backend-iggy"]
+iggy = ["sea-streamer-iggy", "sea-streamer-socket?/backend-iggy", "sea-streamer-stdio?/backend-iggy"]
 kafka = ["sea-streamer-kafka", "sea-streamer-socket?/backend-kafka"]
 redis = ["sea-streamer-redis", "sea-streamer-socket?/backend-redis"]
 stdio = ["sea-streamer-stdio", "sea-streamer-socket?/backend-stdio"]

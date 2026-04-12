@@ -33,14 +33,18 @@ jobs:
           toolchain: stable
           components: clippy
       - run: cargo fmt --all -- --check
-      - run: cargo build --all
+      - run: cargo build --all --exclude sea-streamer-iggy
+      - run: cargo build -p sea-streamer-iggy
       - run: cargo build --manifest-path "sea-streamer-file/Cargo.toml" --features executables
-      - run: cargo test --all
+      - run: cargo test --all --exclude sea-streamer-iggy
+      - run: cargo test -p sea-streamer-iggy
       - run: cargo test --package sea-streamer-stdio --test '*' --features test -- --nocapture
       - run: cargo test --package sea-streamer-file --test '*' --features test,runtime-smol -- --nocapture
       - run: cargo test --package sea-streamer-file --test '*' --features test,runtime-tokio -- --nocapture
-      - run: cargo clippy --features file,redis,kafka,stdio,socket,json,iggy -- -D warnings
-      - run: cargo clippy --all
+      - run: cargo clippy --features file,redis,kafka,stdio,socket,json -- -D warnings
+      - run: cargo clippy --features stdio,socket,json,iggy -- -D warnings
+      - run: cargo clippy --all --exclude sea-streamer-iggy
+      - run: cargo clippy -p sea-streamer-iggy
 
   kafka:
     name: Kafka
