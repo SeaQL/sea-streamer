@@ -13,6 +13,8 @@ on:
       - main
       - 0.*.x
       - pr/**/ci
+  workflow_dispatch:
+
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref || github.run_id }}
