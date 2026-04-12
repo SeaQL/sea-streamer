@@ -16,6 +16,8 @@ features = []
 rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
+anyhow = { version = "1", optional = true }
+env_logger = { version = "0.11", optional = true }
 flume = { version = "0.11", default-features = false, features = ["async"] }
 iggy = { version = "0.9" }
 sea-streamer-types = { version = "1.0.0-rc", path = "../sea-streamer-types", features = ["iggy"] }
@@ -25,4 +27,5 @@ tracing = { version = "0.1", default-features = false }
 
 [features]
 default = ["runtime-tokio"]
+test = ["anyhow", "tokio?/full", "env_logger"]
 runtime-tokio = ["tokio"]

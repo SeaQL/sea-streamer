@@ -39,7 +39,7 @@ jobs:
       - run: cargo test --package sea-streamer-stdio --test '*' --features test -- --nocapture
       - run: cargo test --package sea-streamer-file --test '*' --features test,runtime-smol -- --nocapture
       - run: cargo test --package sea-streamer-file --test '*' --features test,runtime-tokio -- --nocapture
-      - run: cargo clippy --features file,redis,kafka,stdio,socket,json -- -D warnings
+      - run: cargo clippy --features file,redis,kafka,stdio,socket,json,iggy -- -D warnings
       - run: cargo clippy --all
 
   kafka:
@@ -111,3 +111,34 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test --package sea-streamer-redis --no-default-features --features test,runtime-${{ matrix.runtime }} -- --nocapture
+
+  iggy:
+    name: Iggy
+    runs-on: ubuntu-latest
+    env:
+      HOST_ID: DUMMY_HOST_ID
+    strategy:
+      fail-fast: false
+      matrix:
+        iggy_version: [latest]
+        runtime: [tokio]
+    services:
+      iggy:
+        image: apache/iggy:${{ matrix.iggy_version }}
+        ports:
+          - 8090:8090
+        env:
+          IGGY_ROOT_USERNAME: iggy
+          IGGY_ROOT_PASSWORD: iggy
+          IGGY_TCP_ENABLED: 'true'
+          IGGY_TCP_ADDRESS: 0.0.0.0:8090
+          IGGY_SYSTEM_SHARDING_CPU_ALLOCATION: '1'
+        options: >-
+          --cap-add SYS_NICE
+          --security-opt seccomp=unconfined
+          --ulimit memlock=-1:-1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: sleep 10
+      - run: cargo test --package sea-streamer-iggy --features test,runtime-${{ matrix.runtime }} -- --nocapture
