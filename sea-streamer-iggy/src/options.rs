@@ -359,7 +359,7 @@ impl IggyProducerOptions {
         self.batch_size
     }
 
-    pub fn set_batch_size(&mut self, size: u32) {
+    pub const fn set_batch_size(&mut self, size: u32) {
         self.batch_size = size;
     }
 
@@ -367,7 +367,7 @@ impl IggyProducerOptions {
         self.send_interval_ms
     }
 
-    pub fn set_send_interval_ms(&mut self, ms: u64) {
+    pub const fn set_send_interval_ms(&mut self, ms: u64) {
         self.send_interval_ms = ms;
     }
 
@@ -375,7 +375,7 @@ impl IggyProducerOptions {
         self.partitions_count
     }
 
-    pub fn set_partitions_count(&mut self, count: u32) {
+    pub const fn set_partitions_count(&mut self, count: u32) {
         self.partitions_count = count;
     }
 
@@ -383,7 +383,7 @@ impl IggyProducerOptions {
         self.create_stream_if_not_exists
     }
 
-    pub fn set_create_stream_if_not_exists(&mut self, val: bool) {
+    pub const fn set_create_stream_if_not_exists(&mut self, val: bool) {
         self.create_stream_if_not_exists = val;
     }
 
@@ -391,7 +391,7 @@ impl IggyProducerOptions {
         self.create_topic_if_not_exists
     }
 
-    pub fn set_create_topic_if_not_exists(&mut self, val: bool) {
+    pub const fn set_create_topic_if_not_exists(&mut self, val: bool) {
         self.create_topic_if_not_exists = val;
     }
 
@@ -399,7 +399,7 @@ impl IggyProducerOptions {
         self.topic_replication_factor
     }
 
-    pub fn set_topic_replication_factor(&mut self, factor: u32) {
+    pub const fn set_topic_replication_factor(&mut self, factor: u32) {
         self.topic_replication_factor = Some(factor);
     }
 
@@ -415,7 +415,7 @@ impl IggyProducerOptions {
         self.send_retries_count
     }
 
-    pub fn set_send_retries_count(&mut self, count: u32) {
+    pub const fn set_send_retries_count(&mut self, count: u32) {
         self.send_retries_count = count;
     }
 
@@ -423,7 +423,7 @@ impl IggyProducerOptions {
         self.send_retries_interval_ms
     }
 
-    pub fn set_send_retries_interval_ms(&mut self, ms: u64) {
+    pub const fn set_send_retries_interval_ms(&mut self, ms: u64) {
         self.send_retries_interval_ms = ms;
     }
 }

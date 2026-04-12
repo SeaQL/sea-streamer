@@ -68,9 +68,7 @@ impl Producer for IggyProducer {
     ) -> StreamResult<Self::SendFuture, IggyErr> {
         let bytes = payload.into_bytes();
         let inner = self.inner.clone();
-        let inner_stream_name = stream
-            .map(|s| s.name().to_owned())
-            .unwrap_or_else(|| inner.blocking_lock().stream_name.clone());
+        let inner_stream_name = stream.map_or_else(|| inner.blocking_lock().stream_name.clone(), |s| s.name().to_owned());
 
         let topic = Arc::new(topic.clone());
 

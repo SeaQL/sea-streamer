@@ -97,9 +97,8 @@ impl Streamer for IggyStreamer {
         let batch_size = options.batch_size();
         let polling_interval_ms = options.polling_interval_ms();
         let auto_commit = match options.auto_commit() {
-            IggyAutoCommit::Disabled => false,
             IggyAutoCommit::AfterPolling | IggyAutoCommit::IntervalOrAfterPolling(_) => true,
-            IggyAutoCommit::Interval(_) => false,
+            IggyAutoCommit::Disabled | IggyAutoCommit::Interval(_) => false,
         };
         let polling_strategy = match options.polling_strategy() {
             IggyPollingStrategy::Offset(v) => iggy::prelude::PollingStrategy::offset(*v),
@@ -111,7 +110,7 @@ impl Streamer for IggyStreamer {
             IggyPollingStrategy::Last => iggy::prelude::PollingStrategy::last(),
             IggyPollingStrategy::Next => iggy::prelude::PollingStrategy::next(),
         };
-        let consumer_name = options.consumer_name().map(|s| s.to_owned());
+        let consumer_name = options.consumer_name().map(ToOwned::to_owned);
         let handle = Arc::new(());
         let weak = Arc::downgrade(&handle);
 
