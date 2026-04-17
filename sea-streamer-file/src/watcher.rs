@@ -131,6 +131,7 @@ impl Watchers {
                                 // only if the file grows
                                 sender.send((fid.clone(), FileEvent::Modify)).ok();
                             }
+                            #[allow(clippy::collapsible_match)]
                             ModifyKind::Metadata(_) => {
                                 // we are in a different thread, but blocking here is still undesirable
                                 if std::fs::metadata(fid.path()).is_err() {
