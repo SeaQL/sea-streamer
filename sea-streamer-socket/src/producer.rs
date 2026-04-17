@@ -1,5 +1,7 @@
 #[cfg(feature = "backend-file")]
 use sea_streamer_file::FileProducer;
+#[cfg(feature = "backend-iggy")]
+use sea_streamer_iggy::IggyProducer;
 #[cfg(feature = "backend-kafka")]
 use sea_streamer_kafka::KafkaProducer;
 #[cfg(feature = "backend-redis")]
@@ -30,6 +32,8 @@ pub enum SeaProducerBackend {
     Stdio(StdioProducer),
     #[cfg(feature = "backend-file")]
     File(FileProducer),
+    #[cfg(feature = "backend-iggy")]
+    Iggy(IggyProducer),
 }
 
 impl SeaProducer {
@@ -75,6 +79,15 @@ impl From<FileProducer> for SeaProducer {
     }
 }
 
+#[cfg(feature = "backend-iggy")]
+impl From<IggyProducer> for SeaProducer {
+    fn from(i: IggyProducer) -> Self {
+        Self {
+            backend: SeaProducerBackend::Iggy(i),
+        }
+    }
+}
+
 impl SeaStreamerBackend for SeaProducer {
     #[cfg(feature = "backend-kafka")]
     type Kafka = KafkaProducer;
@@ -84,6 +97,8 @@ impl SeaStreamerBackend for SeaProducer {
     type Stdio = StdioProducer;
     #[cfg(feature = "backend-file")]
     type File = FileProducer;
+    #[cfg(feature = "backend-iggy")]
+    type Iggy = IggyProducer;
 
     fn backend(&self) -> Backend {
         match self.backend {
@@ -95,6 +110,8 @@ impl SeaStreamerBackend for SeaProducer {
             SeaProducerBackend::Stdio(_) => Backend::Stdio,
             #[cfg(feature = "backend-file")]
             SeaProducerBackend::File(_) => Backend::File,
+            #[cfg(feature = "backend-iggy")]
+            SeaProducerBackend::Iggy(_) => Backend::Iggy,
         }
     }
 
@@ -108,6 +125,8 @@ impl SeaStreamerBackend for SeaProducer {
             SeaProducerBackend::Stdio(_) => None,
             #[cfg(feature = "backend-file")]
             SeaProducerBackend::File(_) => None,
+            #[cfg(feature = "backend-iggy")]
+            SeaProducerBackend::Iggy(_) => None,
         }
     }
 
@@ -121,6 +140,8 @@ impl SeaStreamerBackend for SeaProducer {
             SeaProducerBackend::Stdio(_) => None,
             #[cfg(feature = "backend-file")]
             SeaProducerBackend::File(_) => None,
+            #[cfg(feature = "backend-iggy")]
+            SeaProducerBackend::Iggy(_) => None,
         }
     }
 
@@ -134,6 +155,8 @@ impl SeaStreamerBackend for SeaProducer {
             SeaProducerBackend::Stdio(s) => Some(s),
             #[cfg(feature = "backend-file")]
             SeaProducerBackend::File(_) => None,
+            #[cfg(feature = "backend-iggy")]
+            SeaProducerBackend::Iggy(_) => None,
         }
     }
 
@@ -147,6 +170,23 @@ impl SeaStreamerBackend for SeaProducer {
             #[cfg(feature = "backend-stdio")]
             SeaProducerBackend::Stdio(_) => None,
             SeaProducerBackend::File(s) => Some(s),
+            #[cfg(feature = "backend-iggy")]
+            SeaProducerBackend::Iggy(_) => None,
+        }
+    }
+
+    #[cfg(feature = "backend-iggy")]
+    fn get_iggy(&mut self) -> Option<&mut Self::Iggy> {
+        match &mut self.backend {
+            #[cfg(feature = "backend-kafka")]
+            SeaProducerBackend::Kafka(_) => None,
+            #[cfg(feature = "backend-redis")]
+            SeaProducerBackend::Redis(_) => None,
+            #[cfg(feature = "backend-stdio")]
+            SeaProducerBackend::Stdio(_) => None,
+            #[cfg(feature = "backend-file")]
+            SeaProducerBackend::File(_) => None,
+            SeaProducerBackend::Iggy(s) => Some(s),
         }
     }
 }
@@ -162,6 +202,8 @@ pub enum SendFuture {
     Stdio(sea_streamer_stdio::SendFuture),
     #[cfg(feature = "backend-file")]
     File(sea_streamer_file::SendFuture),
+    #[cfg(feature = "backend-iggy")]
+    Iggy(sea_streamer_iggy::SendFuture),
 }
 
 impl Producer for SeaProducer {
@@ -169,6 +211,44 @@ impl Producer for SeaProducer {
 
     type SendFuture = SendFuture;
 
+    #[cfg(feature = "backend-iggy")]
+    fn send_to<S: Buffer>(
+        &self,
+        stream: Option<&StreamKey>,
+        topic: &StreamKey,
+        payload: S,
+    ) -> SeaResult<Self::SendFuture> {
+        Ok(match &self.backend {
+            #[cfg(feature = "backend-kafka")]
+            SeaProducerBackend::Kafka(i) => {
+                SendFuture::Kafka(i.send_to(topic, payload).map_err(map_err)?)
+            }
+            #[cfg(feature = "backend-redis")]
+            SeaProducerBackend::Redis(i) => {
+                SendFuture::Redis(i.send_to(topic, payload).map_err(map_err)?)
+            }
+            #[cfg(all(feature = "backend-stdio", not(feature = "backend-iggy")))]
+            SeaProducerBackend::Stdio(i) => {
+                SendFuture::Stdio(i.send_to(topic, payload).map_err(map_err)?)
+            }
+            #[cfg(all(feature = "backend-stdio", feature = "backend-iggy"))]
+            SeaProducerBackend::Stdio(i) => {
+                SendFuture::Stdio(i.send_to(stream, topic, payload).map_err(map_err)?)
+            }
+            #[cfg(feature = "backend-file")]
+            SeaProducerBackend::File(i) => {
+                SendFuture::File(i.send_to(topic, payload).map_err(map_err)?)
+            }
+            #[cfg(feature = "backend-iggy")]
+            SeaProducerBackend::Iggy(i) => {
+                tracing::info!("sending message to stream \"{}\" with payload size", topic);
+                tracing::info!("stream key: {:?}, topic key: {}", stream, topic);
+                SendFuture::Iggy(i.send_to(stream, topic, payload).map_err(map_err)?)
+            }
+        })
+    }
+
+    #[cfg(not(feature = "backend-iggy"))]
     fn send_to<S: Buffer>(&self, stream: &StreamKey, payload: S) -> SeaResult<Self::SendFuture> {
         Ok(match &self.backend {
             #[cfg(feature = "backend-kafka")]
@@ -179,13 +259,22 @@ impl Producer for SeaProducer {
             SeaProducerBackend::Redis(i) => {
                 SendFuture::Redis(i.send_to(stream, payload).map_err(map_err)?)
             }
-            #[cfg(feature = "backend-stdio")]
+            #[cfg(all(feature = "backend-stdio", not(feature = "backend-iggy")))]
             SeaProducerBackend::Stdio(i) => {
                 SendFuture::Stdio(i.send_to(stream, payload).map_err(map_err)?)
+            }
+            #[cfg(all(feature = "backend-stdio", feature = "backend-iggy"))]
+            SeaProducerBackend::Stdio(i) => {
+                SendFuture::Stdio(i.send_to(None, stream, payload).map_err(map_err)?)
             }
             #[cfg(feature = "backend-file")]
             SeaProducerBackend::File(i) => {
                 SendFuture::File(i.send_to(stream, payload).map_err(map_err)?)
+            }
+            #[cfg(feature = "backend-iggy")]
+            SeaProducerBackend::Iggy(i) => {
+                tracing::info!("sending message to stream \"{}\" with payload size", stream);
+                SendFuture::Iggy(i.send_to(None, stream, payload).map_err(map_err)?)
             }
         })
     }
@@ -200,6 +289,8 @@ impl Producer for SeaProducer {
             SeaProducerBackend::Stdio(i) => i.end().await.map_err(map_err),
             #[cfg(feature = "backend-file")]
             SeaProducerBackend::File(i) => i.end().await.map_err(map_err),
+            #[cfg(feature = "backend-iggy")]
+            SeaProducerBackend::Iggy(i) => i.end().await.map_err(map_err),
         }
     }
 
@@ -213,6 +304,8 @@ impl Producer for SeaProducer {
             SeaProducerBackend::Stdio(i) => i.flush().await.map_err(map_err),
             #[cfg(feature = "backend-file")]
             SeaProducerBackend::File(i) => i.flush().await.map_err(map_err),
+            #[cfg(feature = "backend-iggy")]
+            SeaProducerBackend::Iggy(i) => i.flush().await.map_err(map_err),
         }
     }
 
@@ -226,6 +319,8 @@ impl Producer for SeaProducer {
             SeaProducerBackend::Stdio(i) => i.anchor(stream).map_err(map_err),
             #[cfg(feature = "backend-file")]
             SeaProducerBackend::File(i) => i.anchor(stream).map_err(map_err),
+            #[cfg(feature = "backend-iggy")]
+            SeaProducerBackend::Iggy(i) => i.anchor(stream).map_err(map_err),
         }
     }
 
@@ -239,6 +334,8 @@ impl Producer for SeaProducer {
             SeaProducerBackend::Stdio(i) => i.anchored().map_err(map_err),
             #[cfg(feature = "backend-file")]
             SeaProducerBackend::File(i) => i.anchored().map_err(map_err),
+            #[cfg(feature = "backend-iggy")]
+            SeaProducerBackend::Iggy(i) => i.anchored().map_err(map_err),
         }
     }
 }
@@ -268,6 +365,11 @@ impl Future for SendFuture {
             },
             #[cfg(feature = "backend-file")]
             Self::File(fut) => match Pin::new(fut).poll_unpin(cx) {
+                Poll::Ready(res) => Poll::Ready(res.map_err(map_err)),
+                Poll::Pending => Poll::Pending,
+            },
+            #[cfg(feature = "backend-iggy")]
+            Self::Iggy(fut) => match Pin::new(fut).poll_unpin(cx) {
                 Poll::Ready(res) => Poll::Ready(res.map_err(map_err)),
                 Poll::Pending => Poll::Pending,
             },

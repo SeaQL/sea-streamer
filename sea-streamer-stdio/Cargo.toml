@@ -33,6 +33,7 @@ tokio = { version = "1.10.0", optional = true }
 
 [features]
 default = []
+backend-iggy = ["sea-streamer-types/iggy"]
 test = ["anyhow", "tokio/full", "env_logger", "sea-streamer-runtime/runtime-tokio"]
 executables = ["anyhow", "tokio/full", "env_logger", "clap", "serde_json", "sea-streamer-types/json", "sea-streamer-runtime/runtime-tokio"]
 runtime-smol = ["sea-streamer-runtime/runtime-smol"]

@@ -32,7 +32,7 @@ pub trait ConsumerOptions: Default + Clone + Send {
 
     fn new(mode: ConsumerMode) -> Self;
 
-    /// Get currently set ConsumerMode
+    /// Get currently set `ConsumerMode`
     fn mode(&self) -> StreamResult<&ConsumerMode, Self::Error>;
 
     /// Get currently set consumer group; may return `StreamErr::ConsumerGroupNotSet`.

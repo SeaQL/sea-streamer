@@ -1,6 +1,8 @@
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 /// `sea-streamer-socket` Enum for identifying the underlying backend.
 pub enum Backend {
+    #[cfg(feature = "backend-iggy")]
+    Iggy,
     #[cfg(feature = "backend-kafka")]
     Kafka,
     #[cfg(feature = "backend-redis")]
@@ -13,6 +15,8 @@ pub enum Backend {
 
 /// `sea-streamer-socket` methods shared by `Sea*` types.
 pub trait SeaStreamerBackend {
+    #[cfg(feature = "backend-iggy")]
+    type Iggy;
     #[cfg(feature = "backend-kafka")]
     type Kafka;
     #[cfg(feature = "backend-redis")]
@@ -24,6 +28,10 @@ pub trait SeaStreamerBackend {
 
     /// Identifies the underlying backend
     fn backend(&self) -> Backend;
+
+    #[cfg(feature = "backend-iggy")]
+    /// Get the concrete type for the Iggy backend. None if it's another Backend
+    fn get_iggy(&mut self) -> Option<&mut Self::Iggy>;
 
     #[cfg(feature = "backend-kafka")]
     /// Get the concrete type for the Kafka backend. None if it's another Backend

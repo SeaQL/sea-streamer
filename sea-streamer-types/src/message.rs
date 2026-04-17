@@ -91,11 +91,11 @@ pub trait Message: Send {
 }
 
 impl OwnedMessage {
-    pub fn new(header: MessageHeader, payload: Vec<u8>) -> Self {
+    pub const fn new(header: MessageHeader, payload: Vec<u8>) -> Self {
         Self { header, payload }
     }
 
-    pub fn header(&self) -> &MessageHeader {
+    pub const fn header(&self) -> &MessageHeader {
         &self.header
     }
 

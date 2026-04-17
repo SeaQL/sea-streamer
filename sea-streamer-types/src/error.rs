@@ -68,7 +68,7 @@ pub enum StreamUrlErr {
 }
 
 #[derive(Error, Debug, Clone, Copy)]
-/// Errors that may happen when handling StreamKey
+/// Errors that may happen when handling `StreamKey`
 pub enum StreamKeyErr {
     #[error("Invalid stream key: valid pattern is [a-zA-Z0-9._-]{{1, 249}}")]
     InvalidStreamKey,

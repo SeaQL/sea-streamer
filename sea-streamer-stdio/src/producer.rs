@@ -177,6 +177,7 @@ impl ProducerTrait for StdioProducer {
     type Error = StdioErr;
     type SendFuture = SendFuture;
 
+    #[cfg(not(feature = "backend-iggy"))]
     fn send_to<S: Buffer>(&self, stream: &StreamKey, payload: S) -> StdioResult<Self::SendFuture> {
         let payload = payload.as_str().map_err(StreamErr::Utf8Error)?.to_owned();
         // basically using this as oneshot
@@ -204,17 +205,61 @@ impl ProducerTrait for StdioProducer {
         })
     }
 
+    #[cfg(feature = "backend-iggy")]
+    fn send_to<S: Buffer>(
+        &self,
+        _stream: Option<&StreamKey>,
+        topic: &StreamKey,
+        payload: S,
+    ) -> StdioResult<Self::SendFuture> {
+        let payload = payload.as_str().map_err(StreamErr::Utf8Error)?.to_owned();
+        // basically using this as oneshot
+        let (sender, receiver) = bounded(1);
+        let size = payload.len();
+        self.request
+            .send(Signal::SendRequest {
+                message: SharedMessage::new(
+                    MessageHeader::new(
+                        topic.to_owned(),
+                        ShardId::new(ZERO),
+                        ZERO as SeqNo,
+                        Timestamp::now_utc(),
+                    ),
+                    payload.into_bytes(),
+                    0,
+                    size,
+                ),
+                receipt: sender,
+                loopback: self.loopback,
+            })
+            .map_err(|_| StreamErr::Backend(StdioErr::Disconnected))?;
+        Ok(SendFuture {
+            fut: receiver.into_recv_async(),
+        })
+    }
+
     #[inline]
     async fn end(mut self) -> StdioResult<()> {
         self.flush().await
     }
 
+    #[cfg(not(feature = "backend-iggy"))]
     #[inline]
     async fn flush(&mut self) -> StdioResult<()> {
         // the trick here is to send an empty message (that will be dropped) to the stdout thread
         // and wait for the receipt. By the time it returns a receipt, everything before should
         // have already been sent
         self.send_to(&StreamKey::new(BROADCAST)?, "")?.await?;
+        Ok(())
+    }
+
+    #[cfg(feature = "backend-iggy")]
+    #[inline]
+    async fn flush(&mut self) -> StdioResult<()> {
+        // the trick here is to send an empty message (that will be dropped) to the stdout thread
+        // and wait for the receipt. By the time it returns a receipt, everything before should
+        // have already been sent
+        self.send_to(None, &StreamKey::new(BROADCAST)?, "")?.await?;
         Ok(())
     }
 
