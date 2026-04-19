@@ -509,7 +509,7 @@ pub(crate) async fn create_producer(
 
                 remaining -= results.len();
                 assert_eq!(batch.0.len(), results.len());
-                for ((_, _, _, receipt), result) in batch.0.into_iter().zip(results.into_iter()) {
+                for ((_, _, _, receipt), result) in batch.0.into_iter().zip(results) {
                     receipt.send_async(result).await.ok();
                 }
 
