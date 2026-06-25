@@ -8,8 +8,9 @@ use sea_streamer_runtime::spawn_blocking;
 use std::{collections::HashSet, fmt::Debug, time::Duration};
 
 use sea_streamer_types::{
-    Consumer as ConsumerTrait, ConsumerGroup, ConsumerMode, ConsumerOptions, Message, Payload,
-    SeqNo, SeqPos, ShardId, StreamErr, StreamKey, StreamerUri, Timestamp,
+    Consumer as ConsumerTrait, ConsumerGroup, ConsumerMode, ConsumerOptions, Message,
+    MessageIdentifier, Payload, SeqNo, SeqPos, ShardId, StreamErr, StreamKey, StreamerUri,
+    Timestamp,
     export::futures::{
         FutureExt, StreamExt,
         future::Map,
@@ -511,7 +512,7 @@ impl KafkaConsumer {
     /// and this Consumer will be unusable for any operations until it finishes.
     pub async fn commit_with(
         &mut self,
-        (stream_key, shard_id, sequence): &(StreamKey, ShardId, SeqNo),
+        (stream_key, shard_id, sequence): &MessageIdentifier,
     ) -> KafkaResult<()> {
         self.commit(stream_key, shard_id, sequence).await
     }
@@ -570,7 +571,7 @@ impl KafkaConsumer {
     /// You must have `set_enable_auto_offset_store` to false.
     pub fn store_offset_with(
         &mut self,
-        (stream_key, shard_id, sequence): &(StreamKey, ShardId, SeqNo),
+        (stream_key, shard_id, sequence): &MessageIdentifier,
     ) -> KafkaResult<()> {
         self.store_offset(stream_key, shard_id, sequence)
     }
