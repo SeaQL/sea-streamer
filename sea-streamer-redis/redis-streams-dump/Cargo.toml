@@ -18,9 +18,9 @@ log = { version = "0.4", default-features = false }
 sea-streamer-file = { version = "1.0.0-rc", path = "../../sea-streamer-file", features = ["runtime-tokio"] }
 sea-streamer-redis = { version = "1.0.0-rc", path = "../../sea-streamer-redis", features = ["runtime-tokio"] }
 sea-streamer-types = { version = "1.0.0-rc", path = "../../sea-streamer-types" }
-clap = { version = "4.5", features = ["derive"] }
+clap = { version = "4.6", features = ["derive"] }
 time = { version = "0.3", default-features = false, features = ["std", "parsing"] }
-tokio = { version = "1.10.0", features = ["full"]}
+tokio = { version = "1.52", features = ["full"]}
 
 [dev-dependencies]
 

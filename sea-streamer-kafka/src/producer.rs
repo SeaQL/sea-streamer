@@ -387,10 +387,10 @@ impl Future for SendFuture {
         match self.fut.poll_unpin(cx) {
             std::task::Poll::Ready(res) => std::task::Poll::Ready(match res {
                 Ok(res) => match res {
-                    Ok((part, offset)) => Ok(MessageHeader::new(
+                    Ok(delivery) => Ok(MessageHeader::new(
                         self.stream_key.take().expect("Must have stream_key"),
-                        ShardId::new(part as u64),
-                        offset as SeqNo,
+                        ShardId::new(delivery.partition as u64),
+                        delivery.offset as SeqNo,
                         Timestamp::now_utc(),
                     )),
                     Err((err, _)) => Err(stream_err(err)),
