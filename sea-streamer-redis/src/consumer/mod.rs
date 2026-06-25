@@ -21,8 +21,8 @@ use crate::{
 use sea_streamer_runtime::{spawn_task, timeout};
 use sea_streamer_types::{
     Buffer, ConnectOptions, Consumer, ConsumerGroup, ConsumerId, ConsumerMode, ConsumerOptions,
-    Message, MessageHeader, MessageIdentifier, SEA_STREAMER_INTERNAL, SeqNo, SeqPos, ShardId,
-    SharedMessage, StreamErr, StreamKey, Timestamp, export::futures::FutureExt,
+    Message, MessageHeader, MessageIdentifier, SEA_STREAMER_INTERNAL, SeqPos, SharedMessage,
+    StreamErr, StreamKey, Timestamp, export::futures::FutureExt,
 };
 
 #[derive(Debug)]
