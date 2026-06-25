@@ -1,6 +1,6 @@
 use crate::{TIMESTAMP_FORMAT, TIMESTAMP_FORMAT_SUBSEC};
 use nom::{
-    IResult,
+    IResult, Parser,
     bytes::complete::{is_not, take_while_m_n},
     character::complete::char,
     sequence::delimited,
@@ -106,7 +106,7 @@ fn parse_stream_key(input: &str) -> IResult<&str, &str> {
 }
 
 fn parens(input: &str) -> IResult<&str, &str> {
-    delimited(char('['), is_not("]"), char(']'))(input)
+    delimited(char('['), is_not("]"), char(']')).parse_complete(input)
 }
 
 #[cfg(test)]
