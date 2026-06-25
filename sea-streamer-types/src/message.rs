@@ -1,6 +1,6 @@
 use std::{str::Utf8Error, sync::Arc};
 
-use crate::{SeqNo, ShardId, StreamKey, Timestamp};
+use crate::{MessageIdentifier, SeqNo, ShardId, StreamKey, Timestamp};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct OwnedMessage {
@@ -85,7 +85,7 @@ pub trait Message: Send {
     }
 
     /// tuple to uniquely identify a message
-    fn identifier(&self) -> (StreamKey, ShardId, SeqNo) {
+    fn identifier(&self) -> MessageIdentifier {
         (self.stream_key(), self.shard_id(), self.sequence())
     }
 }
