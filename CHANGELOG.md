@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 1.0.0-rc.4 - 2026-08-07
+
+### `sea-streamer-redis` (1.0.0-rc.4 - 2026-08-07)
+
+* Disable redis-rs's default 500ms per-command response timeout, which aborted blocking `XREAD` reads and other slow commands
+
 ## 1.0.0-rc.3 - 2026-08-07
 
 ### `sea-streamer-redis` (1.0.0-rc.3 - 2026-08-07)

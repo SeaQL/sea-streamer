@@ -3,7 +3,7 @@ use std::{fmt::Debug, sync::Arc, time::Duration};
 use crate::{
     DEFAULT_TIMEOUT, NodeId, REDIS_PORT, RedisConnectOptions, RedisErr, RedisResult, map_err,
 };
-use redis::{ConnectionAddr, IntoConnectionInfo, RedisConnectionInfo};
+use redis::{AsyncConnectionConfig, ConnectionAddr, IntoConnectionInfo, RedisConnectionInfo};
 use sea_streamer_runtime::{sleep, timeout};
 use sea_streamer_types::{ConnectOptions, StreamErr};
 
@@ -149,10 +149,15 @@ async fn create_connection(
         .map_err(map_err)?
         .set_redis_settings(redis_info);
     let client = redis::Client::open(conn).map_err(map_err)?;
+    // redis-rs defaults the multiplexed connection's per-command `response_timeout`
+    // to 500ms, which aborts any command that takes longer -- including the
+    // blocking `XREAD ... BLOCK <HEARTBEAT>` the consumer relies on. Disable it;
+    // the outer `timeout` below still bounds connection establishment.
+    let config = AsyncConnectionConfig::new().set_response_timeout(None);
     // I wish we could do `.await_timeout(d)` some day
     match timeout(
         options.timeout().unwrap_or(DEFAULT_TIMEOUT),
-        client.get_multiplexed_async_connection(),
+        client.get_multiplexed_async_connection_with_config(&config),
     )
     .await
     {
