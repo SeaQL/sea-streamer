@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use super::PendingAck;
 use crate::{MessageId, RedisCluster, RedisResult, ZERO, get_message_id, map_err};
-use redis::AsyncCommands;
+use redis::{AsyncCommands, ScanOptions};
 use sea_streamer_types::{
     MessageHeader, ShardId, StreamKey, Timestamp, export::futures::TryStreamExt,
 };
@@ -40,8 +40,17 @@ pub async fn discover_shards(
     stream: StreamKey,
 ) -> RedisResult<Vec<ShardState>> {
     let (_node, conn) = cluster.get_any()?;
+    // Use `SCAN` (non-blocking) rather than `KEYS` (blocks the whole server).
+    // But `MATCH` filters *after* keys are read from the keyspace, so with the
+    // default `COUNT` of 10 a sparse match over a large keyspace takes ~N/10
+    // sequential round trips. Bump `COUNT` to cover the keyspace in far fewer
+    // round trips while still yielding between calls.
     let mut keys_stream = conn
-        .scan_match(format!("{}:*", stream.name()))
+        .scan_options::<String>(
+            ScanOptions::default()
+                .with_pattern(format!("{}:*", stream.name()))
+                .with_count(1000),
+        )
         .await
         .map_err(map_err)?;
     let mut shard_keys: HashSet<String> = HashSet::new();
