@@ -172,7 +172,7 @@ impl Streamers {
     }
 
     fn remove_subscriber(&mut self, sid: Sid) {
-        for (_, handles) in self.streamers.iter_mut() {
+        for handles in self.streamers.values_mut() {
             for (_, handle) in handles.iter_mut() {
                 handle.subscribers.remove(sid);
             }

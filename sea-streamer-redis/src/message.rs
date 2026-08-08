@@ -63,6 +63,19 @@ pub fn parse_message_id(ts_fmt: TsFmt, id: &str) -> RedisResult<(Timestamp, SeqN
     Err(StreamErr::Backend(RedisErr::MessageId(id.to_owned())))
 }
 
+/// Parse a raw Redis stream id `"<ts>-<seq>"` into a [`MessageId`] `(ts, seq)`.
+///
+/// The raw counterpart to [`parse_message_id`], which additionally converts into
+/// SeaStreamer's timestamp/sequence representation.
+pub(crate) fn parse_stream_id(id: &str) -> RedisResult<MessageId> {
+    let err = || StreamErr::Backend(RedisErr::MessageId(id.to_owned()));
+    let (ts, seq) = id.split_once('-').ok_or_else(err)?;
+    Ok((
+        ts.parse().map_err(|_| err())?,
+        seq.parse().map_err(|_| err())?,
+    ))
+}
+
 #[inline]
 pub(crate) fn get_message_id(header: &MessageHeader) -> MessageId {
     from_seq_no(*header.sequence())

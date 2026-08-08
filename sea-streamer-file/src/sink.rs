@@ -96,7 +96,7 @@ impl FileSink {
                         send_error(&notify, err).await;
                         break 'outer;
                     }
-                    buffer.truncate(0);
+                    buffer.clear();
                 }
 
                 if let Err(Ok(())) = request {
