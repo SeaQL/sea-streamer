@@ -3,7 +3,7 @@ use redis::{
     AsyncCommands, ErrorKind, RedisWrite, ServerErrorKind, ToRedisArgs, Value,
     aio::ConnectionLike,
     cmd as command,
-    streams::{StreamInfoConsumersReply, StreamReadOptions},
+    streams::{StreamInfoConsumersReply, StreamRangeReply, StreamReadOptions},
 };
 use std::{fmt::Display, sync::Arc, time::Duration};
 
@@ -13,7 +13,7 @@ use super::{
 };
 use crate::{
     AutoClaimReply, MAX_MSG_ID, MessageId, NodeId, RedisCluster, RedisConsumerOptions, RedisErr,
-    RedisResult, StreamReadReply, ZERO, map_err,
+    RedisResult, StreamReadReply, ZERO, map_err, parse_stream_id,
 };
 use sea_streamer_runtime::sleep;
 use sea_streamer_types::{
@@ -221,7 +221,7 @@ impl Node {
                     CtrlMsg::Rewind(shards, pos) => {
                         self.rewind_stream(shards, pos);
                         read = 0;
-                        self.buffer.truncate(0);
+                        self.buffer.clear();
                         if self
                             .messages
                             .send_async(Ok(SharedMessage::new(
@@ -382,7 +382,7 @@ impl Node {
                         match conn.xack(&shard.key, &self.group.group_id, to_ack).await {
                             Ok(()) => {
                                 // success! so we clear our list
-                                shard.pending_ack.truncate(0);
+                                shard.pending_ack.clear();
                                 self.group.last_commit = Timestamp::now_utc();
                             }
                             Err(err) => {
@@ -477,6 +477,33 @@ impl Node {
                         } else {
                             return self.send_error(map_err(err)).await;
                         }
+                    }
+                }
+            }
+        }
+
+        if mode == ConsumerMode::RealTime && self.group.first_read {
+            self.group.first_read = false;
+            // Pin each shard's tail to a concrete id ONCE. Otherwise a shard that
+            // has never delivered keeps `id == None` and re-sends `$` on every
+            // `XREAD`, re-anchoring to the current tail. When a busy sibling stream
+            // keeps the blocking read returning, a quiet stream's messages then fall
+            // into the gap between calls and are silently lost. `Earliest` reads from
+            // `0-0` and never skips, so it needs no anchoring.
+            if matches!(self.options.auto_stream_reset(), AutoStreamReset::Latest) {
+                for shard in self.shards.iter_mut() {
+                    if shard.id.is_none() {
+                        // `XREVRANGE key + - COUNT 1` yields the current last id, or an
+                        // empty reply (not an error) for an absent/empty stream -- in
+                        // which case we anchor at `0-0`, i.e. everything from now on.
+                        let reply: StreamRangeReply = conn
+                            .xrevrange_count(&shard.key, "+", "-", 1)
+                            .await
+                            .map_err(map_err)?;
+                        shard.id = Some(match reply.ids.first() {
+                            Some(entry) => parse_stream_id(&entry.id)?,
+                            None => (0, 0),
+                        });
                     }
                 }
             }
