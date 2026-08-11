@@ -68,6 +68,12 @@ async fn main() -> anyhow::Result<()> {
         options
     };
 
+    let earliest = || {
+        let mut options = RedisConsumerOptions::new(ConsumerMode::RealTime);
+        options.set_auto_stream_reset(AutoStreamReset::Earliest);
+        options
+    };
+
     // A busy stream keeps the shared XREAD returning; a quiet stream that has
     // never delivered must still be caught.
     async fn fast_starves_slow(
@@ -185,12 +191,194 @@ async fn main() -> anyhow::Result<()> {
         Ok(())
     }
 
+    // The combination of the two cases above: a quiet stream with pre-existing
+    // history must anchor at its *own* tail -- neither replaying history
+    // (anchored too early) nor losing the message that lands in the starvation
+    // window (anchored too late / re-anchored).
+    async fn quiet_history_not_starved_nor_replayed(
+        streamer: &RedisStreamer,
+        options: RedisConsumerOptions,
+    ) -> anyhow::Result<()> {
+        let fast = stream_key("fast")?;
+        let quiet = stream_key("quiet-hist")?;
+        let producer = streamer.create_generic_producer(Default::default()).await?;
+
+        // history that a Latest consumer must never see
+        for i in 0..3 {
+            producer.send_to(&quiet, format!("q-old-{i}"))?.await?;
+        }
+
+        let mut consumer = streamer
+            .create_consumer(&[fast.clone(), quiet.clone()], options)
+            .await?;
+        sleep(Duration::from_millis(100)).await;
+
+        producer.send_to(&fast, "f0".to_owned())?.await?;
+        sleep(Duration::from_millis(100)).await;
+        // lands in the starvation window
+        producer.send_to(&quiet, "q-new".to_owned())?.await?;
+
+        assert_eq!(recv(&mut consumer).await?, "f0");
+        producer.send_to(&fast, "f1".to_owned())?.await?;
+        let got = recv_set(&mut consumer, 2).await?;
+        assert_eq!(
+            got,
+            HashSet::from(["q-new".to_owned(), "f1".to_owned()]),
+            "expected exactly the new messages, no replay, no loss"
+        );
+
+        consumer.end().await?;
+        println!("quiet_history_not_starved_nor_replayed ... ok");
+        Ok(())
+    }
+
+    // Streams that don't exist yet anchor at `0-0`: everything produced after
+    // subscription must be delivered, in particular the very first entry of
+    // each stream.
+    async fn absent_streams_all_delivered(
+        streamer: &RedisStreamer,
+        options: RedisConsumerOptions,
+    ) -> anyhow::Result<()> {
+        let a = stream_key("absent-a")?;
+        let b = stream_key("absent-b")?;
+        let producer = streamer.create_generic_producer(Default::default()).await?;
+        let mut consumer = streamer
+            .create_consumer(&[a.clone(), b.clone()], options)
+            .await?;
+        sleep(Duration::from_millis(100)).await;
+
+        let mut expected = HashSet::new();
+        for i in 0..2 {
+            for (key, name) in [(&a, "a"), (&b, "b")] {
+                let payload = format!("{name}{i}");
+                producer.send_to(key, payload.clone())?.await?;
+                expected.insert(payload);
+            }
+        }
+
+        let got = recv_set(&mut consumer, expected.len()).await?;
+        assert_eq!(got, expected, "lost messages on a freshly created stream");
+
+        consumer.end().await?;
+        println!("absent_streams_all_delivered ... ok");
+        Ok(())
+    }
+
+    // The anchor must keep advancing after the first delivery: repeat the
+    // starvation pattern over several rounds.
+    async fn multiple_rounds(
+        streamer: &RedisStreamer,
+        options: RedisConsumerOptions,
+    ) -> anyhow::Result<()> {
+        let fast = stream_key("fast")?;
+        let slow = stream_key("slow")?;
+        let producer = streamer.create_generic_producer(Default::default()).await?;
+        let mut consumer = streamer
+            .create_consumer(&[fast.clone(), slow.clone()], options)
+            .await?;
+        sleep(Duration::from_millis(100)).await;
+
+        for round in 0..5 {
+            producer.send_to(&fast, format!("f{round}"))?.await?;
+            sleep(Duration::from_millis(100)).await;
+            // lands in the gap between reads
+            producer.send_to(&slow, format!("s{round}"))?.await?;
+            let got = recv_set(&mut consumer, 2).await?;
+            assert_eq!(
+                got,
+                HashSet::from([format!("f{round}"), format!("s{round}")]),
+                "lost a message in round {round}"
+            );
+        }
+
+        consumer.end().await?;
+        println!("multiple_rounds ... ok");
+        Ok(())
+    }
+
+    // `Earliest` needs no anchoring and must not be affected by it: quiet
+    // streams deliver their full history AND messages produced in the
+    // starvation window.
+    async fn earliest_gets_everything(
+        streamer: &RedisStreamer,
+        options: RedisConsumerOptions,
+    ) -> anyhow::Result<()> {
+        let fast = stream_key("fast")?;
+        let quiet = stream_key("quiet")?;
+        let producer = streamer.create_generic_producer(Default::default()).await?;
+
+        producer.send_to(&quiet, "q-old".to_owned())?.await?;
+
+        let mut consumer = streamer
+            .create_consumer(&[fast.clone(), quiet.clone()], options)
+            .await?;
+        sleep(Duration::from_millis(100)).await;
+
+        producer.send_to(&fast, "f0".to_owned())?.await?;
+        sleep(Duration::from_millis(100)).await;
+        producer.send_to(&quiet, "q-new".to_owned())?.await?;
+
+        let got = recv_set(&mut consumer, 3).await?;
+        assert_eq!(
+            got,
+            HashSet::from(["q-old".to_owned(), "f0".to_owned(), "q-new".to_owned()]),
+            "Earliest must deliver history and new messages alike"
+        );
+
+        consumer.end().await?;
+        println!("earliest_gets_everything ... ok");
+        Ok(())
+    }
+
+    // A fatal error while anchoring (here: the stream key holds a plain string,
+    // so `XREVRANGE` replies WRONGTYPE) must surface the actual backend error
+    // to the consumer -- not hang, and not collapse into a generic ConsumerDied.
+    async fn wrong_type_key_errors(
+        streamer: &RedisStreamer,
+        options: RedisConsumerOptions,
+    ) -> anyhow::Result<()> {
+        let good = stream_key("good")?;
+        let bad = stream_key("bad")?;
+
+        // occupy the quiet stream's key with a non-stream value
+        let url =
+            std::env::var("BROKERS_URL").unwrap_or_else(|_| "redis://localhost".to_owned());
+        let client = redis::Client::open(url.as_str())?;
+        let mut conn = client.get_connection()?;
+        redis::cmd("SET")
+            .arg(bad.name())
+            .arg("not-a-stream")
+            .exec(&mut conn)?;
+
+        let consumer = streamer
+            .create_consumer(&[good.clone(), bad.clone()], options)
+            .await?;
+
+        let err = match timeout(Duration::from_secs(5), consumer.next()).await {
+            Ok(Ok(mess)) => anyhow::bail!(
+                "expected an error, got message {:?}",
+                mess.message().as_str()
+            ),
+            Ok(Err(err)) => err.to_string(),
+            Err(_) => anyhow::bail!("timed out; the anchoring error was swallowed"),
+        };
+        assert!(err.contains("WRONGTYPE"), "unexpected error: {err}");
+
+        println!("wrong_type_key_errors ... ok");
+        Ok(())
+    }
+
     let streamer = connect().await?;
     println!("Connect Streamer ... ok");
 
     fast_starves_slow(&streamer, latest()).await?;
     many_quiet_streams(&streamer, latest()).await?;
     latest_skips_history(&streamer, latest()).await?;
+    quiet_history_not_starved_nor_replayed(&streamer, latest()).await?;
+    absent_streams_all_delivered(&streamer, latest()).await?;
+    multiple_rounds(&streamer, latest()).await?;
+    earliest_gets_everything(&streamer, earliest()).await?;
+    wrong_type_key_errors(&streamer, latest()).await?;
 
     println!("End test case.");
     Ok(())

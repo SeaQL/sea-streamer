@@ -252,3 +252,40 @@ pub(crate) fn bytes_from_redis_value(v: Value) -> RedisResult<Vec<u8>> {
         ))),
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_parse_stream_id() {
+        assert_eq!(parse_stream_id("0-0").unwrap(), (0, 0));
+        assert_eq!(parse_stream_id("1-1").unwrap(), (1, 1));
+        assert_eq!(
+            parse_stream_id("1678280595282-7").unwrap(),
+            (1678280595282, 7)
+        );
+        // extremes of both components
+        assert_eq!(
+            parse_stream_id("18446744073709551615-65535").unwrap(),
+            (u64::MAX, u16::MAX)
+        );
+    }
+
+    #[test]
+    fn test_parse_stream_id_err() {
+        assert!(parse_stream_id("").is_err());
+        assert!(parse_stream_id("123").is_err()); // no separator
+        assert!(parse_stream_id("-").is_err());
+        assert!(parse_stream_id("1-").is_err());
+        assert!(parse_stream_id("-1").is_err());
+        assert!(parse_stream_id("a-1").is_err());
+        assert!(parse_stream_id("1-b").is_err());
+        assert!(parse_stream_id("1-2-3").is_err());
+        assert!(parse_stream_id("1.5-0").is_err());
+        assert!(parse_stream_id(" 1-0").is_err());
+        assert!(parse_stream_id("-1-0").is_err()); // negative timestamp
+        assert!(parse_stream_id("1-65536").is_err()); // seq exceeds u16
+        assert!(parse_stream_id("18446744073709551616-0").is_err()); // ts exceeds u64
+    }
+}
