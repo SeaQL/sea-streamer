@@ -15,39 +15,35 @@ pub trait Producer: Clone + Send + Sync {
 
     /// Send a message to a particular stream. This function is non-blocking.
     /// You don't have to await the future if you are not interested in the Receipt.
-    #[cfg(not(feature = "iggy"))]
     fn send_to<S: Buffer>(
         &self,
         stream: &StreamKey,
         payload: S,
     ) -> StreamResult<Self::SendFuture, Self::Error>;
 
-    /// Send a message to a particular stream. This function is non-blocking.
-    /// You don't have to await the future if you are not interested in the Receipt.
-    #[cfg(feature = "iggy")]
-    fn send_to<S: Buffer>(
+    /// Send a message to a particular topic, nested under an (optional) parent stream.
+    ///
+    /// This exists for backends with a two-level namespace, e.g. Iggy, whose
+    /// addressing is `stream -> topic`. Single-level backends (Kafka, Redis, File,
+    /// Stdio) have no parent stream: the default impl **silently ignores** `stream`
+    /// and forwards `topic` to [`send_to`](Self::send_to). Only backends that
+    /// actually have a parent namespace should override this.
+    fn send_to_topic<S: Buffer>(
         &self,
         stream: Option<&StreamKey>,
         topic: &StreamKey,
         payload: S,
-    ) -> StreamResult<Self::SendFuture, Self::Error>;
-
-    /// Send a message to the already anchored stream. This function is non-blocking.
-    /// You don't have to await the future if you are not interested in the Receipt.
-    ///
-    /// If the producer is not anchored, this will return `StreamErr::NotAnchored` error.
-    #[cfg(not(feature = "iggy"))]
-    fn send<S: Buffer>(&self, payload: S) -> StreamResult<Self::SendFuture, Self::Error> {
-        self.send_to(self.anchored()?, payload)
+    ) -> StreamResult<Self::SendFuture, Self::Error> {
+        let _ = stream;
+        self.send_to(topic, payload)
     }
 
     /// Send a message to the already anchored stream. This function is non-blocking.
     /// You don't have to await the future if you are not interested in the Receipt.
     ///
     /// If the producer is not anchored, this will return `StreamErr::NotAnchored` error.
-    #[cfg(feature = "iggy")]
     fn send<S: Buffer>(&self, payload: S) -> StreamResult<Self::SendFuture, Self::Error> {
-        self.send_to(None, self.anchored()?, payload)
+        self.send_to(self.anchored()?, payload)
     }
 
     /// End this producer, only after flushing all it's pending messages.

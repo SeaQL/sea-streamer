@@ -33,7 +33,9 @@ async fn main() -> anyhow::Result<()> {
 
     for i in 0..5 {
         let message = format!("message-{i}");
-        producer.send_to(Some(&stream), &topic, message)?.await?;
+        producer
+            .send_to_topic(Some(&stream), &topic, message)?
+            .await?;
     }
     producer.flush().await?;
 

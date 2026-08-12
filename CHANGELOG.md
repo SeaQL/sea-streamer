@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## Unreleased
+
+### Enhancements
+
+* `Producer`: unify the producer trait so multi-level backends (Iggy) can coexist with single-level backends (Kafka, Redis, File, Stdio) in one binary. The two-level address now lives in a new `send_to_topic(stream: Option<&StreamKey>, topic, payload)` method whose default impl silently ignores `stream` and forwards to `send_to`. This replaces the `#[cfg(feature = "iggy")]` fork that mutated `send_to`'s signature (the `sea-streamer-types/iggy` and `sea-streamer-stdio/backend-iggy` features are removed). Iggy's former 3-arg `send_to` is now `send_to_topic`.
+
+### Upgrades
+
+* Upgrade `rdkafka` to `0.39` (breaking: delivery result is now the `Delivery` struct instead of a `(partition, offset)` tuple)
+* Upgrade `iggy` to `0.10`
+* Upgrade `notify` to `8`
+* Upgrade `nom` to `8` (parsers now use the `Parser` trait / `.parse()`)
+* Upgrade `flume` to `0.12`
+
 ## 1.0.0-rc.4 - 2026-08-07
 
 ### `sea-streamer-redis` (1.0.0-rc.4 - 2026-08-07)

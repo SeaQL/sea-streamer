@@ -1,6 +1,6 @@
 use crate::{TIMESTAMP_FORMAT, TIMESTAMP_FORMAT_SUBSEC};
 use nom::{
-    IResult,
+    IResult, Parser,
     bytes::complete::{is_not, take_while_m_n},
     character::complete::char,
     sequence::delimited,
@@ -102,11 +102,11 @@ fn parse_timestamp(input: &str) -> Result<PrimitiveDateTime, time::error::Parse>
 }
 
 fn parse_stream_key(input: &str) -> IResult<&str, &str> {
-    take_while_m_n(1, MAX_STREAM_KEY_LEN, is_valid_stream_key_char)(input)
+    take_while_m_n(1, MAX_STREAM_KEY_LEN, is_valid_stream_key_char).parse(input)
 }
 
 fn parens(input: &str) -> IResult<&str, &str> {
-    delimited(char('['), is_not("]"), char(']'))(input)
+    delimited(char('['), is_not("]"), char(']')).parse(input)
 }
 
 #[cfg(test)]

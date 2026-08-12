@@ -58,6 +58,14 @@ impl Producer for IggyProducer {
 
     fn send_to<S: Buffer>(
         &self,
+        stream: &StreamKey,
+        payload: S,
+    ) -> StreamResult<Self::SendFuture, IggyErr> {
+        self.send_to_topic(None, stream, payload)
+    }
+
+    fn send_to_topic<S: Buffer>(
+        &self,
         stream: Option<&StreamKey>,
         topic: &StreamKey,
         payload: S,
@@ -112,10 +120,6 @@ impl Producer for IggyProducer {
 
     async fn end(self) -> StreamResult<(), IggyErr> {
         Ok(())
-    }
-
-    fn send<S: Buffer>(&self, payload: S) -> StreamResult<Self::SendFuture, Self::Error> {
-        self.send_to(None, self.anchored()?, payload)
     }
 
     async fn flush(&mut self) -> StreamResult<(), IggyErr> {
