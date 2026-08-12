@@ -15,7 +15,7 @@ anyhow = { version = "1" }
 env_logger = { version = "0.11" }
 smol = { version = "2", optional = true }
 smol-potat = { version = "1", optional = true }
-flume = { version = "0.11", default-features = false, features = ["async"] }
+flume = { version = "0.12", default-features = false, features = ["async"] }
 clap = { version = "4.5", features = ["derive", "env"] }
 tokio = { version = "1.10", features = ["full"], optional = true }
 

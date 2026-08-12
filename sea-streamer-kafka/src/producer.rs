@@ -7,7 +7,10 @@ use crate::{
 pub use rdkafka::{TopicPartitionList, consumer::ConsumerGroupMetadata, producer::FutureRecord};
 use rdkafka::{
     config::ClientConfig,
-    producer::{DeliveryFuture, FutureRecord as RawPayload, Producer as ProducerTrait},
+    producer::{
+        DeliveryFuture, FutureRecord as RawPayload, Producer as ProducerTrait,
+        future_producer::Delivery,
+    },
 };
 use sea_streamer_runtime::spawn_blocking;
 use sea_streamer_types::{
@@ -387,9 +390,11 @@ impl Future for SendFuture {
         match self.fut.poll_unpin(cx) {
             std::task::Poll::Ready(res) => std::task::Poll::Ready(match res {
                 Ok(res) => match res {
-                    Ok((part, offset)) => Ok(MessageHeader::new(
+                    Ok(Delivery {
+                        partition, offset, ..
+                    }) => Ok(MessageHeader::new(
                         self.stream_key.take().expect("Must have stream_key"),
-                        ShardId::new(part as u64),
+                        ShardId::new(partition as u64),
                         offset as SeqNo,
                         Timestamp::now_utc(),
                     )),
