@@ -341,8 +341,7 @@ async fn main() -> anyhow::Result<()> {
         let bad = stream_key("bad")?;
 
         // occupy the quiet stream's key with a non-stream value
-        let url =
-            std::env::var("BROKERS_URL").unwrap_or_else(|_| "redis://localhost".to_owned());
+        let url = std::env::var("BROKERS_URL").unwrap_or_else(|_| "redis://localhost".to_owned());
         let client = redis::Client::open(url.as_str())?;
         let mut conn = client.get_connection()?;
         redis::cmd("SET")
