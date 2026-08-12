@@ -483,7 +483,6 @@ impl Node {
         }
 
         if mode == ConsumerMode::RealTime && self.group.first_read {
-            self.group.first_read = false;
             // Pin each shard's tail to a concrete id ONCE. Otherwise a shard that
             // has never delivered keeps `id == None` and re-sends `$` on every
             // `XREAD`, re-anchoring to the current tail. When a busy sibling stream
@@ -491,22 +490,51 @@ impl Node {
             // into the gap between calls and are silently lost. `Earliest` reads from
             // `0-0` and never skips, so it needs no anchoring.
             if matches!(self.options.auto_stream_reset(), AutoStreamReset::Latest) {
-                for shard in self.shards.iter_mut() {
-                    if shard.id.is_none() {
-                        // `XREVRANGE key + - COUNT 1` yields the current last id, or an
-                        // empty reply (not an error) for an absent/empty stream -- in
-                        // which case we anchor at `0-0`, i.e. everything from now on.
-                        let reply: StreamRangeReply = conn
-                            .xrevrange_count(&shard.key, "+", "-", 1)
-                            .await
-                            .map_err(map_err)?;
-                        shard.id = Some(match reply.ids.first() {
-                            Some(entry) => parse_stream_id(&entry.id)?,
-                            None => (0, 0),
-                        });
+                for i in 0..self.shards.len() {
+                    if self.shards[i].id.is_some() {
+                        continue;
                     }
+                    // `XREVRANGE key + - COUNT 1` yields the current last id, or an
+                    // empty reply (not an error) for an absent/empty stream -- in
+                    // which case we anchor at `0-0`, i.e. everything from now on.
+                    let reply: StreamRangeReply =
+                        match conn.xrevrange_count(&self.shards[i].key, "+", "-", 1).await {
+                            Ok(reply) => reply,
+                            Err(err) => {
+                                // Same error policy as the XREAD below. Retryable
+                                // errors return with `first_read` still true, so the
+                                // next read resumes anchoring; shards already anchored
+                                // are skipped by the `id.is_some()` check above.
+                                let kind = err.kind();
+                                return if kind == ErrorKind::Server(ServerErrorKind::Moved) {
+                                    // this shard belongs to another node; hand the
+                                    // moved shards back to the cluster to reassign.
+                                    // the destination node anchors them itself, as
+                                    // `AddShard` re-arms its `first_read`.
+                                    let events = self.move_shards(conn).await;
+                                    Ok(ReadResult::Events(events))
+                                } else if kind == ErrorKind::Io {
+                                    Err(StreamErr::Backend(RedisErr::IoError(err.to_string())))
+                                } else if is_cluster_error(kind) {
+                                    // cluster is temporarily unavailable
+                                    Err(StreamErr::Backend(RedisErr::TryAgain(err.to_string())))
+                                } else {
+                                    self.send_error(map_err(err)).await
+                                };
+                            }
+                        };
+                    self.shards[i].id = Some(match reply.ids.first() {
+                        Some(entry) => match parse_stream_id(&entry.id) {
+                            Ok(id) => id,
+                            Err(err) => return self.send_error(err).await,
+                        },
+                        None => (0, 0),
+                    });
                 }
             }
+            // only after every shard is anchored; error paths return above with
+            // this still true
+            self.group.first_read = false;
         }
 
         if mode == ConsumerMode::LoadBalanced {
