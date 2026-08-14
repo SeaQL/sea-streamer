@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## 1.0.0-rc.2 - 2026-08-14
 
+Crate versions in this release: `sea-streamer`, `sea-streamer-types`, `sea-streamer-kafka`, `sea-streamer-stdio`, `sea-streamer-file`, `sea-streamer-socket` and `sea-streamer-iggy` at `1.0.0-rc.2`; `sea-streamer-redis` at `1.0.0-rc.5`.
+
 ### Enhancements
 
 * `Producer`: unify the producer trait so multi-level backends (Iggy) can coexist with single-level backends (Kafka, Redis, File, Stdio) in one binary. The two-level address now lives in a new `send_to_topic(stream: Option<&StreamKey>, topic, payload)` method whose default impl silently ignores `stream` and forwards to `send_to`. This replaces the `#[cfg(feature = "iggy")]` fork that mutated `send_to`'s signature (the `sea-streamer-types/iggy` and `sea-streamer-stdio/backend-iggy` features are removed). Iggy's former 3-arg `send_to` is now `send_to_topic`.
