@@ -1,5 +1,3 @@
-mod util;
-
 // cargo test --test manager --features=test,runtime-tokio -- --nocapture
 // cargo test --test manager --features=test,runtime-tokio,nanosecond-timestamp -- --nocapture
 // cargo test --test manager --no-default-features --features=test,runtime-smol -- --nocapture
@@ -52,20 +50,20 @@ async fn main() -> anyhow::Result<()> {
 
     let mut manager = streamer.create_manager().await?;
 
-    assert_eq!(manager.xlen(&missing).await?, 0);
-    assert_eq!(manager.xlen(&stream).await?, 10);
+    assert_eq!(manager.len(&missing).await?, 0);
+    assert_eq!(manager.len(&stream).await?, 10);
     println!("XLEN ... ok");
 
     // Approximate trimming may remove nothing on a tiny stream; it must still succeed.
     manager.trim_max_len(&stream, 8, TrimMode::Approx).await?;
-    assert!(manager.xlen(&stream).await? >= 8);
+    assert!(manager.len(&stream).await? >= 8);
 
-    let before = manager.xlen(&stream).await?;
+    let before = manager.len(&stream).await?;
     assert_eq!(
         manager.trim_max_len(&stream, 8, TrimMode::Exact).await?,
         before - 8
     );
-    assert_eq!(manager.xlen(&stream).await?, 8);
+    assert_eq!(manager.len(&stream).await?, 8);
     let remaining = manager
         .range(stream.clone(), IdRange::Minus, IdRange::Plus, None)
         .await?;
@@ -79,11 +77,11 @@ async fn main() -> anyhow::Result<()> {
     // Everything before message 5 goes: 2, 3, 4.
     assert_eq!(
         manager
-            .trim_min_id(&stream, timestamps[5], TrimMode::Exact)
+            .trim_min_ts(&stream, timestamps[5], TrimMode::Exact)
             .await?,
         3
     );
-    assert_eq!(manager.xlen(&stream).await?, 5);
+    assert_eq!(manager.len(&stream).await?, 5);
     let remaining = manager
         .range(stream.clone(), IdRange::Minus, IdRange::Plus, None)
         .await?;
@@ -97,12 +95,12 @@ async fn main() -> anyhow::Result<()> {
     // A missing key trims nothing and is not an error.
     assert_eq!(manager.trim_max_len(&missing, 1, TrimMode::Exact).await?, 0);
     assert_eq!(
-        manager.trim_min_id(&missing, now, TrimMode::Approx).await?,
+        manager.trim_min_ts(&missing, now, TrimMode::Approx).await?,
         0
     );
 
     manager.trim_max_len(&stream, 0, TrimMode::Exact).await?;
-    assert_eq!(manager.xlen(&stream).await?, 0);
+    assert_eq!(manager.len(&stream).await?, 0);
     println!("Cleanup ... ok");
 
     Ok(())

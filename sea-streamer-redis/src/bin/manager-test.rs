@@ -26,7 +26,7 @@ async fn main() -> Result<()> {
     log::info!("{:#?}", streams);
 
     let key = StreamKey::new(&streams[0])?;
-    log::info!("XLEN {} = {}", key.name(), manager.xlen(&key).await?);
+    log::info!("XLEN {} = {}", key.name(), manager.len(&key).await?);
 
     let messages = manager
         .range(key, IdRange::Minus, IdRange::Plus, Some(1))

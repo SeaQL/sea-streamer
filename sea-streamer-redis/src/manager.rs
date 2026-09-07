@@ -44,12 +44,12 @@ pub enum TrimMode {
     #[default]
     Approx,
     /// `=`: trim exactly to the threshold. Use when the precise result matters,
-    /// e.g. `MAXLEN 1` to empty a stream while keeping its last entry.
+    /// e.g. `MAXLEN 1` to keep only the newest entry.
     Exact,
 }
 
 impl TrimMode {
-    fn arg(&self) -> &'static str {
+    fn arg(self) -> &'static str {
         match self {
             Self::Approx => "~",
             Self::Exact => "=",
@@ -95,10 +95,9 @@ impl RedisManager {
         end: IdRange,
         count: Option<usize>,
     ) -> RedisResult<Vec<RedisMessage>> {
-        let conn = self.cluster.get_connection_for("").await?.1;
-
         let ts_fmt = self.options.timestamp_format;
         let msg = self.options.message_field;
+        let conn = self.cluster.get_connection_for(key.name()).await?.1;
 
         let mut cmd = command("XRANGE");
         cmd.arg(key.name())
@@ -128,7 +127,7 @@ impl RedisManager {
     /// `XLEN`: number of entries in the stream. A missing key counts as 0.
     ///
     /// Ref: https://redis.io/docs/latest/commands/xlen/
-    pub async fn xlen(&mut self, key: &StreamKey) -> RedisResult<u64> {
+    pub async fn len(&mut self, key: &StreamKey) -> RedisResult<u64> {
         let conn = self.cluster.get_connection_for(key.name()).await?.1;
 
         let mut cmd = command("XLEN");
@@ -165,7 +164,7 @@ impl RedisManager {
     /// streamer's [`TimestampFormat`], the same way stream IDs are read back.
     ///
     /// Ref: https://redis.io/docs/latest/commands/xtrim/
-    pub async fn trim_min_id(
+    pub async fn trim_min_ts(
         &mut self,
         key: &StreamKey,
         timestamp: Timestamp,

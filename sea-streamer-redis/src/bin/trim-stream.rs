@@ -16,7 +16,7 @@ struct Args {
         long,
         help = "Trim the stream down to this number of messages (not exact)"
     )]
-    max_len: Option<u32>,
+    max_len: Option<u64>,
     #[clap(
         long,
         help = "Trim all messages with timestamp before this timestamp (not exact)"
