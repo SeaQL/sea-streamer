@@ -1,6 +1,6 @@
 use crate::{
     MessageField, RedisCluster, RedisErr, RedisMessage, RedisResult, StreamRangeReply,
-    TimestampFormat, map_err, string_from_redis_value,
+    TimestampFormat, int_from_redis_value, map_err, string_from_redis_value,
 };
 use redis::{Value, aio::ConnectionLike, cmd as command};
 use sea_streamer_types::{StreamErr, StreamKey, Timestamp};
@@ -34,6 +34,27 @@ pub enum IdRange {
     Minus,
     /// +
     Plus,
+}
+
+/// How `XTRIM` picks the entries to remove.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
+pub enum TrimMode {
+    /// `~`: trim whole radix-tree nodes, may leave a few more entries than asked for.
+    /// Cheap for the server, so the default.
+    #[default]
+    Approx,
+    /// `=`: trim exactly to the threshold. Use when the precise result matters,
+    /// e.g. `MAXLEN 1` to empty a stream while keeping its last entry.
+    Exact,
+}
+
+impl TrimMode {
+    fn arg(&self) -> &'static str {
+        match self {
+            Self::Approx => "~",
+            Self::Exact => "=",
+        }
+    }
 }
 
 pub(crate) async fn create_manager(
@@ -100,6 +121,73 @@ impl RedisManager {
                 log::debug!("Range got {} messages", messages.len());
                 Ok(messages)
             }
+            Err(err) => Err(map_err(err)),
+        }
+    }
+
+    /// `XLEN`: number of entries in the stream. A missing key counts as 0.
+    ///
+    /// Ref: https://redis.io/docs/latest/commands/xlen/
+    pub async fn xlen(&mut self, key: &StreamKey) -> RedisResult<u64> {
+        let conn = self.cluster.get_connection_for(key.name()).await?.1;
+
+        let mut cmd = command("XLEN");
+        cmd.arg(key.name());
+
+        log::debug!("XLEN: {}", key.name());
+        match conn.req_packed_command(&cmd).await {
+            Ok(value) => Ok(int_from_redis_value(value)?.try_into().map_err(err)?),
+            Err(err) => Err(map_err(err)),
+        }
+    }
+
+    /// `XTRIM <key> MAXLEN ~|= <max_len>`, returning the number of entries removed.
+    ///
+    /// Ref: https://redis.io/docs/latest/commands/xtrim/
+    pub async fn trim_max_len(
+        &mut self,
+        key: &StreamKey,
+        max_len: u64,
+        mode: TrimMode,
+    ) -> RedisResult<u64> {
+        let mut cmd = command("XTRIM");
+        cmd.arg(key.name())
+            .arg("MAXLEN")
+            .arg(mode.arg())
+            .arg(max_len);
+
+        log::debug!("XTRIM: {} MAXLEN {} {}", key.name(), mode.arg(), max_len);
+        self.xtrim(key, cmd).await
+    }
+
+    /// `XTRIM <key> MINID ~|= <timestamp>`, returning the number of entries removed.
+    /// Every entry with an ID below `timestamp` goes; the timestamp is rendered in the
+    /// streamer's [`TimestampFormat`], the same way stream IDs are read back.
+    ///
+    /// Ref: https://redis.io/docs/latest/commands/xtrim/
+    pub async fn trim_min_id(
+        &mut self,
+        key: &StreamKey,
+        timestamp: Timestamp,
+        mode: TrimMode,
+    ) -> RedisResult<u64> {
+        let min_id = IdRange::Ts(timestamp).format(self.options.timestamp_format);
+
+        let mut cmd = command("XTRIM");
+        cmd.arg(key.name())
+            .arg("MINID")
+            .arg(mode.arg())
+            .arg(&min_id);
+
+        log::debug!("XTRIM: {} MINID {} {}", key.name(), mode.arg(), min_id);
+        self.xtrim(key, cmd).await
+    }
+
+    async fn xtrim(&mut self, key: &StreamKey, cmd: redis::Cmd) -> RedisResult<u64> {
+        let conn = self.cluster.get_connection_for(key.name()).await?.1;
+
+        match conn.req_packed_command(&cmd).await {
+            Ok(value) => Ok(int_from_redis_value(value)?.try_into().map_err(err)?),
             Err(err) => Err(map_err(err)),
         }
     }

@@ -244,6 +244,15 @@ pub(crate) fn string_from_redis_value(v: Value) -> RedisResult<String> {
     }
 }
 
+pub(crate) fn int_from_redis_value(v: Value) -> RedisResult<i64> {
+    match v {
+        Value::Int(int) => Ok(int),
+        _ => Err(StreamErr::Backend(RedisErr::TypeError(
+            "Expected Integer".to_owned(),
+        ))),
+    }
+}
+
 pub(crate) fn bytes_from_redis_value(v: Value) -> RedisResult<Vec<u8>> {
     match v {
         Value::BulkString(bytes) => Ok(bytes),

@@ -25,13 +25,11 @@ async fn main() -> Result<()> {
     let streams = manager.scan("0").await?.streams;
     log::info!("{:#?}", streams);
 
+    let key = StreamKey::new(&streams[0])?;
+    log::info!("XLEN {} = {}", key.name(), manager.xlen(&key).await?);
+
     let messages = manager
-        .range(
-            StreamKey::new(&streams[0])?,
-            IdRange::Minus,
-            IdRange::Plus,
-            Some(1),
-        )
+        .range(key, IdRange::Minus, IdRange::Plus, Some(1))
         .await?;
 
     if messages.is_empty() {

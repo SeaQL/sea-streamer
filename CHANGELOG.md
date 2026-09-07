@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## Pending
+
+### Enhancements
+
+* `sea-streamer-redis`: `RedisManager` gains `xlen`, `trim_max_len` and `trim_min_id` (with a `TrimMode` for `~` vs `=`), so a manager can inspect and trim streams without opening a producer
+
 ## 1.0.0-rc.2 - 2026-08-14
 
 Crate versions in this release: `sea-streamer`, `sea-streamer-types`, `sea-streamer-kafka`, `sea-streamer-stdio`, `sea-streamer-file`, `sea-streamer-socket` and `sea-streamer-iggy` at `1.0.0-rc.2`; `sea-streamer-redis` at `1.0.0-rc.5`.
