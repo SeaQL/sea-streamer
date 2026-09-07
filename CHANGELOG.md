@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## Pending
+
+### Enhancements
+
+* `sea-streamer-redis`: `RedisManager` gains `len` (`XLEN`), `trim_max_len` and `trim_min_ts` (with a `TrimMode` for `~` vs `=`), so a manager can inspect and trim streams without opening a producer
+
+### Breaking Changes
+
+* `sea-streamer-redis`: `RedisProducer::trim_stream_max_len` now takes `max_len: u64` (was `u32`), matching `RedisManager::trim_max_len`
+
 ## 1.0.0-rc.2 - 2026-08-14
 
 Crate versions in this release: `sea-streamer`, `sea-streamer-types`, `sea-streamer-kafka`, `sea-streamer-stdio`, `sea-streamer-file`, `sea-streamer-socket` and `sea-streamer-iggy` at `1.0.0-rc.2`; `sea-streamer-redis` at `1.0.0-rc.5`.

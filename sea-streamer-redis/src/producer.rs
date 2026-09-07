@@ -169,7 +169,7 @@ impl RedisProducer {
     pub async fn trim_stream_max_len(
         &self,
         stream_key: &StreamKey,
-        max_len: u32,
+        max_len: u64,
     ) -> RedisResult<u64> {
         let (receipt, receiver) = bounded(1);
 
