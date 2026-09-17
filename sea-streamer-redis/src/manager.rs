@@ -1,5 +1,5 @@
 use crate::{
-    MessageField, RedisCluster, RedisErr, RedisMessage, RedisResult, StreamRangeReply,
+    MessageField, MessageId, RedisCluster, RedisErr, RedisMessage, RedisResult, StreamRangeReply,
     TimestampFormat, int_from_redis_value, map_err, string_from_redis_value,
 };
 use redis::{Value, aio::ConnectionLike, cmd as command};
@@ -28,8 +28,15 @@ pub struct ScanResult {
 pub enum IdRange {
     /// Inclusive
     Ts(Timestamp),
-    /// Exclusive
+    /// Exclusive. Note this omits the sequence, and Redis defaults an omitted sequence per
+    /// side: as a start this excludes only `<ts>-0`, as an end only `<ts>-<max seq>`, so
+    /// neither excludes the whole timestamp. Use [`IdRange::IdEx`] for an exact boundary.
     TsEx(Timestamp),
+    /// Exclusive of exactly this entry. A complete id needs no defaulting, so it means the
+    /// same thing on either side: as a start, everything strictly after it; as an end,
+    /// everything strictly before. The id is already in the stream's native form, so it is
+    /// not subject to [`TimestampFormat`] conversion.
+    IdEx(MessageId),
     /// -
     Minus,
     /// +
@@ -236,6 +243,7 @@ impl IdRange {
                 #[cfg(feature = "nanosecond-timestamp")]
                 TimestampFormat::UnixTimestampNanos => format!("({}", ts.unix_timestamp_nanos()),
             },
+            Self::IdEx((ts, seq)) => format!("({ts}-{seq}"),
             Self::Minus => "-".to_string(),
             Self::Plus => "+".to_string(),
         }
