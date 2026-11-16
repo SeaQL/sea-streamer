@@ -5,7 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## Pending
+## 1.0.0-rc.6 - 2026-11-16
+
+Crate versions in this release: `sea-streamer-redis` at `1.0.0-rc.6`; all other crates unchanged.
 
 ### Enhancements
 
