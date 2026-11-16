@@ -10,10 +10,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ### Enhancements
 
 * `sea-streamer-redis`: `RedisManager` gains `len` (`XLEN`), `trim_max_len` and `trim_min_ts` (with a `TrimMode` for `~` vs `=`), so a manager can inspect and trim streams without opening a producer
+* `sea-streamer-redis`: `IdRange::IdEx(MessageId)`, an exclusive bound on an exact stream id. Unlike `IdRange::TsEx`, which omits the sequence and so never excludes a whole timestamp, it excludes exactly that entry on either side, e.g. for paging with `IdEx(last.message_id())`
+
+### Bug Fixes
+
+* `sea-streamer-redis`: `RedisManager::range` now sends `XRANGE` to the node owning the stream key, instead of whichever node the empty key hashes to, so it reads the right shard on Redis Cluster
 
 ### Breaking Changes
 
-* `sea-streamer-redis`: `RedisProducer::trim_stream_max_len` now takes `max_len: u64` (was `u32`), matching `RedisManager::trim_max_len`
+* `sea-streamer-redis`: `RedisProducer::trim_stream_max_len` now takes `max_len: u64` (was `u32`), matching `RedisManager::trim_max_len`. A value above `u32::MAX` is passed through to Redis rather than failing with `ProducerDied`
+* `sea-streamer-redis`: `IdRange` gains the `IdEx` variant and is now `#[non_exhaustive]` (as is the new `TrimMode`), so a `match` on it outside the crate needs a wildcard arm. This makes future variants non-breaking
 
 ## 1.0.0-rc.2 - 2026-08-14
 

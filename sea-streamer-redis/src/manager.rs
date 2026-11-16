@@ -25,6 +25,7 @@ pub struct ScanResult {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum IdRange {
     /// Inclusive
     Ts(Timestamp),
@@ -45,6 +46,7 @@ pub enum IdRange {
 
 /// How `XTRIM` picks the entries to remove.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum TrimMode {
     /// `~`: trim whole radix-tree nodes, may leave a few more entries than asked for.
     /// Cheap for the server, so the default.
