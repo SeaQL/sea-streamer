@@ -5,7 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## Pending
+## 1.0.0-rc.3 - 2026-11-16
+
+Crate versions in this release: `sea-streamer`, `sea-streamer-types`, `sea-streamer-kafka`, `sea-streamer-stdio`, `sea-streamer-file`, `sea-streamer-socket` and `sea-streamer-iggy` at `1.0.0-rc.3`; `sea-streamer-redis` at `1.0.0-rc.6`.
 
 ### Enhancements
 
