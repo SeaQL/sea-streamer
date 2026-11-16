@@ -119,12 +119,15 @@ jobs:
   iggy:
     name: Iggy
     runs-on: ubuntu-latest
+    # A hang (e.g. client/server mismatch) should fail fast, not run for the 6h default
+    timeout-minutes: 15
     env:
       HOST_ID: DUMMY_HOST_ID
     strategy:
       fail-fast: false
       matrix:
-        iggy_version: [latest]
+        # Pinned: `latest` moved to 0.10.0 on 2026-11-07 and the test hangs against it
+        iggy_version: ['0.8.0']
         runtime: [tokio]
     services:
       iggy:
