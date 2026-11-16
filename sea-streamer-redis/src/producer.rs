@@ -278,7 +278,7 @@ struct Xtrim {
 }
 
 enum XtrimParam {
-    MaxLen(u32),
+    MaxLen(u64),
     MinTs(Timestamp),
 }
 
@@ -327,7 +327,7 @@ pub(crate) async fn create_producer(
                                 "XTRIM" => {
                                     if let Ok(key) = StreamKey::new(oper.arg1) {
                                         if oper.arg2 == "MAXLEN" {
-                                            if let Ok(max_len) = oper.arg3.parse::<u32>() {
+                                            if let Ok(max_len) = oper.arg3.parse::<u64>() {
                                                 xtrims.push(Xtrim {
                                                     stream_key: key,
                                                     param: XtrimParam::MaxLen(max_len),

@@ -5,7 +5,9 @@
 #[cfg_attr(feature = "runtime-tokio", tokio::test)]
 #[cfg_attr(feature = "runtime-smol", smol_potat::test)]
 async fn main() -> anyhow::Result<()> {
-    use sea_streamer_redis::{IdRange, RedisConnectOptions, RedisStreamer, TrimMode};
+    use sea_streamer_redis::{
+        IdRange, RedisConnectOptions, RedisMessageId, RedisStreamer, TrimMode,
+    };
     use sea_streamer_types::{Buffer, Message, Producer, StreamKey, Streamer, Timestamp};
 
     const TEST: &str = "manager";
@@ -91,6 +93,76 @@ async fn main() -> anyhow::Result<()> {
         .collect();
     assert_eq!(remaining, (5..10).collect::<Vec<_>>());
     println!("XTRIM MINID ... ok");
+
+    // IdEx excludes exactly the given entry, on either side of the range.
+    let ids: Vec<_> = manager
+        .range(stream.clone(), IdRange::Minus, IdRange::Plus, None)
+        .await?
+        .iter()
+        .map(|m| m.message_id())
+        .collect();
+    assert_eq!(ids.len(), 5); // messages 5..10
+    let payloads = |messages: Vec<sea_streamer_redis::RedisMessage>| -> Vec<usize> {
+        messages
+            .iter()
+            .map(|m| m.message().as_str().unwrap().parse().unwrap())
+            .collect()
+    };
+    assert_eq!(
+        payloads(
+            manager
+                .range(
+                    stream.clone(),
+                    IdRange::IdEx(ids[1]),
+                    IdRange::IdEx(ids[3]),
+                    None
+                )
+                .await?
+        ),
+        vec![7]
+    );
+    assert_eq!(
+        payloads(
+            manager
+                .range(
+                    stream.clone(),
+                    IdRange::IdEx(ids[1]),
+                    IdRange::IdEx(ids[2]),
+                    None
+                )
+                .await?
+        ),
+        Vec::<usize>::new()
+    );
+    assert_eq!(
+        payloads(
+            manager
+                .range(stream.clone(), IdRange::IdEx(ids[3]), IdRange::Plus, None)
+                .await?
+        ),
+        vec![9]
+    );
+    assert_eq!(
+        payloads(
+            manager
+                .range(stream.clone(), IdRange::Minus, IdRange::IdEx(ids[1]), None)
+                .await?
+        ),
+        vec![5]
+    );
+    println!("XRANGE IdEx ... ok");
+
+    // The producer's trim takes a u64 end to end: a max_len beyond u32 is a no-op, not an error.
+    let producer = streamer.create_generic_producer(Default::default()).await?;
+    assert_eq!(
+        producer
+            .trim_stream_max_len(&stream, u32::MAX as u64 + 1)
+            .await?,
+        0
+    );
+    producer.end().await?;
+    assert_eq!(manager.len(&stream).await?, 5);
+    println!("Producer XTRIM MAXLEN > u32 ... ok");
 
     // A missing key trims nothing and is not an error.
     assert_eq!(manager.trim_max_len(&missing, 1, TrimMode::Exact).await?, 0);
