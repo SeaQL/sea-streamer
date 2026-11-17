@@ -39,21 +39,15 @@ Crate versions in this release: `sea-streamer`, `sea-streamer-types`, `sea-strea
 * Upgrade `nom` to `8` (parsers now use the `Parser` trait / `.parse()`)
 * Upgrade `flume` to `0.12`
 
-## 1.0.0-rc.4 - 2026-08-07
-
-### `sea-streamer-redis` (1.0.0-rc.4 - 2026-08-07)
+## `sea-streamer-redis` 1.0.0-rc.4 - 2026-08-07
 
 * Disable redis-rs's default 500ms per-command response timeout, which aborted blocking `XREAD` reads and other slow commands
 
-## 1.0.0-rc.3 - 2026-08-07
-
-### `sea-streamer-redis` (1.0.0-rc.3 - 2026-08-07)
+## `sea-streamer-redis` 1.0.0-rc.3 - 2026-08-07
 
 * Set `SCAN COUNT` for shard discovery; the default `COUNT` of 10 caused excessive round trips when discovering shards over a large keyspace
 
-## 1.0.0-rc.2 - 2026-03-31
-
-### `sea-streamer-redis` (1.0.0-rc.2 - 2026-03-31)
+## `sea-streamer-redis` 1.0.0-rc.2 - 2026-03-31
 
 * Use `SCAN` instead of `KEYS` for shard discovery https://github.com/SeaQL/sea-streamer/pull/41
 
